@@ -1,0 +1,62 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.so.*
+*.dylib
+bin/
+dist/
+
+# Test binary
+*.test
+
+# Frontend dependencies
+node_modules/
+
+# Output of go coverage
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace
+go.work
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.sqlite
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+*.o
+*.a
+server
+
+# Local agent/work artifacts
+.sisyphus/
+
+# OS
+.DS_Store
+Thumbs.db
