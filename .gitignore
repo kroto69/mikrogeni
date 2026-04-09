@@ -13,6 +13,7 @@ dist/
 
 # Frontend dependencies
 node_modules/
+frontend/test-results/
 
 # Output of go coverage
 *.out
