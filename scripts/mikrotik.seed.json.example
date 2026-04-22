@@ -1,0 +1,31 @@
+{
+  "devices": [
+    {
+      "name": "MTK-JKT-01",
+      "host": "192.168.88.1",
+      "port": 8728,
+      "username": "admin",
+      "password": "replace-me",
+      "use_tls": false,
+      "skip_tls_verify": false,
+      "site": "jakarta",
+      "tags": [
+        "core",
+        "pppoe"
+      ]
+    },
+    {
+      "name": "MTK-BDG-01",
+      "host": "192.168.99.1",
+      "port": 8728,
+      "username": "admin",
+      "password": "replace-me",
+      "use_tls": false,
+      "skip_tls_verify": false,
+      "site": "bandung",
+      "tags": [
+        "edge"
+      ]
+    }
+  ]
+}

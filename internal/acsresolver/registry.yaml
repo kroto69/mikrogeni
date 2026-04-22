@@ -1,0 +1,207 @@
+default:
+  key: generic
+  pppoe_username_keys:
+    - pppoeUsername
+    - pppoeUsername2
+    - PPPoEUsername
+  pppoe_password_keys:
+    - pppoePassword
+    - PPPoEPassword
+    - pppPassword
+    - wanPassword
+    - WANPassword
+  web_admin_username_path:
+    - InternetGatewayDevice.X_CU_Function.Web.UserName
+    - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserName
+    - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.UserName
+    - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebUsername
+    - InternetGatewayDevice.User.1.Username
+    - InternetGatewayDevice.User.2.Username
+    - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserName
+  web_admin_password_path:
+    - InternetGatewayDevice.X_CU_Function.Web.AdminPassword
+    - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+    - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.Password
+    - InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password
+    - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebSuperPassword
+    - InternetGatewayDevice.User.1.Password
+    - InternetGatewayDevice.X_Authentication.WebAccount.Password
+    - InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password
+    - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+  web_user_password_path:
+    - InternetGatewayDevice.X_CU_Function.Web.UserPassword
+    - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+    - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.Password
+    - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebPassword
+    - InternetGatewayDevice.User.2.Password
+    - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+  wifi_password_keys:
+    - PreSharedKey
+    - KeyPassphrase
+    - Password
+    - WPAKey
+    - Key
+  projection_paths:
+    - _virtualParameters.pppoeUsername.value
+    - _virtualParameters.pppoeUsername2.value
+    - _virtualParameters.pppoePassword.value
+    - _virtualParameters.wifiPassword.value
+    - _virtualParameters.WlanPassword.value
+
+vendors:
+  - key: huawei
+    match_tokens: [huawei, hg8, echolife]
+    pppoe_username_keys: [X_HW_PPPoEUsername, X_HW_Username]
+    pppoe_password_keys:
+      - X_HW_PPPoEPassword
+      - X_HW_Password
+      - InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password
+    web_admin_username_path:
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.UserName
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.UserName
+      - InternetGatewayDevice.User.1.Username
+    web_admin_password_path:
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.Password
+      - InternetGatewayDevice.User.1.Password
+    web_user_password_path:
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.Password
+      - InternetGatewayDevice.User.2.Password
+    wifi_password_keys:
+      - X_HW_KeyPassphrase
+      - X_HW_PreSharedKey
+      - X_HW_WPA2PreSharedKey
+      - PreSharedKey
+      - KeyPassphrase
+    projection_paths:
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.UserName
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.Password
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.UserName
+      - InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.Password
+      - InternetGatewayDevice.WANDevice.1.X_GponInterafceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.RXPower
+
+  - key: zte
+    match_tokens: [zte, f6, zxhn]
+    pppoe_username_keys:
+      - pppoeUsername2
+      - PPPoEUsername
+      - PPPoE Username
+      - X_ZTE-COM_PPPoEUsername
+    pppoe_password_keys:
+      - X_ZTE-COM_PPPoEPassword
+      - X_ZTE-COM_Password
+      - PPPoEPassword
+      - PPPoE Password
+      - InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.X_ZTE-COM_Password
+      - InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.X_ZTE-COM_PPPoEPassword
+    web_admin_username_path:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserName
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+    web_admin_password_path:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.User.1.Password
+    web_user_password_path:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+    wifi_password_keys:
+      - WiFiPassword
+      - WiFi Password
+      - WLANPassword
+      - X_ZTE-COM_KeyPassphrase
+      - X_ZTE-COM_WPAKey
+      - PreSharedKey
+      - KeyPassphrase
+    projection_paths:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserName
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserName
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+      - InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.X_ZTE-COM_Password
+      - InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.X_ZTE-COM_PPPoEPassword
+      - InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password
+      - InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.RxPower
+      - InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.OpticalRxPower
+      - InternetGatewayDevice.WANDevice.2.X_ZTE-COM_WANPONInterfaceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.2.X_ZTE-COM_WANPONInterfaceConfig.RxPower
+      - InternetGatewayDevice.WANDevice.2.X_ZTE-COM_WANPONInterfaceConfig.OpticalRxPower
+
+  - key: ciot
+    match_tokens: [ciot, gm220]
+    pppoe_username_keys:
+      - PPPoE Username
+      - PPPoEUsername
+      - pppoeUsername
+      - pppoeUsername2
+      - X_ZTE-COM_PPPoEUsername
+      - _virtualParameters.PPPoE Username.value
+      - _virtualParameters.PPPoEUsername.value
+    pppoe_password_keys:
+      - PPPoE Password
+      - PPPoEPassword
+      - pppoePassword
+      - X_ZTE-COM_PPPoEPassword
+      - _virtualParameters.PPPoE Password.value
+      - _virtualParameters.PPPoEPassword.value
+    web_admin_username_path:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserName
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+    web_admin_password_path:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+    web_user_password_path:
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+    wifi_password_keys:
+      - WiFi Password
+      - WiFiPassword
+      - WLANPassword
+      - X_ZTE-COM_KeyPassphrase
+      - X_ZTE-COM_WPAKey
+      - PreSharedKey
+      - KeyPassphrase
+    projection_paths:
+      - _virtualParameters.PPPoE Username.value
+      - _virtualParameters.PPPoE Password.value
+      - _virtualParameters.IP PPPOE.value
+      - _virtualParameters.IP TR069.value
+      - _virtualParameters.WiFi Password.value
+      - _virtualParameters.Optic Rx Power.value
+      - _virtualParameters.Temperatur.value
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserName
+      - InternetGatewayDevice.UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminName
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.AdminPassword
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserName
+      - InternetGatewayDevice.X_ZTE-COM_UserInterface.X_ZTE-COM_WebUserInfo.UserPassword
+      - InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.OpticalRxPower
+      - InternetGatewayDevice.WANDevice.1.X_CMCC_EponInterfaceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_CMCC_GponInterfaceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_CT-COM_EponInterfaceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_CT-COM_GponInterfaceConfig.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_CU_WANEPONInterfaceConfig.OpticalTransceiver.RXPower
+      - InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.Temperature
+
+  - key: fiberhome
+    match_tokens: [fiberhome, an55, sr1041]
+    web_admin_username_path:
+      - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebUsername
+    web_admin_password_path:
+      - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebSuperPassword
+    web_user_password_path:
+      - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebPassword
+    projection_paths:
+      - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebUsername
+      - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebSuperPassword
+      - InternetGatewayDevice.DeviceInfo.X_FH_Account.X_FH_WebUserInfo.WebPassword
+      - InternetGatewayDevice.WANDevice.1.X_FH_GponInterfaceConfig.RXPower
+      - InternetGatewayDevice.X_ALU_OntOpticalParam.RXPower
