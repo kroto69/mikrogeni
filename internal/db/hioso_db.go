@@ -25,22 +25,22 @@ type legacyHiosoOLTProfile struct {
 var hiosoOLTIDCounter uint64
 
 type HiosoOLTDeviceRecord struct {
-	ID            string
-	Name          string
-	Host          string
-	Port          int
-	SNMPVersion   string
-	SNMPCommunity string
-	WebHost       string
-	WebPort       int
-	Username      string
-	Password      string
-	Profile       string
-	Status        string
-	LastError     string
-	LastHealthAt  string
-	CreatedAt     string
-	UpdatedAt     string
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	SNMPVersion   string `json:"snmp_version"`
+	SNMPCommunity string `json:"snmp_community"`
+	WebHost       string `json:"web_host"`
+	WebPort       int    `json:"web_port"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	Profile       string `json:"profile"`
+	Status        string `json:"status"`
+	LastError     string `json:"last_error"`
+	LastHealthAt  string `json:"last_health_at"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 func createHiosoOLTDeviceTables() error {
