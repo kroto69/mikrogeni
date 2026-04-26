@@ -91,7 +91,7 @@ func createTables() error {
 		return err
 	}
 
-	return createOLTDeviceTables()
+	return nil
 }
 
 // createAdditionalTables creates vendor, tag, and fault tables

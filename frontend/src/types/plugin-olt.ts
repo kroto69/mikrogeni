@@ -1,4 +1,4 @@
-export type PluginVendor = "hioso" | "zte";
+export type PluginVendor = "hioso";
 
 export type PluginAuthSession = {
   accessToken: string;

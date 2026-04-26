@@ -12,6 +12,7 @@ import {
   getHiosoOnus,
   getHiosoPluginHealth,
   getHiosoPluginStatus,
+  getHiosoPorts,
   rebootHiosoOnu,
   renameHiosoOnu,
   type HiosoOnuRow,
@@ -46,6 +47,7 @@ export default function OltHiosoPage() {
   const queryClient = useQueryClient();
   const [onuFilter, setOnuFilter] = useState<"all" | "online" | "offline">("all");
   const [onuSearch, setOnuSearch] = useState("");
+  const [portFilter, setPortFilter] = useState<number | null>(null);
   const [detailOnuIndex, setDetailOnuIndex] = useState<string | null>(null);
   const [editOnu, setEditOnu] = useState<{ index: string; name: string } | null>(null);
 
@@ -71,9 +73,15 @@ export default function OltHiosoPage() {
     (pluginSettingsQuery.data?.plugin_snmp_community?.trim() || pluginSettingsQuery.data?.plugin_community?.trim()),
   );
 
+  const portsQuery = useQuery({
+    queryKey: ["hioso-ports"],
+    queryFn: getHiosoPorts,
+    enabled: isHiosoVendor && Boolean(pluginStatusQuery.data?.enabled) && hasRuntimeConfig,
+  });
+
   const onusQuery = useQuery({
-    queryKey: ["hioso-onus"],
-    queryFn: getHiosoOnus,
+    queryKey: ["hioso-onus", portFilter],
+    queryFn: () => getHiosoOnus(portFilter ?? undefined),
     enabled: isHiosoVendor && Boolean(pluginStatusQuery.data?.enabled) && hasRuntimeConfig,
   });
 
@@ -123,7 +131,7 @@ export default function OltHiosoPage() {
           return true;
         }
 
-        const haystack = [onu.index, onu.name, onu.sn, onu.profile].filter(Boolean).join(" ").toLowerCase();
+        const haystack = [onu.index, onu.name, onu.sn, onu.profile, String(onu.port ?? ""), String(onu.onu_id ?? "")].filter(Boolean).join(" ").toLowerCase();
         return haystack.includes(term);
       });
   }, [onuFilter, onuSearch, onusQuery.data]);
@@ -150,6 +158,7 @@ export default function OltHiosoPage() {
                   void pluginStatusQuery.refetch();
                   void pluginHealthQuery.refetch();
                   void onusQuery.refetch();
+                  void portsQuery.refetch();
                 }}
                 type="button"
                 variant="outline"
@@ -196,7 +205,7 @@ export default function OltHiosoPage() {
               <div className="h-3 w-10 -rotate-3 border-2 border-border bg-accent" />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Input placeholder="Search index, name, serial, profile" value={onuSearch} onChange={(event) => setOnuSearch(event.target.value)} />
+              <Input placeholder="Search index, name, serial, port, profile" value={onuSearch} onChange={(event) => setOnuSearch(event.target.value)} />
               <div className="flex items-center gap-2">
                 {(["all", "online", "offline"] as const).map((filter) => (
                   <button
@@ -209,9 +218,28 @@ export default function OltHiosoPage() {
                   </button>
                 ))}
               </div>
+              <div className="flex items-center gap-2 overflow-x-auto">
+                <button
+                  className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter == null ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+                  onClick={() => setPortFilter(null)}
+                  type="button"
+                >
+                  All Ports
+                </button>
+                {(portsQuery.data ?? []).map((p) => (
+                  <button
+                    className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+                    key={p}
+                    onClick={() => setPortFilter(p === portFilter ? null : p)}
+                    type="button"
+                  >
+                    P{p}
+                  </button>
+                ))}
+              </div>
               <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Total: {totalCount}</div>
-              <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Online: {onlineCount} · Down: {downCount}</div>
             </div>
+            <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Online: {onlineCount} · Down: {downCount}</div>
 
             <div className="rounded-2xl border-2 border-border bg-muted/10 px-4 py-3 text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">
               {healthDetail}
@@ -228,6 +256,7 @@ export default function OltHiosoPage() {
                 <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3">Index</th>
+                    <th className="px-4 py-3">Port</th>
                     <th className="px-4 py-3">Name</th>
                     <th className="px-4 py-3">Serial</th>
                     <th className="px-4 py-3">Status</th>
@@ -240,6 +269,7 @@ export default function OltHiosoPage() {
                   {filteredOnus.map((onu: HiosoOnuRow) => (
                     <tr className="border-t-2 border-border/80" key={onu.index}>
                       <td className="px-4 py-3 font-semibold text-foreground">{onu.index}</td>
+                      <td className="px-4 py-3 text-foreground">{onu.port ?? "-"}</td>
                       <td className="px-4 py-3 text-foreground">{onu.name || "-"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{onu.sn || "-"}</td>
                       <td className="px-4 py-3">
@@ -266,7 +296,7 @@ export default function OltHiosoPage() {
                   ))}
                   {filteredOnus.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground" colSpan={7}>
+                      <td className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground" colSpan={8}>
                         {onusQuery.isLoading ? "Loading ONU data..." : "No ONU matched current filter."}
                       </td>
                     </tr>
@@ -279,9 +309,11 @@ export default function OltHiosoPage() {
       ) : null}
 
       <PluginOverlay open={Boolean(detailOnuIndex)} title="ONU Detail" onClose={() => setDetailOnuIndex(null)}>
-        <div className="space-y-3 text-sm text-muted-foreground">
+<div className="space-y-3 text-sm text-muted-foreground">
           <div><span className="font-semibold text-foreground">Index:</span> {onuDetailQuery.data?.index || "-"}</div>
           <div><span className="font-semibold text-foreground">Web ID:</span> {onuDetailQuery.data?.web_id || "-"}</div>
+          <div><span className="font-semibold text-foreground">Port:</span> {onuDetailQuery.data?.port ?? "-"}</div>
+          <div><span className="font-semibold text-foreground">ONU ID:</span> {onuDetailQuery.data?.onu_id ?? "-"}</div>
           <div><span className="font-semibold text-foreground">Name:</span> {onuDetailQuery.data?.name || "-"}</div>
           <div><span className="font-semibold text-foreground">Serial:</span> {onuDetailQuery.data?.sn || "-"}</div>
           <div><span className="font-semibold text-foreground">Status:</span> {onuDetailQuery.data?.status || "-"}</div>

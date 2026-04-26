@@ -1,0 +1,90 @@
+# Hioso OLT - SNMP OID Reference
+
+## System OIDs
+
+| OID | Description |
+|-----|-------------|
+| .1.3.6.1.2.1.1.1 | sysDescr (system description) |
+| .1.3.6.1.2.1.1.2.0 | sysObjectID (system object ID) |
+
+## Profile Detection (via sysObjectID)
+
+| sysObjectID prefix | Profile |
+|--------------------|---------|
+| .1.3.6.1.4.1.3320 | HIOSO_B |
+| .1.3.6.1.4.1.25355.3.3 | HIOSO_GPON |
+| .1.3.6.1.4.1.25355 | HIOSO_C |
+
+---
+
+## HIOSO_C (EPON)
+
+| Field | OID |
+|-------|-----|
+| Name | .1.3.6.1.4.1.25355.3.2.6.3.2.1.37 |
+| SN/MAC | .1.3.6.1.4.1.25355.3.2.6.3.2.1.11 |
+| Status | .1.3.6.1.4.1.25355.3.2.6.3.2.1.39 |
+| Tx Power | .1.3.6.1.4.1.25355.3.2.6.14.2.1.4 |
+| Rx Power | .1.3.6.1.4.1.25355.3.2.6.14.2.1.8 |
+
+## HIOSO_B (EPON - B芯片)
+
+| Field | OID |
+|-------|-----|
+| Name | .1.3.6.1.4.1.3320.101.10.1.1.79 |
+| SN/MAC | .1.3.6.1.4.1.3320.101.10.1.1.3 |
+| Status | .1.3.6.1.4.1.3320.101.10.1.1.26 |
+| Tx Power | .1.3.6.1.4.1.3320.101.10.5.1.5 |
+| Rx Power | .1.3.6.1.4.1.3320.101.10.5.1.6 |
+
+## HIOSO_GPON
+
+| Field | OID |
+|-------|-----|
+| Name | .1.3.6.1.4.1.25355.3.3.1.1.1.2 |
+| SN/MAC | .1.3.6.1.4.1.25355.3.3.1.1.1.5 |
+| Status | .1.3.6.1.4.1.25355.3.3.1.1.1.11 |
+| Tx Power | .1.3.6.1.4.1.25355.3.3.1.1.4.1.2 |
+| Rx Power | .1.3.6.1.4.1.25355.3.3.1.1.4.1.1 |
+
+---
+
+## SN/MAC Fallback OIDs
+
+Used when primary SNOID returns no data, tried in order:
+
+| # | OID | Description |
+|---|-----|-------------|
+| 1 | .1.3.6.1.4.1.25355.3.2.10.1.1.2 | EPON MAC table |
+| 2 | .1.3.6.1.4.1.25355.3.2.1.2.1.2 | EPON ONU SN |
+| 3 | .1.3.6.1.4.1.25355.3.2.6.1.1.18 | EPON registration |
+| 4 | .1.3.6.1.4.1.25355.3.2.6.3.2.1.12 | EPON alternate SN |
+| 5 | .1.3.6.1.4.1.25355.3.2.6.1.1.2.1.6 | EPON hardware SN |
+| 6 | .1.3.6.1.4.1.25355.3.3.1.1.1.5 | GPON SN |
+| 7 | .1.3.6.1.4.1.3320.101.10.1.1.3 | HIOSO_B SN |
+
+---
+
+## Web API Endpoints (HTTP, not SNMP)
+
+| Action | Method | URL |
+|--------|--------|-----|
+| Login | POST | http://{host}/goform/login |
+| Rename ONU | POST | http://{host}/goform/setOnu |
+| Reboot ONU | POST | http://{host}/goform/setOnu |
+
+### Login form params
+```
+user={u}&pass={p}&username={u}&password={p}&submit=Login
+Authorization: Basic base64(user:pass)
+```
+
+### Rename ONU form params
+```
+onuId={web_id}&onuName={name}&onuOperation=modifyOnu
+```
+
+### Reboot ONU form params
+```
+onuId={web_id}&onuName=rebooter&onuOperation=rebootOp
+```

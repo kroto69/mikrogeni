@@ -14,7 +14,6 @@ import (
 	"genieacs-backend/internal/db"
 	"genieacs-backend/internal/handlers"
 	"genieacs-backend/internal/middleware"
-	"genieacs-backend/internal/olt"
 )
 
 func main() {
@@ -62,8 +61,6 @@ func main() {
 
 	// Buat router chi
 	r := chi.NewRouter()
-	oltRepo := olt.NewSQLiteRepository(database)
-	oltHandler := olt.NewOLTHandler(oltRepo)
 
 	// Global middleware
 	r.Use(middleware.CORSMiddleware)
@@ -207,11 +204,12 @@ func main() {
 			r.Get("/onu/{index}", handlers.HiosoDetailHandler)
 			r.Post("/onu/{index}/rename", handlers.HiosoRenameHandler)
 			r.Post("/onu/{index}/reboot", handlers.HiosoRebootHandler)
+
+			// Port list
+			r.Get("/ports", handlers.HiosoPortsHandler)
 		})
 
-		// ── OLT Management + OLT Proxy ───────────────────────────────────────
-		olt.RegisterOLTRoutes(r, oltHandler)
-	})
+		})
 
 	// Jalankan server
 	addr := fmt.Sprintf(":%s", port)

@@ -1,4 +1,4 @@
-import { Blocks, LayoutDashboard, Radio, ReceiptText, Router, Server, Settings, Wifi } from "lucide-react";
+import { Blocks, LayoutDashboard, ReceiptText, Router, Settings, Wifi } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -7,8 +7,6 @@ const navigation = [
   { label: "Mikrotik", to: "/mikrotik", icon: Router },
   { label: "Billing", to: "/billing", icon: ReceiptText },
   { label: "Acs/ONU Device", to: "/onu", icon: Wifi },
-  { label: "OLT Management", to: "/olt-management", icon: Server },
-  { label: "ZTE", to: "/zte", icon: Radio },
   { label: "Plugin", to: "/plugin", icon: Blocks },
 ];
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowUpDown, Filter, RefreshCcw, Search, X, Zap } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import OLTSelector from "@/components/olt/OLTSelector";
+
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -548,7 +548,6 @@ export default function OnuIndex() {
         meta={<span className="inline-flex rounded-full border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{counts.all} total</span>}
         actions={
           <div className="grid w-full gap-3">
-            <OLTSelector />
             <div className="relative min-w-0 w-full">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input

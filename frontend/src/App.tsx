@@ -9,7 +9,6 @@ import {
 } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { OltSelectorProvider } from "@/hooks/useOltSelector";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
@@ -20,8 +19,6 @@ const OnuDetail = lazy(() => import("@/pages/ONU/Detail"));
 const OnuIndex = lazy(() => import("@/pages/ONU"));
 const PluginPage = lazy(() => import("@/pages/Plugin"));
 const OltHiosoPage = lazy(() => import("@/pages/Plugin/OltHioso"));
-const OltZtePage = lazy(() => import("@/pages/Plugin/OltZte"));
-const OLTManagementPage = lazy(() => import("@/pages/OLTManagement"));
 const Settings = lazy(() => import("@/pages/Settings"));
 
 function AuthBoundary({ children, guestOnly = false }: { children: ReactNode; guestOnly?: boolean }) {
@@ -93,8 +90,6 @@ function AppRoutes() {
             <Route index element={<PluginPage />} />
             <Route path="olt/hioso" element={<OltHiosoPage />} />
           </Route>
-          <Route path="zte" element={<OltZtePage />} />
-          <Route path="olt-management" element={<OLTManagementPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 
@@ -108,9 +103,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <OltSelectorProvider>
-          <AppRoutes />
-        </OltSelectorProvider>
+        <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   );

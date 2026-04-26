@@ -90,22 +90,20 @@ func hiosoBuildWebBaseURL(host, port string) string {
 }
 
 // HiosoRenameONU rename ONU. Prioritas SNMP, fallback ke Web API bila SNMP gagal.
-func HiosoRenameONU(host, community, webHost, webPort, index, newName, user, pass string) (string, error) {
-	host = strings.TrimSpace(host)
-	community = strings.TrimSpace(community)
+func HiosoRenameONU(target SNMPTarget, webHost, webPort, index, newName, user, pass string) (string, error) {
 	webHost = strings.TrimSpace(webHost)
 	webPort = strings.TrimSpace(webPort)
 	index = strings.TrimSpace(index)
 	newName = hiosoTruncateName(strings.TrimSpace(newName), 31)
 
-	if host == "" || community == "" || webHost == "" || index == "" || newName == "" {
+	if target.Host == "" || target.Community == "" || webHost == "" || index == "" || newName == "" {
 		return "", fmt.Errorf("parameter rename ONU tidak lengkap")
 	}
 
 	var snmpErr error
-	if profile, err := hiosoDetectProfile(host, community); err == nil {
+	if profile, err := hiosoGetOrDetectProfile(target); err == nil {
 		targetOID := strings.TrimSuffix(profile.NameOID, ".") + "." + strings.TrimPrefix(index, ".")
-		if errSet := hiosoSNMPSet(host, community, targetOID, newName); errSet == nil {
+		if errSet := hiosoSNMPSet(target, targetOID, newName); errSet == nil {
 			return "SNMP", nil
 		} else {
 			snmpErr = errSet

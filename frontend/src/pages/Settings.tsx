@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Pencil, Plus, Router, Save, Trash2, UserRoundCog, Wifi } from "lucide-react";
@@ -34,9 +34,8 @@ import {
   type HiosoOltProfile,
 } from "@/lib/api";
 import { showToast } from "@/lib/toast";
-import { connectZte, disconnectZte, getZteConfig, isZteConnected, createZteOlt, updateZteOlt, deleteZteOlt, getZteOlts, checkZteHealth, getZteApiErrorMessage as getZteApiError } from "@/lib/zteApi";
+
 import type { MikrotikDeviceCreatePayload, MikrotikRegistryDevice } from "@/types/mikrotik";
-import type { ZteOlt } from "@/types/zte";
 
 type SettingsFormState = {
   telegramBotToken: string;
@@ -52,27 +51,6 @@ type RegistryModalMode = "closed" | "create" | "edit";
 type UserModalMode = "closed" | "create" | "edit";
 
 type HiosoProfileModalMode = "closed" | "create" | "edit";
-
-type ZteConnectionFormState = {
-  baseUrl: string;
-  apiPrefix: string;
-};
-
-type ZteOltFormState = {
-  id: string;
-  name: string;
-  snmpHost: string;
-  snmpPort: string;
-  snmpCommunity: string;
-};
-
-const EMPTY_ZTE_OLT_FORM: ZteOltFormState = {
-  id: "",
-  name: "",
-  snmpHost: "",
-  snmpPort: "161",
-  snmpCommunity: "public",
-};
 
 type UserFormState = {
   username: string;
@@ -135,11 +113,6 @@ const EMPTY_HIOSO_PROFILE_FORM: HiosoProfileFormState = {
   webPort: "80",
   username: "admin",
   password: "",
-};
-
-const DEFAULT_ZTE_FORM: ZteConnectionFormState = {
-  baseUrl: "http://localhost:8081",
-  apiPrefix: "/api/v1",
 };
 
 const SETTING_KEYS: Record<keyof SettingsFormState, string> = {
@@ -313,17 +286,6 @@ export default function Settings() {
   const [hiosoProfileModalMode, setHiosoProfileModalMode] = useState<HiosoProfileModalMode>("closed");
   const [hiosoProfileForm, setHiosoProfileForm] = useState<HiosoProfileFormState>(EMPTY_HIOSO_PROFILE_FORM);
   const [editingHiosoProfile, setEditingHiosoProfile] = useState<HiosoOltProfile | null>(null);
-  const [zteForm, setZteForm] = useState<ZteConnectionFormState>(() => {
-    const stored = getZteConfig();
-    return stored ? { baseUrl: stored.baseUrl, apiPrefix: stored.apiPrefix } : DEFAULT_ZTE_FORM;
-  });
-  const [, setZteRefresh] = useState(0);
-  const zteConnected = isZteConnected();
-  const [zteOltModalMode, setZteOltModalMode] = useState<"closed" | "create" | "edit">("closed");
-  const [zteOltForm, setZteOltForm] = useState<ZteOltFormState>(EMPTY_ZTE_OLT_FORM);
-  const zteOltFormRef = useRef(zteOltForm);
-  const [editingZteOlt, setEditingZteOlt] = useState<ZteOlt | null>(null);
-  useEffect(() => { zteOltFormRef.current = zteOltForm; }, [zteOltForm]);
   const [registryModalMode, setRegistryModalMode] = useState<RegistryModalMode>("closed");
   const [registryForm, setRegistryForm] = useState<RegistryFormState>(EMPTY_REGISTRY_FORM);
   const [editingDevice, setEditingDevice] = useState<MikrotikRegistryDevice | null>(null);
@@ -519,113 +481,6 @@ export default function Settings() {
     },
     onError: (error) => {
       showToast({ title: "Failed to set active profile", description: getApiErrorMessage(error), variant: "error" });
-    },
-  });
-
-  const connectZteMutation = useMutation({
-    mutationFn: () => {
-      connectZte({ baseUrl: zteForm.baseUrl, apiPrefix: zteForm.apiPrefix });
-      return Promise.resolve();
-    },
-    onSuccess: () => {
-      setZteRefresh((n) => n + 1);
-      showToast({ title: "ZTE endpoint saved", description: "Connection endpoint configured successfully.", variant: "success" });
-    },
-    onError: () => {
-      showToast({ title: "Failed to save endpoint", description: "Could not save ZTE endpoint configuration.", variant: "error" });
-    },
-  });
-
-  const disconnectZteMutation = useMutation({
-    mutationFn: () => { disconnectZte(); return Promise.resolve(); },
-    onSuccess: () => {
-      setZteForm(DEFAULT_ZTE_FORM);
-      setZteRefresh((n) => n + 1);
-      showToast({ title: "ZTE disconnected", description: "Endpoint configuration removed.", variant: "success" });
-    },
-  });
-
-  const checkZteMutation = useMutation({
-    mutationFn: () => checkZteHealth(),
-    onSuccess: (healthData) => {
-      showToast({ title: "Connection OK", description: `ZTE service status: ${healthData.status ?? "healthy"}`, variant: "success" });
-    },
-    onError: (error) => {
-      showToast({ title: "Connection failed", description: getZteApiError(error), variant: "error" });
-    },
-  });
-
-  const zteOltsQuery = useQuery({
-    queryKey: ["zte-olts"],
-    queryFn: getZteOlts,
-    enabled: zteConnected,
-  });
-
-  const createZteOltMutation = useMutation({
-    mutationFn: async (values: ZteOltFormState) => {
-      if (!values.id.trim() || !values.name.trim() || !values.snmpHost.trim() || !values.snmpCommunity.trim()) {
-        throw new Error("OLT ID, name, SNMP host, and community are required.");
-      }
-      return createZteOlt({
-        id: values.id.trim(),
-        name: values.name.trim(),
-        snmp: {
-          host: values.snmpHost.trim(),
-          port: Number(values.snmpPort || "161"),
-          community: values.snmpCommunity.trim(),
-        },
-      });
-    },
-    onSuccess: async () => {
-      showToast({ title: "ZTE OLT added", description: "New OLT device was registered successfully.", variant: "success" });
-      const fresh = EMPTY_ZTE_OLT_FORM;
-      setZteOltModalMode("closed");
-      setZteOltForm(fresh);
-      zteOltFormRef.current = fresh;
-      setEditingZteOlt(null);
-      await queryClient.invalidateQueries({ queryKey: ["zte-olts"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to add ZTE OLT", description: getZteApiError(error), variant: "error" });
-    },
-  });
-
-  const updateZteOltMutation = useMutation({
-    mutationFn: async ({ oltId, values }: { oltId: string; values: ZteOltFormState }) => {
-      if (!values.name.trim() || !values.snmpHost.trim() || !values.snmpCommunity.trim()) {
-        throw new Error("Name, SNMP host, and community are required.");
-      }
-      return updateZteOlt(oltId, {
-        name: values.name.trim(),
-        snmp: {
-          host: values.snmpHost.trim(),
-          port: Number(values.snmpPort || "161"),
-          community: values.snmpCommunity.trim(),
-        },
-      });
-    },
-    onSuccess: async () => {
-      showToast({ title: "ZTE OLT updated", description: "OLT device settings were saved.", variant: "success" });
-      const fresh = EMPTY_ZTE_OLT_FORM;
-      setZteOltModalMode("closed");
-      setZteOltForm(fresh);
-      zteOltFormRef.current = fresh;
-      setEditingZteOlt(null);
-      await queryClient.invalidateQueries({ queryKey: ["zte-olts"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to update ZTE OLT", description: getZteApiError(error), variant: "error" });
-    },
-  });
-
-  const deleteZteOltMutation = useMutation({
-    mutationFn: (oltId: string) => deleteZteOlt(oltId),
-    onSuccess: async () => {
-      showToast({ title: "ZTE OLT deleted", description: "Selected OLT device was removed.", variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: ["zte-olts"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to delete ZTE OLT", description: getZteApiError(error), variant: "error" });
     },
   });
 
@@ -908,45 +763,6 @@ export default function Settings() {
     }
 
     createUserMutation.mutate(userForm);
-  };
-
-  const openCreateZteOltModal = () => {
-    setEditingZteOlt(null);
-    const fresh = EMPTY_ZTE_OLT_FORM;
-    setZteOltForm(fresh);
-    zteOltFormRef.current = fresh;
-    setZteOltModalMode("create");
-  };
-
-  const openEditZteOltModal = (olt: ZteOlt) => {
-    setEditingZteOlt(olt);
-    const formValues: ZteOltFormState = {
-      id: olt.id,
-      name: olt.name,
-      snmpHost: olt.snmp?.host ?? "",
-      snmpPort: String(olt.snmp?.port ?? 161),
-      snmpCommunity: olt.snmp?.community ?? "public",
-    };
-    setZteOltForm(formValues);
-    zteOltFormRef.current = formValues;
-    setZteOltModalMode("edit");
-  };
-
-  const closeZteOltModal = () => {
-    setZteOltModalMode("closed");
-    const fresh = EMPTY_ZTE_OLT_FORM;
-    setZteOltForm(fresh);
-    zteOltFormRef.current = fresh;
-    setEditingZteOlt(null);
-  };
-
-  const handleZteOltSubmit = () => {
-    const values = zteOltFormRef.current;
-    if (zteOltModalMode === "edit" && editingZteOlt) {
-      updateZteOltMutation.mutate({ oltId: editingZteOlt.id, values });
-      return;
-    }
-    createZteOltMutation.mutate(values);
   };
 
   return (
@@ -1302,121 +1118,6 @@ export default function Settings() {
 
       <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
         <CardHeader>
-          <div className="mb-3 flex items-center gap-2">
-            <div className="h-3 w-8 border-2 border-border bg-secondary" />
-            <div className="h-3 w-5 border-2 border-border bg-primary" />
-          </div>
-          <PageSectionHeader
-            title={<CardTitle className="text-xl sm:text-2xl">ZTE OLT Connection</CardTitle>}
-            description={<CardDescription>Configure the ZTE OLT microservice endpoint.</CardDescription>}
-            actions={
-              zteConnected ? (
-                <div className="flex gap-2">
-                  <Button className="w-full sm:w-auto" disabled={checkZteMutation.isPending} onClick={() => checkZteMutation.mutate()} type="button" variant="outline">Check</Button>
-                  <Button className="w-full sm:w-auto" disabled={disconnectZteMutation.isPending} onClick={() => disconnectZteMutation.mutate()} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Disconnect</Button>
-                </div>
-              ) : null
-            }
-          />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {zteConnected ? (
-            <div className="rounded-2xl border-2 border-border bg-success/10 p-4 shadow-brutal-sm">
-              <div className="flex items-center gap-2">
-                <Badge variant="success">Connected</Badge>
-                <span className="text-sm text-muted-foreground">{(() => { const cfg = getZteConfig(); return cfg ? `${cfg.baseUrl}${cfg.apiPrefix}` : ""; })()}</span>
-              </div>
-            </div>
-          ) : (
-            <form
-              className="grid gap-4 sm:grid-cols-2"
-              onSubmit={(event) => { event.preventDefault(); connectZteMutation.mutate(); }}
-            >
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-base-url">Base URL</label>
-                <Input id="zte-base-url" placeholder="http://localhost:8081" value={zteForm.baseUrl} onChange={(event) => setZteForm((current) => ({ ...current, baseUrl: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-api-prefix">API Prefix</label>
-                <Input id="zte-api-prefix" placeholder="/api/v1" value={zteForm.apiPrefix} onChange={(event) => setZteForm((current) => ({ ...current, apiPrefix: event.target.value }))} />
-              </div>
-              <div className="sm:col-span-2 flex justify-end">
-                <Button disabled={connectZteMutation.isPending} type="submit">{connectZteMutation.isPending ? "Saving..." : "Save Endpoint"}</Button>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
-        <CardHeader>
-          <div className="mb-3 flex items-center gap-2">
-            <div className="h-3 w-8 border-2 border-border bg-primary" />
-            <div className="h-3 w-5 border-2 border-border bg-secondary" />
-          </div>
-          <PageSectionHeader
-            title={<CardTitle className="text-xl sm:text-2xl">ZTE OLT Devices</CardTitle>}
-            description={<CardDescription>Manage registered ZTE OLT devices for PON/ONU monitoring.</CardDescription>}
-            actions={
-              <Button className="w-full sm:w-auto" disabled={!zteConnected} onClick={openCreateZteOltModal} type="button"><Plus className="mr-2 h-4 w-4" />Add OLT</Button>
-            }
-          />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!zteConnected ? (
-            <div className="rounded-2xl border-2 border-dashed border-border bg-muted/10 p-6 text-sm font-semibold text-muted-foreground shadow-brutal-sm">
-              Configure the ZTE endpoint above to manage OLT devices.
-            </div>
-          ) : null}
-          {zteConnected && zteOltsQuery.isLoading ? (
-            <div className="rounded-2xl border-2 border-border bg-muted/10 p-4 text-sm font-semibold text-muted-foreground shadow-brutal-sm">Loading ZTE OLTs...</div>
-          ) : null}
-          {zteConnected && zteOltsQuery.isError ? (
-            <div className="rounded-2xl border-2 border-border bg-destructive/10 p-4 text-sm font-semibold text-destructive shadow-brutal-sm">{getZteApiError(zteOltsQuery.error)}</div>
-          ) : null}
-          {zteConnected && !zteOltsQuery.isLoading && !zteOltsQuery.isError && (zteOltsQuery.data?.length ?? 0) === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-border bg-muted/10 p-6 text-sm font-semibold text-muted-foreground shadow-brutal-sm">
-              No ZTE OLT devices registered yet. Use <span className="text-foreground">Add OLT</span> to create one.
-            </div>
-          ) : null}
-          {zteConnected && !zteOltsQuery.isLoading && !zteOltsQuery.isError && (zteOltsQuery.data?.length ?? 0) > 0 ? (
-            <div className="grid gap-3 xl:grid-cols-2">
-              {(zteOltsQuery.data ?? []).map((olt) => (
-                <div className="rounded-2xl border-2 border-border bg-card/95 p-4 shadow-brutal-sm" key={olt.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-base font-semibold text-foreground">{olt.name}</p>
-                        <Badge variant="secondary">{olt.id}</Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-muted-foreground">SNMP {olt.snmp?.host ?? "-"}:{olt.snmp?.port ?? 161}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Community: {olt.snmp?.community ?? "-"}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button className="w-full sm:w-auto" onClick={() => openEditZteOltModal(olt)} type="button" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={deleteZteOltMutation.isPending}
-                      onClick={() => {
-                        if (!window.confirm(`Delete ZTE OLT ${olt.name}?`)) return;
-                        deleteZteOltMutation.mutate(olt.id);
-                      }}
-                      type="button"
-                      variant="outline"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
-        <CardHeader>
           <div className="mb-3 flex justify-end">
             <div className="h-3 w-12 -rotate-2 border-2 border-border bg-accent" />
           </div>
@@ -1604,47 +1305,6 @@ export default function Settings() {
           <Button disabled={isRegistrySubmitting} onClick={handleRegistrySubmit} type="button">
             <Save className="mr-2 h-4 w-4" />
             {isRegistrySubmitting ? "Saving..." : registryModalMode === "edit" ? "Save Changes" : "Create Router"}
-          </Button>
-        </div>
-      </OverlayPanel>
-
-      <OverlayPanel
-        description={zteOltModalMode === "edit" ? "Update ZTE OLT device settings." : "Register a new ZTE OLT device with SNMP credentials."}
-        onClose={closeZteOltModal}
-        open={zteOltModalMode !== "closed"}
-        title={zteOltModalMode === "edit" ? `Edit ZTE OLT · ${editingZteOlt?.name ?? ""}` : "Add ZTE OLT"}
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-olt-id">OLT ID</label>
-            <Input id="zte-olt-id" value={zteOltForm.id} onChange={(event) => setZteOltForm((current) => ({ ...current, id: event.target.value }))} disabled={zteOltModalMode === "edit"} placeholder="olt_1" />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-olt-name">OLT Name</label>
-            <Input id="zte-olt-name" value={zteOltForm.name} onChange={(event) => setZteOltForm((current) => ({ ...current, name: event.target.value }))} placeholder="OLT Jakarta" />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">SNMP</p>
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-snmp-host">SNMP Host</label>
-            <Input id="zte-snmp-host" value={zteOltForm.snmpHost} onChange={(event) => setZteOltForm((current) => ({ ...current, snmpHost: event.target.value }))} placeholder="10.5.0.10" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-snmp-port">SNMP Port</label>
-            <Input id="zte-snmp-port" value={zteOltForm.snmpPort} onChange={(event) => setZteOltForm((current) => ({ ...current, snmpPort: event.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-snmp-community">SNMP Community</label>
-            <Input id="zte-snmp-community" value={zteOltForm.snmpCommunity} onChange={(event) => setZteOltForm((current) => ({ ...current, snmpCommunity: event.target.value }))} placeholder="public" />
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button onClick={closeZteOltModal} type="button" variant="outline">Cancel</Button>
-          <Button disabled={createZteOltMutation.isPending || updateZteOltMutation.isPending} onClick={handleZteOltSubmit} type="button">
-            <Save className="mr-2 h-4 w-4" />
-            {createZteOltMutation.isPending || updateZteOltMutation.isPending ? "Saving..." : zteOltModalMode === "edit" ? "Save Changes" : "Add OLT"}
           </Button>
         </div>
       </OverlayPanel>

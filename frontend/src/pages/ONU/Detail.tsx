@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
-import OLTSelector from "@/components/olt/OLTSelector";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -664,10 +664,6 @@ export default function OnuDetail() {
             </div>
           </div>
 
-        </div>
-
-        <div className="max-w-md">
-          <OLTSelector label="OLT aktif untuk workflow ONU" />
         </div>
 
         {activeTask?.isPending || activeTask?.isError ? (

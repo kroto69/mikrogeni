@@ -1,21 +1,31 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"genieacs-backend/internal/db"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// State plugin
-var hiosoEnabled = os.Getenv("HIOSO_ENABLED") == "true"
+var hiosoEnabled atomic.Bool
 
-func HiosoSetEnabled(val bool) { hiosoEnabled = val }
-func HiosoIsEnabled() bool     { return hiosoEnabled }
+func init() {
+	hiosoEnabled.Store(os.Getenv("HIOSO_ENABLED") == "true")
+}
+
+func HiosoSetEnabled(val bool) { hiosoStore(val) }
+func HiosoIsEnabled() bool     { return hiosoEnabled.Load() }
+func hiosoStore(val bool)      { hiosoEnabled.Store(val) }
 
 type hiosoRuntimeSettings struct {
 	Host      string
@@ -28,7 +38,42 @@ type hiosoRuntimeSettings struct {
 	Password  string
 }
 
+var (
+	hiosoSettingsCacheMux  sync.RWMutex
+	hiosoSettingsCache      hiosoRuntimeSettings
+	hiosoSettingsCachedAt   time.Time
+	hiosoSettingsCacheTTL   = 30 * time.Second
+)
+
+func hiosoInvalidateSettingsCache() {
+	hiosoSettingsCacheMux.Lock()
+	hiosoSettingsCachedAt = time.Time{}
+	hiosoSettingsCacheMux.Unlock()
+}
+
 func hiosoLoadRuntimeSettings() hiosoRuntimeSettings {
+	hiosoSettingsCacheMux.RLock()
+	if time.Since(hiosoSettingsCachedAt) < hiosoSettingsCacheTTL && !hiosoSettingsCachedAt.IsZero() {
+		cached := hiosoSettingsCache
+		hiosoSettingsCacheMux.RUnlock()
+		return cached
+	}
+	hiosoSettingsCacheMux.RUnlock()
+
+	hiosoSettingsCacheMux.Lock()
+	defer hiosoSettingsCacheMux.Unlock()
+
+	if time.Since(hiosoSettingsCachedAt) < hiosoSettingsCacheTTL && !hiosoSettingsCachedAt.IsZero() {
+		return hiosoSettingsCache
+	}
+
+	cfg := hiosoLoadRuntimeSettingsFresh()
+	hiosoSettingsCache = cfg
+	hiosoSettingsCachedAt = time.Now()
+	return cfg
+}
+
+func hiosoLoadRuntimeSettingsFresh() hiosoRuntimeSettings {
 	cfg := hiosoRuntimeSettings{
 		Host:      strings.TrimSpace(os.Getenv("OLT_HOST")),
 		Port:      strings.TrimSpace(os.Getenv("OLT_PORT")),
@@ -110,14 +155,24 @@ func hiosoLoadRuntimeSettings() hiosoRuntimeSettings {
 	return cfg
 }
 
-// hiosoGuard - cek enable, return false + tulis response jika disabled.
+func (s hiosoRuntimeSettings) ToSNMPTarget() SNMPTarget {
+	return SNMPTarget{
+		Host:      strings.TrimSpace(s.Host),
+		Port:      hiosoParseSNMPPort(s.Port),
+		Community: strings.TrimSpace(s.Community),
+		Version:   hiosoParseSNMPVersion(s.Version),
+	}
+}
+
 func hiosoGuard(w http.ResponseWriter, r *http.Request) bool {
-	path := strings.TrimSpace(r.URL.Path)
-	if strings.HasSuffix(path, "/enable") || strings.HasSuffix(path, "/disable") {
-		return true
+	if r.Method == http.MethodPost {
+		path := strings.TrimRight(r.URL.Path, "/")
+		if path == "/api/plugin/hioso/enable" || path == "/api/plugin/hioso/disable" {
+			return true
+		}
 	}
 
-	if !hiosoEnabled {
+	if !hiosoEnabled.Load() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -130,7 +185,6 @@ func hiosoGuard(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// Helper response sukses.
 func hiosoJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -140,7 +194,6 @@ func hiosoJSON(w http.ResponseWriter, data interface{}) {
 	})
 }
 
-// Helper response error.
 func hiosoError(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -151,7 +204,6 @@ func hiosoError(w http.ResponseWriter, code int, msg string) {
 	})
 }
 
-// HiosoStatusHandler menampilkan status enable plugin dan host OLT.
 func HiosoStatusHandler(w http.ResponseWriter, r *http.Request) {
 	cfg := hiosoLoadRuntimeSettings()
 	hiosoJSON(w, map[string]interface{}{
@@ -160,13 +212,9 @@ func HiosoStatusHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HiosoEnableHandler mengaktifkan plugin secara runtime.
 func HiosoEnableHandler(w http.ResponseWriter, r *http.Request) {
-	if !hiosoGuard(w, r) {
-		// Sesuai kontrak: semua handler selain status wajib guard dulu.
-		return
-	}
-	HiosoSetEnabled(true)
+	hiosoStore(true)
+	hiosoInvalidateSettingsCache()
 	cfg := hiosoLoadRuntimeSettings()
 	hiosoJSON(w, map[string]interface{}{
 		"enabled": true,
@@ -174,12 +222,9 @@ func HiosoEnableHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HiosoDisableHandler mematikan plugin secara runtime.
 func HiosoDisableHandler(w http.ResponseWriter, r *http.Request) {
-	if !hiosoGuard(w, r) {
-		return
-	}
-	HiosoSetEnabled(false)
+	hiosoStore(false)
+	hiosoInvalidateSettingsCache()
 	cfg := hiosoLoadRuntimeSettings()
 	hiosoJSON(w, map[string]interface{}{
 		"enabled": false,
@@ -187,21 +232,26 @@ func HiosoDisableHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HiosoHealthHandler mengecek konektivitas OLT via walk sysDescr.
 func HiosoHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if !hiosoGuard(w, r) {
 		return
 	}
 
 	cfg := hiosoLoadRuntimeSettings()
-	host := strings.TrimSpace(cfg.Host)
-	community := strings.TrimSpace(cfg.Community)
-	if host == "" || community == "" {
+	target := cfg.ToSNMPTarget()
+	if target.Host == "" || target.Community == "" {
 		hiosoError(w, http.StatusBadRequest, "OLT_HOST/OLT_COMMUNITY belum diisi")
 		return
 	}
 
-	sysDescr, err := hiosoSNMPWalk(host, community, ".1.3.6.1.2.1.1.1")
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	sysDescr, err := hiosoSNMPWalk(target, ".1.3.6.1.2.1.1.1")
+	if ctx.Err() != nil {
+		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
+		return
+	}
 	if err != nil || !hiosoHasMeaningfulSNMPValues(sysDescr) {
 		hiosoJSON(w, map[string]interface{}{
 			"online": false,
@@ -211,7 +261,7 @@ func HiosoHealthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	detail := "OLT reachable"
-	if profile, profileErr := hiosoDetectProfile(host, community); profileErr == nil {
+	if profile, profileErr := hiosoGetOrDetectProfile(target); profileErr == nil {
 		detail = "OLT reachable, profil: " + profile.Name
 	}
 
@@ -221,29 +271,51 @@ func HiosoHealthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HiosoFetchAllHandler mengambil semua ONU dari OLT.
 func HiosoFetchAllHandler(w http.ResponseWriter, r *http.Request) {
 	if !hiosoGuard(w, r) {
 		return
 	}
 
 	cfg := hiosoLoadRuntimeSettings()
-	host := strings.TrimSpace(cfg.Host)
-	community := strings.TrimSpace(cfg.Community)
-	if host == "" || community == "" {
+	target := cfg.ToSNMPTarget()
+	if target.Host == "" || target.Community == "" {
 		hiosoError(w, http.StatusBadRequest, "OLT_HOST/OLT_COMMUNITY belum diisi")
 		return
 	}
 
-	onus, _, err := FetchAllONU(host, community)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	onus, _, err := FetchAllONU(ctx, target)
+	if ctx.Err() != nil {
+		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
+		return
+	}
 	if err != nil {
 		hiosoError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+
+	portFilter := strings.TrimSpace(r.URL.Query().Get("port"))
+	if portFilter != "" {
+		portNum, parseErr := strconv.Atoi(portFilter)
+		if parseErr != nil {
+			hiosoError(w, http.StatusBadRequest, "port harus berupa angka")
+			return
+		}
+		filtered := make([]HiosoONU, 0, len(onus))
+		for _, onu := range onus {
+			if onu.Port == portNum {
+				filtered = append(filtered, onu)
+			}
+		}
+		hiosoJSON(w, filtered)
+		return
+	}
+
 	hiosoJSON(w, onus)
 }
 
-// HiosoDetailHandler mengambil detail satu ONU berdasarkan index.
 func HiosoDetailHandler(w http.ResponseWriter, r *http.Request) {
 	if !hiosoGuard(w, r) {
 		return
@@ -256,34 +328,31 @@ func HiosoDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := hiosoLoadRuntimeSettings()
-	host := strings.TrimSpace(cfg.Host)
-	community := strings.TrimSpace(cfg.Community)
-	if host == "" || community == "" {
+	target := cfg.ToSNMPTarget()
+	if target.Host == "" || target.Community == "" {
 		hiosoError(w, http.StatusBadRequest, "OLT_HOST/OLT_COMMUNITY belum diisi")
 		return
 	}
 
-	onus, _, err := FetchAllONU(host, community)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	onu, err := FetchONUByIndex(ctx, target, index)
+	if ctx.Err() != nil {
+		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
+		return
+	}
 	if err != nil {
 		hiosoError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-
-	for _, onu := range onus {
-		if strings.TrimSpace(onu.Index) == index {
-			hiosoJSON(w, onu)
-			return
-		}
-	}
-
-	hiosoError(w, http.StatusNotFound, "ONU tidak ditemukan")
+	hiosoJSON(w, onu)
 }
 
 type hiosoRenameRequest struct {
 	Name string `json:"name"`
 }
 
-// HiosoRenameHandler rename ONU menggunakan SNMP dulu lalu fallback web.
 func HiosoRenameHandler(w http.ResponseWriter, r *http.Request) {
 	if !hiosoGuard(w, r) {
 		return
@@ -307,15 +376,9 @@ func HiosoRenameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := hiosoLoadRuntimeSettings()
-	host := strings.TrimSpace(cfg.Host)
-	community := strings.TrimSpace(cfg.Community)
-	user := strings.TrimSpace(cfg.Username)
-	pass := cfg.Password
+	target := cfg.ToSNMPTarget()
 
-	webHost := strings.TrimSpace(cfg.WebHost)
-	webPort := strings.TrimSpace(cfg.WebPort)
-
-	method, err := HiosoRenameONU(host, community, webHost, webPort, index, newName, user, pass)
+	method, err := HiosoRenameONU(target, cfg.WebHost, cfg.WebPort, index, newName, cfg.Username, cfg.Password)
 	if err != nil {
 		hiosoError(w, http.StatusBadGateway, err.Error())
 		return
@@ -326,7 +389,6 @@ func HiosoRenameHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HiosoRebootHandler reboot ONU via Web API.
 func HiosoRebootHandler(w http.ResponseWriter, r *http.Request) {
 	if !hiosoGuard(w, r) {
 		return
@@ -339,12 +401,8 @@ func HiosoRebootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := hiosoLoadRuntimeSettings()
-	host := strings.TrimSpace(cfg.WebHost)
-	webPort := strings.TrimSpace(cfg.WebPort)
-	user := strings.TrimSpace(cfg.Username)
-	pass := cfg.Password
 
-	if err := HiosoRebootONU(host, webPort, index, user, pass); err != nil {
+	if err := HiosoRebootONU(cfg.WebHost, cfg.WebPort, index, cfg.Username, cfg.Password); err != nil {
 		hiosoError(w, http.StatusBadGateway, err.Error())
 		return
 	}
@@ -352,4 +410,45 @@ func HiosoRebootHandler(w http.ResponseWriter, r *http.Request) {
 	hiosoJSON(w, map[string]interface{}{
 		"rebooted": true,
 	})
+}
+
+func HiosoPortsHandler(w http.ResponseWriter, r *http.Request) {
+	if !hiosoGuard(w, r) {
+		return
+	}
+
+	cfg := hiosoLoadRuntimeSettings()
+	target := cfg.ToSNMPTarget()
+	if target.Host == "" || target.Community == "" {
+		hiosoError(w, http.StatusBadRequest, "OLT_HOST/OLT_COMMUNITY belum diisi")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	onus, _, err := FetchAllONU(ctx, target)
+	if ctx.Err() != nil {
+		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
+		return
+	}
+	if err != nil {
+		hiosoError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	portSet := make(map[int]struct{})
+	for _, onu := range onus {
+		if onu.Port > 0 {
+			portSet[onu.Port] = struct{}{}
+		}
+	}
+
+	ports := make([]int, 0, len(portSet))
+	for p := range portSet {
+		ports = append(ports, p)
+	}
+	sort.Ints(ports)
+
+	hiosoJSON(w, ports)
 }

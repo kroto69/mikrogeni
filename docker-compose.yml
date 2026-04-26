@@ -12,8 +12,8 @@ services:
       PORT: "1997"
     volumes:
       - backend_data:/data
-    expose:
-      - "1997"
+    ports:
+      - "1997:1997"
 
   nginx:
     image: nginx:1.27-alpine
