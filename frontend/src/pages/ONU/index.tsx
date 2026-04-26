@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowUpDown, Filter, RefreshCcw, Search, X, Zap } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import OLTSelector from "@/components/olt/OLTSelector";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -63,15 +64,6 @@ function isMutedValue(value: string | null | undefined) {
 
 function formatDisplayValue(value: string | null | undefined) {
   return isMutedValue(value) ? "-" : value;
-}
-
-function formatPreciseTimestamp(value: string) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
 function OverlayPanel({
@@ -150,6 +142,11 @@ function OnuDetailOverlayContent({
   onRefresh: () => void;
   isRefreshing: boolean;
 }) {
+  const firstWifiProfile = detail.wifi_profiles[0];
+  const ssid1Value = firstWifiProfile?.ssid?.trim() ? firstWifiProfile.ssid : "-";
+  const ssid1PasswordValue = firstWifiProfile?.password?.trim() ? firstWifiProfile.password : "-";
+  const rxValue = detail.rx_power === null ? "-" : `${detail.rx_power} dBm`;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-border bg-muted/20 px-4 py-3">
@@ -189,16 +186,16 @@ function OnuDetailOverlayContent({
           <dl className="mt-2 divide-y divide-border/70">
             <CompactDetailRow label="PPPoE Username" muted={isMutedValue(detail.pppoe_username)} value={formatDisplayValue(detail.pppoe_username)} />
             <CompactDetailRow label="WAN IP" muted={isMutedValue(detail.ip_pppoe)} value={formatDisplayValue(detail.ip_pppoe)} />
-            <CompactDetailRow label="Optical RX" value={detail.rx_power === null ? "-" : `${detail.rx_power} dBm`} muted={detail.rx_power === null} />
+            <CompactDetailRow label="Uptime" muted={isMutedValue(detail.device_uptime)} value={formatDisplayValue(detail.device_uptime)} />
           </dl>
         </section>
 
         <section className="rounded-2xl border-2 border-border bg-card/95 px-4 py-3 shadow-brutal-sm sm:px-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Runtime</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">SSID & RX</p>
           <dl className="mt-2 divide-y divide-border/70">
-            <CompactDetailRow label="Temperature" value={detail.temp === null ? "-" : `${detail.temp} °C`} muted={detail.temp === null} />
-            <CompactDetailRow label="Uptime" muted={isMutedValue(detail.device_uptime)} value={formatDisplayValue(detail.device_uptime)} />
-            <CompactDetailRow label="Last Inform" muted={isMutedValue(detail.last_inform_at)} value={formatPreciseTimestamp(detail.last_inform_at)} />
+            <CompactDetailRow label="SSID 1" muted={isMutedValue(ssid1Value)} value={formatDisplayValue(ssid1Value)} />
+            <CompactDetailRow label="Password SSID 1" muted={isMutedValue(ssid1PasswordValue)} value={formatDisplayValue(ssid1PasswordValue)} />
+            <CompactDetailRow label="RX" value={rxValue} muted={detail.rx_power === null} />
           </dl>
         </section>
       </div>
@@ -551,6 +548,7 @@ export default function OnuIndex() {
         meta={<span className="inline-flex rounded-full border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{counts.all} total</span>}
         actions={
           <div className="grid w-full gap-3">
+            <OLTSelector />
             <div className="relative min-w-0 w-full">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input

@@ -10,6 +10,7 @@ const routeLabels: Record<string, string> = {
   dashboard: "Dashboard",
   onu: "ONU Devices",
   mikrotik: "Mikrotik",
+  billing: "Billing",
   settings: "Settings",
 };
 

@@ -226,6 +226,22 @@ func (s *MikroTikService) ExecuteAction(deviceID, action string, payload map[str
 	return err
 }
 
+func (s *MikroTikService) SetPPPSecretDisabled(deviceID, secretName string, disabled bool) error {
+	deviceID = strings.TrimSpace(deviceID)
+	secretName = strings.TrimSpace(secretName)
+	if deviceID == "" {
+		return fmt.Errorf("device id is required")
+	}
+	if secretName == "" {
+		return fmt.Errorf("ppp secret name is required")
+	}
+
+	return s.ExecuteAction(deviceID, "ppp.secret.update", map[string]interface{}{
+		"name":     secretName,
+		"disabled": disabled,
+	})
+}
+
 func (s *MikroTikService) TestConnection(deviceID string) (map[string]interface{}, error) {
 	device, err := db.GetMikroTikDeviceByID(deviceID)
 	if err != nil {

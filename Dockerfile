@@ -13,7 +13,10 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /out/genieacs-backend ./cm
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libsqlite3-0 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libsqlite3-0 \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /data
 

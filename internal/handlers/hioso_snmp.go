@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -103,6 +105,141 @@ func hiosoParseSNMPVersion(raw string) gosnmp.SnmpVersion {
 	}
 }
 
+func hiosoResolveSNMPTarget(rawHost, rawPort string) (string, uint16, error) {
+	host := strings.TrimSpace(rawHost)
+	port := hiosoParseSNMPPort(rawPort)
+	if host == "" {
+		return "", 0, errors.New("host SNMP tidak valid")
+	}
+
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		if parsed, err := url.Parse(host); err == nil && parsed.Host != "" {
+			host = parsed.Host
+		}
+	}
+
+	if splitHost, splitPort, err := net.SplitHostPort(host); err == nil {
+		host = splitHost
+		if parsedPort, parseErr := strconv.Atoi(splitPort); parseErr == nil && parsedPort >= 1 && parsedPort <= 65535 {
+			port = uint16(parsedPort)
+		}
+	}
+
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if host == "" {
+		return "", 0, errors.New("host SNMP tidak valid")
+	}
+
+	return host, port, nil
+}
+
+func hiosoEnsureScalarOID(oid string) string {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(oid), ".")
+	if trimmed == "" {
+		return ""
+	}
+	if strings.HasSuffix(trimmed, ".0") {
+		return "." + trimmed
+	}
+	return "." + trimmed + ".0"
+}
+
+func hiosoHasMeaningfulSNMPValues(values map[string]string) bool {
+	for _, raw := range values {
+		if hiosoIsMeaningfulSNMPValue(raw) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hiosoIsMeaningfulSNMPValue(raw string) bool {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return false
+	}
+	if strings.Contains(value, "no such") || strings.Contains(value, "end of mib") {
+		return false
+	}
+
+	return true
+}
+
+func hiosoFindProfileByName(name string) *hiosoOIDProfile {
+	needle := strings.TrimSpace(strings.ToUpper(name))
+	if needle == "" {
+		return nil
+	}
+
+	for i := range hiosoProfiles {
+		if strings.ToUpper(strings.TrimSpace(hiosoProfiles[i].Name)) == needle {
+			profile := hiosoProfiles[i]
+			return &profile
+		}
+	}
+
+	return nil
+}
+
+func hiosoInferProfileFromSystemInfo(host, community string) *hiosoOIDProfile {
+	sysObjectValues, _ := hiosoSNMPWalk(host, community, ".1.3.6.1.2.1.1.2.0")
+	sysDescrValues, _ := hiosoSNMPWalk(host, community, ".1.3.6.1.2.1.1.1.0")
+
+	inferredName := hiosoInferProfileNameFromSystemText(
+		strings.ToLower(strings.Join(mapsValues(sysObjectValues), " ")),
+		strings.ToLower(strings.Join(mapsValues(sysDescrValues), " ")),
+	)
+	if inferredName != "" {
+		return hiosoFindProfileByName(inferredName)
+	}
+
+	return nil
+}
+
+func hiosoInferProfileNameFromSystemText(sysObjectText, sysDescrText string) string {
+	sysObjectText = strings.ToLower(strings.TrimSpace(sysObjectText))
+	sysDescrText = strings.ToLower(strings.TrimSpace(sysDescrText))
+
+	if strings.Contains(sysObjectText, ".1.3.6.1.4.1.3320") {
+		return "HIOSO_B"
+	}
+	if strings.Contains(sysObjectText, ".1.3.6.1.4.1.25355.3.3") {
+		return "HIOSO_GPON"
+	}
+	if strings.Contains(sysObjectText, ".1.3.6.1.4.1.25355") {
+		return "HIOSO_C"
+	}
+
+	if strings.Contains(sysDescrText, "hioso") {
+		if strings.Contains(sysDescrText, "gpon") {
+			return "HIOSO_GPON"
+		}
+		if strings.Contains(sysDescrText, "epon") {
+			return "HIOSO_C"
+		}
+	}
+
+	return ""
+}
+
+func mapsValues(data map[string]string) []string {
+	if len(data) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(data))
+	for _, value := range data {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+
+	return result
+}
+
 // hiosoSNMPWalk melakukan SNMP walk dan mengembalikan map index->value string.
 func hiosoSNMPWalk(host, community, oid string) (map[string]string, error) {
 	cfg := hiosoLoadRuntimeSettings()
@@ -119,9 +256,14 @@ func hiosoSNMPWalk(host, community, oid string) (map[string]string, error) {
 		return nil, errors.New("host/community SNMP tidak valid")
 	}
 
+	targetHost, targetPort, targetErr := hiosoResolveSNMPTarget(host, cfg.Port)
+	if targetErr != nil {
+		return nil, targetErr
+	}
+
 	client := &gosnmp.GoSNMP{
-		Target:    host,
-		Port:      hiosoParseSNMPPort(cfg.Port),
+		Target:    targetHost,
+		Port:      targetPort,
 		Community: community,
 		Version:   hiosoParseSNMPVersion(cfg.Version),
 		Timeout:   2 * time.Second,
@@ -135,7 +277,7 @@ func hiosoSNMPWalk(host, community, oid string) (map[string]string, error) {
 
 	results := make(map[string]string)
 	baseOID := strings.TrimSpace(oid)
-	walkErr := client.BulkWalk(baseOID, func(pdu gosnmp.SnmpPDU) error {
+	walkHandler := func(pdu gosnmp.SnmpPDU) error {
 		index := hiosoExtractIndex(pdu.Name, baseOID)
 		if index == "" {
 			trimmed := strings.TrimPrefix(strings.TrimPrefix(pdu.Name, "."), strings.TrimPrefix(baseOID, ".")+".")
@@ -147,8 +289,26 @@ func hiosoSNMPWalk(host, community, oid string) (map[string]string, error) {
 		}
 		results[index] = hiosoPDUToString(pdu)
 		return nil
-	})
+	}
+
+	walkErr := client.BulkWalk(baseOID, walkHandler)
 	if walkErr != nil {
+		walkErr = client.Walk(baseOID, walkHandler)
+	}
+
+	if len(results) == 0 {
+		scalarOID := hiosoEnsureScalarOID(baseOID)
+		if scalarOID != "" {
+			if packet, getErr := client.Get([]string{scalarOID}); getErr == nil && packet != nil && len(packet.Variables) > 0 {
+				for _, variable := range packet.Variables {
+					results["0"] = hiosoPDUToString(variable)
+				}
+				walkErr = nil
+			}
+		}
+	}
+
+	if walkErr != nil && len(results) == 0 {
 		return nil, fmt.Errorf("SNMP walk gagal oid=%s: %w", baseOID, walkErr)
 	}
 
@@ -172,9 +332,14 @@ func hiosoSNMPSet(host, community, oid, value string) error {
 		return errors.New("parameter SNMP set tidak lengkap")
 	}
 
+	targetHost, targetPort, targetErr := hiosoResolveSNMPTarget(host, cfg.Port)
+	if targetErr != nil {
+		return targetErr
+	}
+
 	client := &gosnmp.GoSNMP{
-		Target:    host,
-		Port:      hiosoParseSNMPPort(cfg.Port),
+		Target:    targetHost,
+		Port:      targetPort,
 		Community: community,
 		Version:   hiosoParseSNMPVersion(cfg.Version),
 		Timeout:   2 * time.Second,
@@ -206,15 +371,36 @@ func hiosoSNMPSet(host, community, oid, value string) error {
 
 // hiosoDetectProfile mendeteksi profil OID yang cocok berdasarkan NameOID pertama yang menghasilkan data.
 func hiosoDetectProfile(host, community string) (*hiosoOIDProfile, error) {
+	bestScore := 0
+	var bestProfile *hiosoOIDProfile
+
 	for i := range hiosoProfiles {
 		profile := hiosoProfiles[i]
-		values, err := hiosoSNMPWalk(host, community, profile.NameOID)
-		if err != nil {
-			continue
+		score := 0
+
+		if values, err := hiosoSNMPWalk(host, community, profile.NameOID); err == nil && hiosoHasMeaningfulSNMPValues(values) {
+			score += 3
 		}
-		if len(values) > 0 {
-			return &profile, nil
+		if values, err := hiosoSNMPWalk(host, community, profile.SNOID); err == nil && hiosoHasMeaningfulSNMPValues(values) {
+			score += 2
 		}
+		if values, err := hiosoSNMPWalk(host, community, profile.StatOID); err == nil && hiosoHasMeaningfulSNMPValues(values) {
+			score += 1
+		}
+
+		if score > bestScore {
+			copyProfile := profile
+			bestProfile = &copyProfile
+			bestScore = score
+		}
+	}
+
+	if bestProfile != nil && bestScore > 0 {
+		return bestProfile, nil
+	}
+
+	if inferred := hiosoInferProfileFromSystemInfo(host, community); inferred != nil {
+		return inferred, nil
 	}
 
 	return nil, errors.New("OLT tidak dikenali sebagai Hioso")
@@ -447,7 +633,7 @@ func FetchAllONU(host, community string) ([]HiosoONU, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("OLT tidak reachable (sysDescr): %w", err)
 	}
-	if len(sysDescr) == 0 {
+	if !hiosoHasMeaningfulSNMPValues(sysDescr) {
 		return nil, "", errors.New("sysDescr kosong")
 	}
 
@@ -473,7 +659,7 @@ func FetchAllONU(host, community string) ([]HiosoONU, string, error) {
 		sns = make(map[string]string)
 	}
 	for _, oid := range hiosoSNFallbacks {
-		if len(sns) > 0 {
+		if hiosoHasMeaningfulSNMPValues(sns) {
 			break
 		}
 		fallbackData, fallbackErr := hiosoSNMPWalk(host, community, oid)
@@ -481,7 +667,10 @@ func FetchAllONU(host, community string) ([]HiosoONU, string, error) {
 			continue
 		}
 		for idx, val := range fallbackData {
-			if strings.TrimSpace(sns[idx]) == "" {
+			if !hiosoIsMeaningfulSNMPValue(val) {
+				continue
+			}
+			if !hiosoIsMeaningfulSNMPValue(sns[idx]) {
 				sns[idx] = val
 			}
 		}

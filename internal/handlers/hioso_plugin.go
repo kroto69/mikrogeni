@@ -202,7 +202,7 @@ func HiosoHealthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sysDescr, err := hiosoSNMPWalk(host, community, ".1.3.6.1.2.1.1.1")
-	if err != nil || len(sysDescr) == 0 {
+	if err != nil || !hiosoHasMeaningfulSNMPValues(sysDescr) {
 		hiosoJSON(w, map[string]interface{}{
 			"online": false,
 			"detail": "OLT tidak reachable via SNMP",

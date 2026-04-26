@@ -29,19 +29,6 @@ export default function PluginPage() {
             </CardContent>
           </Card>
         </Link>
-
-        <Card className="h-full border-dashed border-border/80 bg-card/80">
-          <CardContent className="space-y-3 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Badge>OLT</Badge>
-                <h3 className="mt-2 text-lg font-semibold text-foreground">ZTE</h3>
-              </div>
-              <Badge variant="secondary">Soon</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">ZTE OLT integration can be plugged into the same Plugin → OLT structure later.</p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

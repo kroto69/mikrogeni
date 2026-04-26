@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "npm run typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run typecheck"
   },
   "dependencies": {
@@ -23,15 +26,22 @@
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.15.29",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.21",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
     "playwright": "^1.58.2",
     "postcss": "^8.5.3",
+    "prettier": "^3.8.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.59.0",
     "vite": "^5.4.19"
   }
 }

@@ -83,7 +83,15 @@ func createTables() error {
 		return err
 	}
 
-	return createMikroTikTables()
+	if err := createMikroTikTables(); err != nil {
+		return err
+	}
+
+	if err := createBillingTables(); err != nil {
+		return err
+	}
+
+	return createOLTDeviceTables()
 }
 
 // createAdditionalTables creates vendor, tag, and fault tables

@@ -9,15 +9,19 @@ import {
 } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { OltSelectorProvider } from "@/hooks/useOltSelector";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
 const MikrotikDetail = lazy(() => import("@/pages/Mikrotik/Detail"));
 const MikrotikIndex = lazy(() => import("@/pages/Mikrotik"));
+const BillingIndex = lazy(() => import("@/pages/Billing"));
 const OnuDetail = lazy(() => import("@/pages/ONU/Detail"));
 const OnuIndex = lazy(() => import("@/pages/ONU"));
 const PluginPage = lazy(() => import("@/pages/Plugin"));
 const OltHiosoPage = lazy(() => import("@/pages/Plugin/OltHioso"));
+const OltZtePage = lazy(() => import("@/pages/Plugin/OltZte"));
+const OLTManagementPage = lazy(() => import("@/pages/OLTManagement"));
 const Settings = lazy(() => import("@/pages/Settings"));
 
 function AuthBoundary({ children, guestOnly = false }: { children: ReactNode; guestOnly?: boolean }) {
@@ -84,10 +88,13 @@ function AppRoutes() {
             <Route index element={<MikrotikIndex />} />
             <Route path=":deviceId" element={<MikrotikDetail />} />
           </Route>
+          <Route path="billing" element={<BillingIndex />} />
           <Route path="plugin" element={<Outlet />}>
             <Route index element={<PluginPage />} />
             <Route path="olt/hioso" element={<OltHiosoPage />} />
           </Route>
+          <Route path="zte" element={<OltZtePage />} />
+          <Route path="olt-management" element={<OLTManagementPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 
@@ -101,7 +108,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <OltSelectorProvider>
+          <AppRoutes />
+        </OltSelectorProvider>
       </AuthProvider>
     </BrowserRouter>
   );
