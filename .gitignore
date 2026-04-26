@@ -53,7 +53,7 @@ temp/
 # Build artifacts
 *.o
 *.a
-server
+/server
 
 # Local agent/work artifacts
 .sisyphus/
