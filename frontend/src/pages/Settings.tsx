@@ -10,28 +10,22 @@ import { PageSectionHeader } from "@/components/page/section-header";
 import { Input } from "@/components/ui/input";
 import {
   API_BASE_URL,
-  activateHiosoOltProfile,
-  createHiosoOltProfile,
   createAcsUser,
   createMikrotikDevice,
   deleteAcsUser,
-  deleteHiosoOltProfile,
   deleteMikrotikDevice,
   getAcsUsers,
-  getHiosoOltProfiles,
   getAcsSettings,
   getApiErrorMessage,
   getMikrotikDevices,
   getStoredAuthSession,
   setStoredAuthSession,
-  updateHiosoOltProfile,
   updateAcsUser,
   testMikrotikDeviceConnection,
   updateAcsSetting,
   updateMikrotikDevice,
   type AcsUser,
   type AcsUserRole,
-  type HiosoOltProfile,
 } from "@/lib/api";
 import { showToast } from "@/lib/toast";
 
@@ -50,8 +44,6 @@ type RegistryModalMode = "closed" | "create" | "edit";
 
 type UserModalMode = "closed" | "create" | "edit";
 
-type HiosoProfileModalMode = "closed" | "create" | "edit";
-
 type UserFormState = {
   username: string;
   role: AcsUserRole;
@@ -65,18 +57,6 @@ type RegistryFormState = {
   username: string;
   password: string;
   site: string;
-};
-
-type HiosoProfileFormState = {
-  name: string;
-  snmpHost: string;
-  snmpPort: string;
-  snmpVersion: string;
-  snmpCommunity: string;
-  webHost: string;
-  webPort: string;
-  username: string;
-  password: string;
 };
 
 const EMPTY_FORM: SettingsFormState = {
@@ -101,18 +81,6 @@ const EMPTY_REGISTRY_FORM: RegistryFormState = {
   username: "",
   password: "",
   site: "",
-};
-
-const EMPTY_HIOSO_PROFILE_FORM: HiosoProfileFormState = {
-  name: "",
-  snmpHost: "",
-  snmpPort: "161",
-  snmpVersion: "2c",
-  snmpCommunity: "public",
-  webHost: "",
-  webPort: "80",
-  username: "admin",
-  password: "",
 };
 
 const SETTING_KEYS: Record<keyof SettingsFormState, string> = {
@@ -262,30 +230,9 @@ function formatUserUpdatedAt(user: AcsUser) {
   return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleString();
 }
 
-function buildHiosoProfileForm(profile: HiosoOltProfile): HiosoProfileFormState {
-  return {
-    name: profile.name ?? "",
-    snmpHost: profile.snmp_host ?? "",
-    snmpPort: String(profile.snmp_port ?? 161),
-    snmpVersion: profile.snmp_version ?? "2c",
-    snmpCommunity: profile.snmp_community ?? "public",
-    webHost: profile.web_host ?? "",
-    webPort: String(profile.web_port ?? 80),
-    username: profile.username ?? "admin",
-    password: "",
-  };
-}
-
-function isHiosoProfileActive(profile: HiosoOltProfile) {
-  return Boolean(profile.is_active ?? profile.active);
-}
-
 export default function Settings() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<SettingsFormState>(EMPTY_FORM);
-  const [hiosoProfileModalMode, setHiosoProfileModalMode] = useState<HiosoProfileModalMode>("closed");
-  const [hiosoProfileForm, setHiosoProfileForm] = useState<HiosoProfileFormState>(EMPTY_HIOSO_PROFILE_FORM);
-  const [editingHiosoProfile, setEditingHiosoProfile] = useState<HiosoOltProfile | null>(null);
   const [registryModalMode, setRegistryModalMode] = useState<RegistryModalMode>("closed");
   const [registryForm, setRegistryForm] = useState<RegistryFormState>(EMPTY_REGISTRY_FORM);
   const [editingDevice, setEditingDevice] = useState<MikrotikRegistryDevice | null>(null);
@@ -306,11 +253,6 @@ export default function Settings() {
   const usersQuery = useQuery({
     queryKey: ["acs-users"],
     queryFn: getAcsUsers,
-  });
-
-  const hiosoProfilesQuery = useQuery({
-    queryKey: ["hioso-olt-profiles"],
-    queryFn: getHiosoOltProfiles,
   });
 
   useEffect(() => {
@@ -383,104 +325,6 @@ export default function Settings() {
     },
     onError: (error) => {
       showToast({ title: "Failed to clear section", description: getApiErrorMessage(error), variant: "error" });
-    },
-  });
-
-  const createHiosoProfileMutation = useMutation({
-    mutationFn: async (values: HiosoProfileFormState) => {
-      const payload = {
-        name: values.name.trim(),
-        snmp_host: values.snmpHost.trim(),
-        snmp_port: Number(values.snmpPort || "161"),
-        snmp_version: values.snmpVersion.trim() || "2c",
-        snmp_community: values.snmpCommunity.trim(),
-        web_host: values.webHost.trim(),
-        web_port: Number(values.webPort || "80"),
-        username: values.username.trim(),
-        password: values.password,
-      };
-
-      if (!payload.name || !payload.snmp_host || !payload.snmp_community || !payload.web_host || !payload.username || !payload.password) {
-        throw new Error("Name, SNMP host/community, WebUI host, username, and password are required.");
-      }
-
-      if (!Number.isFinite(payload.snmp_port) || payload.snmp_port <= 0 || !Number.isFinite(payload.web_port) || payload.web_port <= 0) {
-        throw new Error("SNMP and WebUI ports must be valid positive numbers.");
-      }
-
-      return createHiosoOltProfile(payload);
-    },
-    onSuccess: async () => {
-      showToast({ title: "Hioso profile created", description: "New OLT profile was added.", variant: "success" });
-      setHiosoProfileModalMode("closed");
-      setEditingHiosoProfile(null);
-      setHiosoProfileForm(EMPTY_HIOSO_PROFILE_FORM);
-      await queryClient.invalidateQueries({ queryKey: ["hioso-olt-profiles"] });
-      await queryClient.invalidateQueries({ queryKey: ["acs-settings"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to create profile", description: getApiErrorMessage(error), variant: "error" });
-    },
-  });
-
-  const updateHiosoProfileMutation = useMutation({
-    mutationFn: async ({ profileId, values }: { profileId: string; values: HiosoProfileFormState }) => {
-      const payload = {
-        name: values.name.trim(),
-        snmp_host: values.snmpHost.trim(),
-        snmp_port: Number(values.snmpPort || "161"),
-        snmp_version: values.snmpVersion.trim() || "2c",
-        snmp_community: values.snmpCommunity.trim(),
-        web_host: values.webHost.trim(),
-        web_port: Number(values.webPort || "80"),
-        username: values.username.trim(),
-        ...(values.password.trim() ? { password: values.password } : {}),
-      };
-
-      if (!payload.name || !payload.snmp_host || !payload.snmp_community || !payload.web_host || !payload.username) {
-        throw new Error("Name, SNMP host/community, WebUI host, and username are required.");
-      }
-
-      if (!Number.isFinite(payload.snmp_port) || payload.snmp_port <= 0 || !Number.isFinite(payload.web_port) || payload.web_port <= 0) {
-        throw new Error("SNMP and WebUI ports must be valid positive numbers.");
-      }
-
-      return updateHiosoOltProfile(profileId, payload);
-    },
-    onSuccess: async () => {
-      showToast({ title: "Hioso profile updated", description: "Profile changes were saved.", variant: "success" });
-      setHiosoProfileModalMode("closed");
-      setEditingHiosoProfile(null);
-      setHiosoProfileForm(EMPTY_HIOSO_PROFILE_FORM);
-      await queryClient.invalidateQueries({ queryKey: ["hioso-olt-profiles"] });
-      await queryClient.invalidateQueries({ queryKey: ["acs-settings"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to update profile", description: getApiErrorMessage(error), variant: "error" });
-    },
-  });
-
-  const deleteHiosoProfileMutation = useMutation({
-    mutationFn: (profileId: string) => deleteHiosoOltProfile(profileId),
-    onSuccess: async () => {
-      showToast({ title: "Hioso profile deleted", description: "Selected profile was removed.", variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: ["hioso-olt-profiles"] });
-      await queryClient.invalidateQueries({ queryKey: ["acs-settings"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to delete profile", description: getApiErrorMessage(error), variant: "error" });
-    },
-  });
-
-  const activateHiosoProfileMutation = useMutation({
-    mutationFn: (profileId: string) => activateHiosoOltProfile(profileId),
-    onSuccess: async () => {
-      showToast({ title: "Active profile updated", description: "Selected Hioso profile is now active.", variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: ["hioso-olt-profiles"] });
-      await queryClient.invalidateQueries({ queryKey: ["acs-settings"] });
-    },
-    onError: (error) => {
-      showToast({ title: "Failed to set active profile", description: getApiErrorMessage(error), variant: "error" });
     },
   });
 
@@ -675,37 +519,9 @@ export default function Settings() {
   });
 
   const isMutating = saveSectionMutation.isPending || clearSectionMutation.isPending;
-  const isHiosoProfileSubmitting = createHiosoProfileMutation.isPending || updateHiosoProfileMutation.isPending;
   const isRegistrySubmitting = createRegistryDeviceMutation.isPending || updateRegistryDeviceMutation.isPending;
   const isRegistryTesting = testRegistryDeviceMutation.isPending;
   const isUserSubmitting = createUserMutation.isPending || updateUserMutation.isPending;
-
-  const openCreateHiosoProfileModal = () => {
-    setEditingHiosoProfile(null);
-    setHiosoProfileForm(EMPTY_HIOSO_PROFILE_FORM);
-    setHiosoProfileModalMode("create");
-  };
-
-  const openEditHiosoProfileModal = (profile: HiosoOltProfile) => {
-    setEditingHiosoProfile(profile);
-    setHiosoProfileForm(buildHiosoProfileForm(profile));
-    setHiosoProfileModalMode("edit");
-  };
-
-  const closeHiosoProfileModal = () => {
-    setEditingHiosoProfile(null);
-    setHiosoProfileForm(EMPTY_HIOSO_PROFILE_FORM);
-    setHiosoProfileModalMode("closed");
-  };
-
-  const handleHiosoProfileSubmit = () => {
-    if (hiosoProfileModalMode === "edit" && editingHiosoProfile) {
-      updateHiosoProfileMutation.mutate({ profileId: String(editingHiosoProfile.id), values: hiosoProfileForm });
-      return;
-    }
-
-    createHiosoProfileMutation.mutate(hiosoProfileForm);
-  };
 
   const openCreateRegistryModal = () => {
     setEditingDevice(null);
@@ -773,7 +589,7 @@ export default function Settings() {
         <div className="relative">
           <h2 className="text-3xl font-black uppercase tracking-[0.04em] text-foreground sm:text-5xl">Settings Center</h2>
           <p className="mt-3 max-w-3xl text-sm font-semibold text-muted-foreground sm:text-base">
-            Manage dashboard display identity, app user accounts, Hioso multi-OLT profiles, MikroTik defaults, and GenieACS endpoint settings section by section.
+            Manage dashboard display identity, app user accounts, MikroTik defaults, and GenieACS endpoint settings section by section.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <Badge className="bg-secondary text-secondary-foreground">Configuration Core</Badge>
@@ -957,93 +773,6 @@ export default function Settings() {
 
       <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
         <CardHeader>
-          <div className="mb-3 flex justify-end gap-2">
-            <div className="h-3 w-6 rotate-6 border-2 border-border bg-secondary" />
-            <div className="h-3 w-10 -rotate-3 border-2 border-border bg-accent" />
-          </div>
-          <PageSectionHeader
-            title={<CardTitle className="text-xl sm:text-2xl">Hioso OLT Profiles</CardTitle>}
-            description={<CardDescription>Manage multiple OLT profiles with split SNMP and WebUI credentials, then mark one profile as active.</CardDescription>}
-            actions={<Button className="w-full sm:w-auto" onClick={openCreateHiosoProfileModal} type="button"><Plus className="mr-2 h-4 w-4" />Add OLT Profile</Button>}
-          />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {hiosoProfilesQuery.isLoading ? (
-            <div className="rounded-2xl border-2 border-border bg-muted/10 p-4 text-sm font-semibold text-muted-foreground shadow-brutal-sm">Loading OLT profiles...</div>
-          ) : null}
-
-          {hiosoProfilesQuery.isError ? (
-            <div className="rounded-2xl border-2 border-border bg-destructive/10 p-4 text-sm font-semibold text-destructive shadow-brutal-sm">{getApiErrorMessage(hiosoProfilesQuery.error)}</div>
-          ) : null}
-
-          {!hiosoProfilesQuery.isLoading && !hiosoProfilesQuery.isError && (hiosoProfilesQuery.data?.length ?? 0) === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-border bg-muted/10 p-6 text-sm font-semibold text-muted-foreground shadow-brutal-sm">
-              No Hioso OLT profiles yet. Use <span className="text-foreground">Add OLT Profile</span> to create the first one.
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 xl:grid-cols-2">
-            {(hiosoProfilesQuery.data ?? []).map((profile) => {
-              const isActive = isHiosoProfileActive(profile);
-              return (
-                <div className="rounded-2xl border-2 border-border bg-card/95 p-4 shadow-brutal-sm" key={profile.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-base font-semibold text-foreground">{profile.name || `Profile ${profile.id}`}</p>
-                        <Badge variant={isActive ? "success" : "secondary"}>{isActive ? "Active" : "Inactive"}</Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-muted-foreground">SNMP {profile.snmp_host}:{profile.snmp_port} · v{profile.snmp_version}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">WebUI {profile.web_host}:{profile.web_port}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-muted/10 px-3 py-2.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">SNMP Community</p>
-                      <p className="mt-1 break-all text-sm font-medium text-foreground">{profile.snmp_community}</p>
-                    </div>
-                    <div className="rounded-2xl bg-muted/10 px-3 py-2.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">WebUI User</p>
-                      <p className="mt-1 text-sm font-medium text-foreground">{profile.username}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={isActive || activateHiosoProfileMutation.isPending}
-                      onClick={() => activateHiosoProfileMutation.mutate(String(profile.id))}
-                      type="button"
-                      variant={isActive ? "secondary" : "outline"}
-                    >
-                      {isActive ? "Active Profile" : "Set Active"}
-                    </Button>
-                    <Button className="w-full sm:w-auto" onClick={() => openEditHiosoProfileModal(profile)} type="button" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={deleteHiosoProfileMutation.isPending}
-                      onClick={() => {
-                        if (!window.confirm(`Delete OLT profile ${profile.name || profile.id}?`)) {
-                          return;
-                        }
-                        deleteHiosoProfileMutation.mutate(String(profile.id));
-                      }}
-                      type="button"
-                      variant="outline"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />Delete
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
-        <CardHeader>
           <div className="mb-3 flex items-center gap-2">
             <div className="h-3 w-8 border-2 border-border bg-primary" />
             <div className="h-3 w-5 border-2 border-border bg-secondary" />
@@ -1143,80 +872,6 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
-
-      <OverlayPanel
-        description={hiosoProfileModalMode === "edit"
-          ? "Update OLT profile fields. Leave password empty to keep existing password."
-          : "Create a new Hioso OLT profile with split SNMP and WebUI credentials."}
-        onClose={closeHiosoProfileModal}
-        open={hiosoProfileModalMode !== "closed"}
-        title={hiosoProfileModalMode === "edit" ? `Edit OLT Profile · ${editingHiosoProfile?.name ?? ""}` : "Create OLT Profile"}
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-profile-name">Profile Name</label>
-            <Input id="hioso-profile-name" value={hiosoProfileForm.name} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, name: event.target.value }))} />
-          </div>
-
-          <div className="space-y-2 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">SNMP</p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-snmp-host">Host / IP</label>
-            <Input id="hioso-snmp-host" value={hiosoProfileForm.snmpHost} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, snmpHost: event.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-snmp-port">Port</label>
-            <Input id="hioso-snmp-port" value={hiosoProfileForm.snmpPort} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, snmpPort: event.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-snmp-version">Version</label>
-            <select
-              className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
-              id="hioso-snmp-version"
-              value={hiosoProfileForm.snmpVersion}
-              onChange={(event) => setHiosoProfileForm((current) => ({ ...current, snmpVersion: event.target.value }))}
-            >
-              <option value="1">v1</option>
-              <option value="2c">v2c</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-snmp-community">Community</label>
-            <Input id="hioso-snmp-community" value={hiosoProfileForm.snmpCommunity} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, snmpCommunity: event.target.value }))} />
-          </div>
-
-          <div className="space-y-2 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">WebUI</p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-web-host">Host / IP</label>
-            <Input id="hioso-web-host" value={hiosoProfileForm.webHost} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, webHost: event.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-web-port">Port</label>
-            <Input id="hioso-web-port" value={hiosoProfileForm.webPort} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, webPort: event.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="hioso-web-username">Username</label>
-            <Input id="hioso-web-username" value={hiosoProfileForm.username} onChange={(event) => setHiosoProfileForm((current) => ({ ...current, username: event.target.value }))} />
-          </div>
-          <SecretInput
-            inputId="hioso-web-password"
-            label={hiosoProfileModalMode === "edit" ? "Password (optional)" : "Password"}
-            value={hiosoProfileForm.password}
-            onChange={(next) => setHiosoProfileForm((current) => ({ ...current, password: next }))}
-          />
-        </div>
-
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button onClick={closeHiosoProfileModal} type="button" variant="outline">Cancel</Button>
-          <Button disabled={isHiosoProfileSubmitting} onClick={handleHiosoProfileSubmit} type="button">
-            <Save className="mr-2 h-4 w-4" />
-            {isHiosoProfileSubmitting ? "Saving..." : hiosoProfileModalMode === "edit" ? "Save Profile" : "Create Profile"}
-          </Button>
-        </div>
-      </OverlayPanel>
 
       <OverlayPanel
         description={userModalMode === "edit"

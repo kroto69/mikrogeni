@@ -91,6 +91,12 @@ func createTables() error {
 		return err
 	}
 
+	if err := createHiosoOLTDeviceTables(); err != nil {
+		return err
+	}
+
+	MigrateHiosoProfilesIfNeeded()
+
 	return nil
 }
 

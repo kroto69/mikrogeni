@@ -9,6 +9,7 @@ Dokumen ini versi ringkas untuk operasional backend.
   - Endpoint Ringkas
   - Ringkasan cepat backend
   - ACS Registry / Auto-Learn
+  - Hioso OLT Plugin
 - **Recipe / contoh pakai**:
   - Ubah SSID / Password WiFi ACS
   - Auto Refresh ACS Periodik
@@ -700,6 +701,192 @@ Contoh response `GET /mikrotik/devices/{device_id}/ppp/active`:
 ]
 ```
 | POST | `/mikrotik/bulk/jobs` | 1 aksi ke banyak device (async) |
+
+### Hioso OLT Plugin
+
+Plugin Hioso mengelola OLT via SNMP dan Web API. Semua endpoint di bawah `/api/plugin/hioso` membutuhkan JWT auth.
+
+#### Plugin Control
+
+| Method | Path | Keterangan |
+|---|---|---|
+| `GET` | `/plugin/hioso/status` | Status plugin (enabled/disabled + host) |
+| `POST` | `/plugin/hioso/enable` | Aktifkan plugin |
+| `POST` | `/plugin/hioso/disable` | Nonaktifkan plugin |
+| `GET` | `/plugin/hioso/health` | Cek koneksi OLT via SNMP |
+
+Contoh response `GET /plugin/hioso/status`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "host": "10.10.10.10"
+  }
+}
+```
+
+Contoh response `GET /plugin/hioso/health`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "online": true,
+    "detail": "OLT reachable, profil: HIOSO_GPON"
+  }
+}
+```
+
+#### ONU Data
+
+| Method | Path | Keterangan |
+|---|---|---|
+| `GET` | `/plugin/hioso/onu` | List semua ONU |
+| `GET` | `/plugin/hioso/onu?port=N` | List ONU pada port tertentu |
+| `GET` | `/plugin/hioso/onu/{index}` | Detail 1 ONU |
+| `POST` | `/plugin/hioso/onu/{index}/rename` | Rename ONU |
+| `POST` | `/plugin/hioso/onu/{index}/reboot` | Reboot ONU |
+| `GET` | `/plugin/hioso/ports` | List port yang tersedia |
+
+**Query Parameters:**
+
+- `port` (opsional, integer) — filter ONU berdasarkan nomor port PON
+
+**ONU Response Fields:**
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `index` | string | SNMP index ONU |
+| `web_id` | string | Web UI ID untuk rename/reboot |
+| `port` | int | Nomor port PON (diparse dari index) |
+| `onu_id` | int | ID ONU pada port tersebut |
+| `name` | string | Nama ONU |
+| `sn` | string | Serial number |
+| `status` | string | Status online/offline |
+| `tx_power` | float | Transmit power (dBm) |
+| `rx_power` | float | Receive power (dBm) |
+| `profile` | string | Profil OID yang terdeteksi |
+
+Contoh response `GET /plugin/hioso/onu`:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "index": "1.3.1",
+      "web_id": "1",
+      "port": 3,
+      "onu_id": 1,
+      "name": "ONU-Customer-A",
+      "sn": "HISO12345678",
+      "status": "online",
+      "tx_power": 2.5,
+      "rx_power": -18.3,
+      "profile": "HIOSO_GPON"
+    }
+  ]
+}
+```
+
+Contoh response `GET /plugin/hioso/onu?port=3`:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "index": "1.3.1",
+      "web_id": "1",
+      "port": 3,
+      "onu_id": 1,
+      "name": "ONU-Customer-A",
+      "sn": "HISO12345678",
+      "status": "online",
+      "tx_power": 2.5,
+      "rx_power": -18.3,
+      "profile": "HIOSO_GPON"
+    }
+  ]
+}
+```
+
+Contoh response `GET /plugin/hioso/ports`:
+
+```json
+{
+  "success": true,
+  "data": [1, 2, 3, 4, 5, 6, 7, 8]
+}
+```
+
+#### ONU Actions
+
+**Rename ONU:**
+
+```bash
+curl -X POST "http://localhost:1997/api/plugin/hioso/onu/1.3.1/rename" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Customer-Baru"}'
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "method": "snmp"
+  }
+}
+```
+
+> `method` bisa `snmp` atau `web` tergantung profil OLT.
+
+**Reboot ONU:**
+
+```bash
+curl -X POST "http://localhost:1997/api/plugin/hioso/onu/1.3.1/reboot" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "rebooted": true
+  }
+}
+```
+
+#### Hioso OLT Profiles (Settings)
+
+OLT profiles dikelola via Settings API (bukan plugin endpoint):
+
+| Method | Path | Keterangan |
+|---|---|---|
+| `GET` | `/acs/settings/hioso-olts` | List semua OLT profiles |
+| `POST` | `/acs/settings/hioso-olts` | Buat OLT profile baru |
+| `PATCH` | `/acs/settings/hioso-olts/{id}` | Edit OLT profile |
+| `DELETE` | `/acs/settings/hioso-olts/{id}` | Hapus OLT profile |
+| `POST` | `/acs/settings/hioso-olts/{id}/activate` | Set profile aktif + mirror ke legacy keys |
+
+Detail CRUD profile lihat di bagian "Hioso runtime settings" di bawah.
+
+#### Hioso SNMP & Profile Detection
+
+- Backend mendukung **3 profil OID**: `HIOSO_GPON`, `HIOSO_B`, `HIOSO_C`
+- **Auto-detect** via scoring: walk NameOID (+3), SNOID (+2), StatOID (+1) per profil. Skor tertinggi menang.
+- **Fallback**: `sysObjectID` prefix matching (misal `.1.3.6.1.4.1.25355` → HIOSO_C)
+- **Profile cache** 30 menit — deteksi hanya dilakukan sekali per `host:community`, lalu di-cache
+- **SNMP timeout**: 5 detik untuk walk, 3 detik untuk set
+- **Request timeout**: 20 detik (context.WithTimeout)
+- Referensi lengkap OID: lihat file `hioso_oid` di root project
 
 ## Recipe: MikroTik Add/Edit/Delete (Simple Example)
 

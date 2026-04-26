@@ -17,7 +17,6 @@ const MikrotikIndex = lazy(() => import("@/pages/Mikrotik"));
 const BillingIndex = lazy(() => import("@/pages/Billing"));
 const OnuDetail = lazy(() => import("@/pages/ONU/Detail"));
 const OnuIndex = lazy(() => import("@/pages/ONU"));
-const PluginPage = lazy(() => import("@/pages/Plugin"));
 const OltHiosoPage = lazy(() => import("@/pages/Plugin/OltHioso"));
 const Settings = lazy(() => import("@/pages/Settings"));
 
@@ -86,10 +85,7 @@ function AppRoutes() {
             <Route path=":deviceId" element={<MikrotikDetail />} />
           </Route>
           <Route path="billing" element={<BillingIndex />} />
-          <Route path="plugin" element={<Outlet />}>
-            <Route index element={<PluginPage />} />
-            <Route path="olt/hioso" element={<OltHiosoPage />} />
-          </Route>
+          <Route path="hioso" element={<OltHiosoPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 

@@ -1,6 +1,6 @@
 # Mikrogeni
 
-Backend API (Go) untuk manajemen CPE GenieACS + modul MikroTik + Frontend Dashboard (React).
+Backend API (Go) untuk manajemen CPE GenieACS, MikroTik, dan Hioso OLT + Frontend Dashboard (React).
 
 > Dokumentasi endpoint detail: lihat [`API.md`](./API.md).
 
@@ -118,7 +118,7 @@ curl http://localhost/api/health
 mikrogeni/
 ├── cmd/server/          # Entry point aplikasi
 ├── internal/
-│   ├── handlers/        # HTTP handlers (ACS, MikroTik, Telegram, dll)
+│   ├── handlers/        # HTTP handlers (ACS, MikroTik, Hioso OLT, Telegram, dll)
 │   ├── services/        # Business logic (GenieACS, MikroTik, SNMP)
 │   ├── db/              # SQLite database layer
 │   ├── models/          # Data models
@@ -135,6 +135,7 @@ mikrogeni/
 ├── Dockerfile
 ├── nginx.conf
 ├── Makefile
+├── hioso_oid            # Referensi OID Hioso (3 profil + fallback)
 └── .env.example
 ```
 
@@ -160,10 +161,8 @@ mikrogeni/
 | `TELEGRAM_BOT_TOKEN` | — | Bot token Telegram |
 | `TELEGRAM_CHAT_IDS` | — | Chat ID Telegram (comma-separated) |
 | `HIOSO_ENABLED` | `true` | Aktifkan Hioso OLT plugin |
-| `OLT_HOST` | — | IP OLT |
-| `OLT_COMMUNITY` | `public` | SNMP community string |
-| `OLT_WEB_USER` | `admin` | Web UI user OLT |
-| `OLT_WEB_PASS` | `admin` | Web UI password OLT |
+
+> Konfigurasi detail Hioso OLT (host, SNMP community, web credentials) dikelola via Settings page atau API, bukan env var. Env var `OLT_*` masih tersedia sebagai fallback legacy.
 
 ### Frontend (`frontend/.env`)
 
@@ -205,6 +204,21 @@ mikrogeni/
 | `POST` | `/api/refresh` | Refresh access token |
 | `GET` | `/api/health` | Health check |
 
+### Hioso OLT Plugin
+
+| Method | Endpoint | Deskripsi |
+|---|---|---|
+| `GET` | `/api/plugin/hioso/status` | Status plugin (enabled/disabled + host) |
+| `POST` | `/api/plugin/hioso/enable` | Aktifkan plugin |
+| `POST` | `/api/plugin/hioso/disable` | Nonaktifkan plugin |
+| `GET` | `/api/plugin/hioso/health` | Health check OLT via SNMP |
+| `GET` | `/api/plugin/hioso/onu` | List semua ONU |
+| `GET` | `/api/plugin/hioso/onu?port=N` | List ONU per port |
+| `GET` | `/api/plugin/hioso/onu/{index}` | Detail 1 ONU |
+| `POST` | `/api/plugin/hioso/onu/{index}/rename` | Rename ONU |
+| `POST` | `/api/plugin/hioso/onu/{index}/reboot` | Reboot ONU |
+| `GET` | `/api/plugin/hioso/ports` | List port yang tersedia |
+
 ---
 
 ## Makefile Targets
@@ -242,6 +256,8 @@ Perintah:
 
 - `.env` dipakai untuk konfigurasi aplikasi, **bukan** untuk data per-device MikroTik.
 - Data MikroTik per-device disimpan di SQLite dan dikelola via `/api/mikrotik/*`.
+- Data Hioso OLT profiles disimpan di SQLite via `/api/acs/settings/hioso-olts` (CRUD + activate).
 - Jika behavior endpoint berubah, update `API.md` agar integrasi tetap sinkron.
 - Parameter registry ACS dibaca dari `internal/acsresolver/registry.yaml` — tambah vendor/model baru dari registry, bukan hardcode.
 - Auto-learn ACS menyimpan hasil resolve ke SQLite (`acs_learned_profiles`) untuk caching.
+- Hioso OLT plugin mendukung 3 profil OID (HIOSO_GPON, HIOSO_B, HIOSO_C) dengan auto-detect via scoring. Detail lihat `hioso_oid`.

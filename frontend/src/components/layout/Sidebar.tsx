@@ -7,7 +7,7 @@ const navigation = [
   { label: "Mikrotik", to: "/mikrotik", icon: Router },
   { label: "Billing", to: "/billing", icon: ReceiptText },
   { label: "Acs/ONU Device", to: "/onu", icon: Wifi },
-  { label: "Plugin", to: "/plugin", icon: Blocks },
+  { label: "Hioso", to: "/hioso", icon: Blocks },
 ];
 
 type SidebarProps = {

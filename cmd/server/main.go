@@ -186,27 +186,27 @@ func main() {
 		})
 
 		// ── Plugin: Hioso OLT ────────────────────────────────────────────────
-		// Handler diimplementasi di internal/handlers/hioso_plugin.go
 		r.Route("/api/plugin/hioso", func(r chi.Router) {
-			// Tetap eksplisit sesuai kontrak plugin, walau sudah berada di protected group.
-			r.Use(middleware.AuthenticateToken)
-
 			// Plugin control (enable/disable tanpa restart)
 			r.Get("/status", handlers.HiosoStatusHandler)
 			r.Post("/enable", handlers.HiosoEnableHandler)
 			r.Post("/disable", handlers.HiosoDisableHandler)
 
-			// OLT health check
-			r.Get("/health", handlers.HiosoHealthHandler)
+			// OLT device CRUD
+			r.Get("/devices", handlers.HiosoListDevicesHandler)
+			r.Post("/devices", handlers.HiosoCreateDeviceHandler)
+			r.Get("/devices/{device_id}", handlers.HiosoGetDeviceHandler)
+			r.Patch("/devices/{device_id}", handlers.HiosoUpdateDeviceHandler)
+			r.Delete("/devices/{device_id}", handlers.HiosoDeleteDeviceHandler)
+			r.Post("/devices/{device_id}/test", handlers.HiosoTestDeviceHandler)
 
-			// ONU data & aksi
-			r.Get("/onu", handlers.HiosoFetchAllHandler)
-			r.Get("/onu/{index}", handlers.HiosoDetailHandler)
-			r.Post("/onu/{index}/rename", handlers.HiosoRenameHandler)
-			r.Post("/onu/{index}/reboot", handlers.HiosoRebootHandler)
-
-			// Port list
-			r.Get("/ports", handlers.HiosoPortsHandler)
+			// Per-device ONU data & actions
+			r.Get("/devices/{device_id}/onu", handlers.HiosoFetchAllHandler)
+			r.Get("/devices/{device_id}/onu/{index}", handlers.HiosoDetailHandler)
+			r.Post("/devices/{device_id}/onu/{index}/rename", handlers.HiosoRenameHandler)
+			r.Post("/devices/{device_id}/onu/{index}/reboot", handlers.HiosoRebootHandler)
+			r.Get("/devices/{device_id}/health", handlers.HiosoHealthHandler)
+			r.Get("/devices/{device_id}/ports", handlers.HiosoPortsHandler)
 		})
 
 		})

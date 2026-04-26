@@ -6,20 +6,65 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
-  getAcsSettings,
+  createHiosoDevice,
+  deleteHiosoDevice,
   getApiErrorMessage,
+  getHiosoDevices,
   getHiosoOnuDetail,
   getHiosoOnus,
   getHiosoPluginHealth,
-  getHiosoPluginStatus,
   getHiosoPorts,
   rebootHiosoOnu,
   renameHiosoOnu,
+  testHiosoDevice,
+  updateHiosoDevice,
+  type HiosoOLTDevice,
   type HiosoOnuRow,
 } from "@/lib/api";
 import { showToast } from "@/lib/toast";
 
-function PluginOverlay({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
+type DeviceFormState = {
+  name: string;
+  host: string;
+  port: string;
+  snmp_version: string;
+  snmp_community: string;
+  web_host: string;
+  web_port: string;
+  username: string;
+  password: string;
+};
+
+const EMPTY_DEVICE_FORM: DeviceFormState = {
+  name: "",
+  host: "",
+  port: "161",
+  snmp_version: "2c",
+  snmp_community: "public",
+  web_host: "",
+  web_port: "80",
+  username: "admin",
+  password: "",
+};
+
+function buildDeviceForm(device?: HiosoOLTDevice): DeviceFormState {
+  if (!device) {
+    return { ...EMPTY_DEVICE_FORM };
+  }
+  return {
+    name: device.name ?? "",
+    host: device.host ?? "",
+    port: String(device.port ?? 161),
+    snmp_version: device.snmp_version ?? "2c",
+    snmp_community: device.snmp_community ?? "",
+    web_host: device.web_host ?? "",
+    web_port: String(device.web_port ?? 80),
+    username: device.username ?? "",
+    password: "",
+  };
+}
+
+function PluginOverlay({ open, title, description, onClose, children }: { open: boolean; title: string; description?: string; onClose: () => void; children: React.ReactNode }) {
   if (!open) {
     return null;
   }
@@ -29,7 +74,10 @@ function PluginOverlay({ open, title, onClose, children }: { open: boolean; titl
       <button aria-label="Close overlay" className="absolute inset-0" onClick={onClose} type="button" />
       <div className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] border-2 border-border bg-card shadow-brutal-lg sm:rounded-[28px]">
         <div className="flex items-center justify-between gap-3 border-b-2 border-border px-5 py-4">
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+            {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+          </div>
           <Button onClick={onClose} type="button" variant="outline">Close</Button>
         </div>
         <div className="px-5 py-5">{children}</div>
@@ -43,61 +91,68 @@ function isOnuOnline(status?: string) {
   return normalized.includes("up") || normalized.includes("online") || normalized.includes("active");
 }
 
+function getDeviceStatusVariant(status?: string): "success" | "destructive" | "secondary" {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "online" || normalized === "healthy") {
+    return "success";
+  }
+  if (normalized === "offline" || normalized === "error" || normalized === "unhealthy") {
+    return "destructive";
+  }
+  return "secondary";
+}
+
 export default function OltHiosoPage() {
   const queryClient = useQueryClient();
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [onuFilter, setOnuFilter] = useState<"all" | "online" | "offline">("all");
   const [onuSearch, setOnuSearch] = useState("");
   const [portFilter, setPortFilter] = useState<number | null>(null);
   const [detailOnuIndex, setDetailOnuIndex] = useState<string | null>(null);
   const [editOnu, setEditOnu] = useState<{ index: string; name: string } | null>(null);
+  const [deviceModalMode, setDeviceModalMode] = useState<"closed" | "create" | "edit">("closed");
+  const [deviceForm, setDeviceForm] = useState<DeviceFormState>(EMPTY_DEVICE_FORM);
+  const [editingDevice, setEditingDevice] = useState<HiosoOLTDevice | null>(null);
 
-  const pluginSettingsQuery = useQuery({
-    queryKey: ["acs-settings"],
-    queryFn: getAcsSettings,
+  const devicesQuery = useQuery({
+    queryKey: ["hioso-devices"],
+    queryFn: getHiosoDevices,
   });
 
-  const pluginStatusQuery = useQuery({
-    queryKey: ["hioso-plugin-status"],
-    queryFn: getHiosoPluginStatus,
-  });
+  const selectedDevice = (devicesQuery.data ?? []).find((d) => d.id === selectedDeviceId) ?? null;
+  const deviceId = selectedDeviceId ?? undefined;
 
-  const pluginHealthQuery = useQuery({
-    queryKey: ["hioso-plugin-health"],
-    queryFn: getHiosoPluginHealth,
-    enabled: Boolean(pluginStatusQuery.data?.enabled),
+  const healthQuery = useQuery({
+    queryKey: ["hioso-health", deviceId],
+    queryFn: () => getHiosoPluginHealth(deviceId),
+    enabled: Boolean(deviceId),
   });
-
-  const isHiosoVendor = (pluginSettingsQuery.data?.plugin_vendor ?? "hioso").trim().toLowerCase() === "hioso";
-  const hasRuntimeConfig = Boolean(
-    pluginSettingsQuery.data?.plugin_host?.trim() &&
-    (pluginSettingsQuery.data?.plugin_snmp_community?.trim() || pluginSettingsQuery.data?.plugin_community?.trim()),
-  );
 
   const portsQuery = useQuery({
-    queryKey: ["hioso-ports"],
-    queryFn: getHiosoPorts,
-    enabled: isHiosoVendor && Boolean(pluginStatusQuery.data?.enabled) && hasRuntimeConfig,
+    queryKey: ["hioso-ports", deviceId],
+    queryFn: () => getHiosoPorts(deviceId!),
+    enabled: Boolean(deviceId),
   });
 
   const onusQuery = useQuery({
-    queryKey: ["hioso-onus", portFilter],
-    queryFn: () => getHiosoOnus(portFilter ?? undefined),
-    enabled: isHiosoVendor && Boolean(pluginStatusQuery.data?.enabled) && hasRuntimeConfig,
+    queryKey: ["hioso-onus", deviceId, portFilter],
+    queryFn: () => getHiosoOnus(deviceId!, portFilter ?? undefined),
+    enabled: Boolean(deviceId),
   });
 
   const onuDetailQuery = useQuery({
-    queryKey: ["hioso-onu-detail", detailOnuIndex],
-    queryFn: () => getHiosoOnuDetail(detailOnuIndex ?? ""),
-    enabled: Boolean(detailOnuIndex),
+    queryKey: ["hioso-onu-detail", deviceId, detailOnuIndex],
+    queryFn: () => getHiosoOnuDetail(deviceId!, detailOnuIndex!),
+    enabled: Boolean(deviceId) && Boolean(detailOnuIndex),
   });
 
   const renameOnuMutation = useMutation({
-    mutationFn: ({ index, name }: { index: string; name: string }) => renameHiosoOnu(index, name),
+    mutationFn: ({ index, name }: { index: string; name: string }) => renameHiosoOnu(deviceId!, index, name),
     onSuccess: async () => {
       showToast({ title: "ONU name updated", description: "The ONU name was saved successfully.", variant: "success" });
       setEditOnu(null);
-      await queryClient.invalidateQueries({ queryKey: ["hioso-onus"] });
-      await queryClient.invalidateQueries({ queryKey: ["hioso-onu-detail"] });
+      await queryClient.invalidateQueries({ queryKey: ["hioso-onus", deviceId] });
+      await queryClient.invalidateQueries({ queryKey: ["hioso-onu-detail", deviceId] });
     },
     onError: (error) => {
       showToast({ title: "Failed to update ONU name", description: getApiErrorMessage(error), variant: "error" });
@@ -105,7 +160,7 @@ export default function OltHiosoPage() {
   });
 
   const rebootOnuMutation = useMutation({
-    mutationFn: (index: string) => rebootHiosoOnu(index),
+    mutationFn: (index: string) => rebootHiosoOnu(deviceId!, index),
     onSuccess: () => {
       showToast({ title: "ONU reboot queued", description: "Reboot command was sent to the ONU.", variant: "success" });
     },
@@ -113,6 +168,118 @@ export default function OltHiosoPage() {
       showToast({ title: "Failed to reboot ONU", description: getApiErrorMessage(error), variant: "error" });
     },
   });
+
+  const createDeviceMutation = useMutation({
+    mutationFn: (values: DeviceFormState) => {
+      const payload = {
+        name: values.name.trim(),
+        host: values.host.trim(),
+        port: Number(values.port || "161"),
+        snmp_version: values.snmp_version || "2c",
+        snmp_community: values.snmp_community.trim(),
+        web_host: values.web_host.trim(),
+        web_port: Number(values.web_port || "80"),
+        username: values.username.trim(),
+        password: values.password,
+      };
+      if (!payload.name || !payload.host || !payload.snmp_community) {
+        throw new Error("Name, host, and SNMP community are required.");
+      }
+      return createHiosoDevice(payload);
+    },
+    onSuccess: async (newDevice) => {
+      showToast({ title: "Device created", description: "New OLT device was added.", variant: "success" });
+      closeDeviceModal();
+      await queryClient.invalidateQueries({ queryKey: ["hioso-devices"] });
+      if (newDevice?.id) {
+        setSelectedDeviceId(newDevice.id);
+      }
+    },
+    onError: (error) => {
+      showToast({ title: "Failed to create device", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const updateDeviceMutation = useMutation({
+    mutationFn: ({ deviceId: id, values }: { deviceId: string; values: DeviceFormState }) => {
+      const payload: Record<string, string | number> = {
+        name: values.name.trim(),
+        host: values.host.trim(),
+        port: Number(values.port || "161"),
+        snmp_version: values.snmp_version || "2c",
+        snmp_community: values.snmp_community.trim(),
+        web_host: values.web_host.trim(),
+        web_port: Number(values.web_port || "80"),
+        username: values.username.trim(),
+      };
+      if (values.password.trim()) {
+        payload.password = values.password;
+      }
+      return updateHiosoDevice(id, payload);
+    },
+    onSuccess: async () => {
+      showToast({ title: "Device updated", description: "Device settings were saved.", variant: "success" });
+      closeDeviceModal();
+      await queryClient.invalidateQueries({ queryKey: ["hioso-devices"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Failed to update device", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const deleteDeviceMutation = useMutation({
+    mutationFn: (id: string) => deleteHiosoDevice(id),
+    onSuccess: async () => {
+      showToast({ title: "Device deleted", description: "OLT device was removed.", variant: "success" });
+      if (selectedDeviceId !== null) {
+        const remaining = (devicesQuery.data ?? []).filter((d) => d.id !== selectedDeviceId);
+        setSelectedDeviceId(remaining.length > 0 ? remaining[0].id : null);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["hioso-devices"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Failed to delete device", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const testDeviceMutation = useMutation({
+    mutationFn: (id: string) => testHiosoDevice(id),
+    onSuccess: () => {
+      showToast({ title: "Connection test OK", description: "OLT device is reachable via SNMP.", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["hioso-devices"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Connection test failed", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const isDeviceSubmitting = createDeviceMutation.isPending || updateDeviceMutation.isPending;
+
+  const openCreateDeviceModal = () => {
+    setEditingDevice(null);
+    setDeviceForm({ ...EMPTY_DEVICE_FORM });
+    setDeviceModalMode("create");
+  };
+
+  const openEditDeviceModal = (device: HiosoOLTDevice) => {
+    setEditingDevice(device);
+    setDeviceForm(buildDeviceForm(device));
+    setDeviceModalMode("edit");
+  };
+
+  const closeDeviceModal = () => {
+    setEditingDevice(null);
+    setDeviceForm({ ...EMPTY_DEVICE_FORM });
+    setDeviceModalMode("closed");
+  };
+
+  const handleDeviceSubmit = () => {
+    if (deviceModalMode === "edit" && editingDevice) {
+      updateDeviceMutation.mutate({ deviceId: editingDevice.id, values: deviceForm });
+      return;
+    }
+    createDeviceMutation.mutate(deviceForm);
+  };
 
   const filteredOnus = useMemo(() => {
     const source = onusQuery.data ?? [];
@@ -139,8 +306,13 @@ export default function OltHiosoPage() {
   const onlineCount = (onusQuery.data ?? []).filter((onu) => isOnuOnline(onu.status)).length;
   const totalCount = onusQuery.data?.length ?? 0;
   const downCount = Math.max(totalCount - onlineCount, 0);
-  const healthOnline = Boolean(pluginHealthQuery.data?.online);
-  const healthDetail = pluginHealthQuery.data?.detail || (healthOnline ? "OLT reachable" : "Health status unavailable");
+  const healthOnline = Boolean(healthQuery.data?.online);
+  const healthDetail = healthQuery.data?.detail || (healthOnline ? "OLT reachable" : "Health status unavailable");
+
+  const devices = devicesQuery.data ?? [];
+  if (!selectedDeviceId && devices.length > 0 && !devicesQuery.isLoading) {
+    setSelectedDeviceId(devices[0].id);
+  }
 
   return (
     <div className="route-shell-page route-shell-plugin-hioso space-y-5">
@@ -149,55 +321,81 @@ export default function OltHiosoPage() {
         <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
         <PageSectionHeader
           badge={<Badge>Plugin</Badge>}
-          description={pluginSettingsQuery.data?.plugin_host?.trim() ? `HIOSOO OLT · ${pluginSettingsQuery.data.plugin_host.trim()}` : "HIOSOO OLT runtime from Settings → Plugin."}
-          title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">OLT HIOSOO</h2>}
+          description={selectedDevice ? `HIOSO OLT · ${selectedDevice.host}` : "Select or add an OLT device to view data."}
+          title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">OLT HIOSO</h2>}
           actions={(
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                onClick={() => {
-                  void pluginStatusQuery.refetch();
-                  void pluginHealthQuery.refetch();
-                  void onusQuery.refetch();
-                  void portsQuery.refetch();
-                }}
-                type="button"
-                variant="outline"
-              >
-                Refresh
+              {selectedDeviceId ? (
+                <>
+                  <Button
+                    onClick={() => {
+                      void devicesQuery.refetch();
+                      void healthQuery.refetch();
+                      void onusQuery.refetch();
+                      void portsQuery.refetch();
+                    }}
+                    type="button"
+                    variant="outline"
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    disabled={testDeviceMutation.isPending}
+                    onClick={() => testDeviceMutation.mutate(selectedDeviceId!)}
+                    type="button"
+                    variant="outline"
+                  >
+                    Test
+                  </Button>
+                  <Button
+                    onClick={() => openEditDeviceModal(selectedDevice!)}
+                    type="button"
+                    variant="outline"
+                  >
+                    Edit Device
+                  </Button>
+                </>
+              ) : null}
+              <Button onClick={openCreateDeviceModal} type="button">
+                + Add Device
               </Button>
             </div>
           )}
-          meta={<Badge variant={healthOnline ? "success" : "secondary"}>{healthOnline ? "Online" : "Offline"}</Badge>}
+          meta={selectedDeviceId ? <Badge variant={getDeviceStatusVariant(selectedDevice?.status)}>{selectedDevice?.status || "unknown"}</Badge> : undefined}
         />
       </section>
 
-      {!isHiosoVendor ? (
-        <Card className="overflow-hidden border-2 shadow-brutal">
-          <CardContent className="p-5 text-sm text-muted-foreground">
-            Plugin vendor in Settings is not set to HIOSOO. Set vendor to HIOSOO to activate this page.
-          </CardContent>
-        </Card>
-      ) : null}
+      {devices.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {devices.map((device) => (
+            <button
+              className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${selectedDeviceId === device.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+              key={device.id}
+              onClick={() => setSelectedDeviceId(device.id)}
+              type="button"
+            >
+              {device.name || device.host}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {isHiosoVendor && !pluginStatusQuery.data?.enabled ? (
-        <Card className="overflow-hidden border-2 shadow-brutal">
-          <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
-            <p>HIOSOO plugin runtime is currently disabled.</p>
-            <p>Enable it from backend runtime control (`/api/plugin/hioso/enable`) and refresh this page.</p>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {isHiosoVendor && pluginStatusQuery.data?.enabled && !hasRuntimeConfig ? (
+      {devices.length === 0 && !devicesQuery.isLoading ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
-            <p>SNMP runtime configuration is incomplete.</p>
-            <p>Set host/ip and SNMP community in Settings → Plugin, then refresh this page.</p>
+            <p>No OLT devices registered yet.</p>
+            <p>Use <span className="font-semibold text-foreground">+ Add Device</span> to register your first Hioso OLT.</p>
           </CardContent>
         </Card>
       ) : null}
 
-      {isHiosoVendor && pluginStatusQuery.data?.enabled && hasRuntimeConfig ? (
+      {devicesQuery.isError ? (
+        <Card className="overflow-hidden border-2 shadow-brutal">
+          <CardContent className="p-5 text-sm text-destructive">{getApiErrorMessage(devicesQuery.error)}</CardContent>
+        </Card>
+      ) : null}
+
+      {selectedDeviceId ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-4 p-5">
             <div className="flex justify-end gap-2">
@@ -308,8 +506,26 @@ export default function OltHiosoPage() {
         </Card>
       ) : null}
 
+      {selectedDeviceId && selectedDevice ? (
+        <div className="flex justify-end">
+          <Button
+            disabled={deleteDeviceMutation.isPending}
+            onClick={() => {
+              if (!window.confirm(`Delete device ${selectedDevice.name || selectedDevice.host}? This cannot be undone.`)) {
+                return;
+              }
+              deleteDeviceMutation.mutate(selectedDeviceId);
+            }}
+            type="button"
+            variant="outline"
+          >
+            Delete Device
+          </Button>
+        </div>
+      ) : null}
+
       <PluginOverlay open={Boolean(detailOnuIndex)} title="ONU Detail" onClose={() => setDetailOnuIndex(null)}>
-<div className="space-y-3 text-sm text-muted-foreground">
+        <div className="space-y-3 text-sm text-muted-foreground">
           <div><span className="font-semibold text-foreground">Index:</span> {onuDetailQuery.data?.index || "-"}</div>
           <div><span className="font-semibold text-foreground">Web ID:</span> {onuDetailQuery.data?.web_id || "-"}</div>
           <div><span className="font-semibold text-foreground">Port:</span> {onuDetailQuery.data?.port ?? "-"}</div>
@@ -340,6 +556,75 @@ export default function OltHiosoPage() {
             <Button disabled={renameOnuMutation.isPending} type="submit">Save</Button>
           </div>
         </form>
+      </PluginOverlay>
+
+      <PluginOverlay
+        description={deviceModalMode === "edit" ? "Update OLT device SNMP and WebUI credentials." : "Register a new Hioso OLT device for monitoring."}
+        onClose={closeDeviceModal}
+        open={deviceModalMode !== "closed"}
+        title={deviceModalMode === "edit" ? `Edit Device · ${editingDevice?.name ?? ""}` : "Add OLT Device"}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-name">Device Name</label>
+            <Input id="device-name" value={deviceForm.name} onChange={(event) => setDeviceForm((current) => ({ ...current, name: event.target.value }))} />
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">SNMP</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-host">Host / IP</label>
+            <Input id="device-host" value={deviceForm.host} onChange={(event) => setDeviceForm((current) => ({ ...current, host: event.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-port">Port</label>
+            <Input id="device-port" value={deviceForm.port} onChange={(event) => setDeviceForm((current) => ({ ...current, port: event.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-snmp-version">Version</label>
+            <select
+              className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
+              id="device-snmp-version"
+              value={deviceForm.snmp_version}
+              onChange={(event) => setDeviceForm((current) => ({ ...current, snmp_version: event.target.value }))}
+            >
+              <option value="1">v1</option>
+              <option value="2c">v2c</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-snmp-community">Community</label>
+            <Input id="device-snmp-community" value={deviceForm.snmp_community} onChange={(event) => setDeviceForm((current) => ({ ...current, snmp_community: event.target.value }))} />
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">WebUI</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-web-host">Host / IP</label>
+            <Input id="device-web-host" value={deviceForm.web_host} onChange={(event) => setDeviceForm((current) => ({ ...current, web_host: event.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-web-port">Port</label>
+            <Input id="device-web-port" value={deviceForm.web_port} onChange={(event) => setDeviceForm((current) => ({ ...current, web_port: event.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-username">Username</label>
+            <Input id="device-username" value={deviceForm.username} onChange={(event) => setDeviceForm((current) => ({ ...current, username: event.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-password">{deviceModalMode === "edit" ? "Password (leave empty to keep)" : "Password"}</label>
+            <Input id="device-password" type="password" value={deviceForm.password} onChange={(event) => setDeviceForm((current) => ({ ...current, password: event.target.value }))} />
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button onClick={closeDeviceModal} type="button" variant="outline">Cancel</Button>
+          <Button disabled={isDeviceSubmitting} onClick={handleDeviceSubmit} type="button">
+            {isDeviceSubmitting ? "Saving..." : deviceModalMode === "edit" ? "Save Changes" : "Create Device"}
+          </Button>
+        </div>
       </PluginOverlay>
     </div>
   );
