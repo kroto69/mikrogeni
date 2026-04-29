@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Pencil, Plus, Router, Save, Trash2, UserRoundCog, Wifi } from "lucide-react";
+import { Eye, EyeOff, Pencil, Plus, Router, Save, Trash2, UserRoundCog, Wifi, Network } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import {
   type AcsUserRole,
 } from "@/lib/api";
 import { showToast } from "@/lib/toast";
+import { getZTEConnections, addZTEConnection, updateZTEConnection, deleteZTEConnection, healthCheckZTE, testZTEConnection } from "@/lib/zteApi";
+import type { ZTEConnection } from "@/types/zte";
 
 import type { MikrotikDeviceCreatePayload, MikrotikRegistryDevice } from "@/types/mikrotik";
 
@@ -59,6 +61,13 @@ type RegistryFormState = {
   site: string;
 };
 
+type ZteModalMode = "closed" | "create" | "edit";
+
+type ZteFormState = {
+  name: string;
+  baseUrl: string;
+};
+
 const EMPTY_FORM: SettingsFormState = {
   telegramBotToken: "",
   telegramChatIds: "",
@@ -81,6 +90,11 @@ const EMPTY_REGISTRY_FORM: RegistryFormState = {
   username: "",
   password: "",
   site: "",
+};
+
+const EMPTY_ZTE_FORM: ZteFormState = {
+  name: "",
+  baseUrl: "",
 };
 
 const SETTING_KEYS: Record<keyof SettingsFormState, string> = {
@@ -240,6 +254,13 @@ export default function Settings() {
   const [userForm, setUserForm] = useState<UserFormState>(EMPTY_USER_FORM);
   const [editingUser, setEditingUser] = useState<AcsUser | null>(null);
 
+  const [zteModalMode, setZteModalMode] = useState<ZteModalMode>("closed");
+  const [zteForm, setZteForm] = useState<ZteFormState>(EMPTY_ZTE_FORM);
+  const [editingZte, setEditingZte] = useState<ZTEConnection | null>(null);
+  const [zteHealthMap, setZteHealthMap] = useState<Map<string, boolean>>(new Map());
+  const [zteTestResult, setZteTestResult] = useState<{ ok: boolean; latency: number } | null>(null);
+  const [zteTesting, setZteTesting] = useState(false);
+
   const settingsQuery = useQuery({
     queryKey: ["acs-settings"],
     queryFn: getAcsSettings,
@@ -254,6 +275,32 @@ export default function Settings() {
     queryKey: ["acs-users"],
     queryFn: getAcsUsers,
   });
+
+  const zteConnectionsQuery = useQuery({
+    queryKey: ["zte-connections"],
+    queryFn: getZTEConnections,
+  });
+
+  useEffect(() => {
+    if (!zteConnectionsQuery.data || zteConnectionsQuery.data.length === 0) return
+    let cancelled = false
+    Promise.all(
+      zteConnectionsQuery.data.map(async (c) => {
+        try {
+          const res = await healthCheckZTE(c.id)
+          return { id: c.id, online: res.status === 'ok' }
+        } catch {
+          return { id: c.id, online: false }
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const map = new Map<string, boolean>()
+      results.forEach((r) => map.set(r.id, r.online))
+      setZteHealthMap(map)
+    })
+    return () => { cancelled = true }
+  }, [zteConnectionsQuery.data])
 
   useEffect(() => {
     if (!settingsQuery.data) {
@@ -523,6 +570,51 @@ export default function Settings() {
   const isRegistryTesting = testRegistryDeviceMutation.isPending;
   const isUserSubmitting = createUserMutation.isPending || updateUserMutation.isPending;
 
+  const createZteMutation = useMutation({
+    mutationFn: (values: ZteFormState) => {
+      return addZTEConnection({ name: values.name.trim() || undefined, base_url: values.baseUrl.trim() })
+    },
+    onSuccess: async () => {
+      showToast({ title: "ZTE OLT ditambahkan", variant: "success" })
+      setZteModalMode("closed")
+      setZteForm(EMPTY_ZTE_FORM)
+      setEditingZte(null)
+      await queryClient.invalidateQueries({ queryKey: ["zte-connections"] })
+    },
+    onError: (error) => {
+      showToast({ title: "Gagal menambahkan ZTE OLT", description: getApiErrorMessage(error), variant: "error" })
+    },
+  })
+
+  const updateZteMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: ZteFormState }) => {
+      return updateZTEConnection(id, { name: values.name.trim(), base_url: values.baseUrl.trim() })
+    },
+    onSuccess: async () => {
+      showToast({ title: "ZTE OLT diupdate", variant: "success" })
+      setZteModalMode("closed")
+      setZteForm(EMPTY_ZTE_FORM)
+      setEditingZte(null)
+      await queryClient.invalidateQueries({ queryKey: ["zte-connections"] })
+    },
+    onError: (error) => {
+      showToast({ title: "Gagal mengupdate ZTE OLT", description: getApiErrorMessage(error), variant: "error" })
+    },
+  })
+
+  const deleteZteMutation = useMutation({
+    mutationFn: (id: string) => deleteZTEConnection(id),
+    onSuccess: async () => {
+      showToast({ title: "ZTE OLT dihapus", variant: "success" })
+      await queryClient.invalidateQueries({ queryKey: ["zte-connections"] })
+    },
+    onError: (error) => {
+      showToast({ title: "Gagal menghapus ZTE OLT", description: getApiErrorMessage(error), variant: "error" })
+    },
+  })
+
+  const isZteSubmitting = createZteMutation.isPending || updateZteMutation.isPending
+
   const openCreateRegistryModal = () => {
     setEditingDevice(null);
     setRegistryForm(EMPTY_REGISTRY_FORM);
@@ -580,6 +672,57 @@ export default function Settings() {
 
     createUserMutation.mutate(userForm);
   };
+
+  const openCreateZteModal = () => {
+    setEditingZte(null)
+    setZteForm(EMPTY_ZTE_FORM)
+    setZteTestResult(null)
+    setZteModalMode("create")
+  }
+
+  const openEditZteModal = (conn: ZTEConnection) => {
+    setEditingZte(conn)
+    setZteForm({
+      name: conn.name,
+      baseUrl: conn.base_url,
+    })
+    setZteTestResult(null)
+    setZteModalMode("edit")
+  }
+
+  const closeZteModal = () => {
+    setZteModalMode("closed")
+    setZteForm(EMPTY_ZTE_FORM)
+    setEditingZte(null)
+    setZteTestResult(null)
+  }
+
+  const handleZteTest = async () => {
+    setZteTesting(true)
+    setZteTestResult(null)
+    try {
+      if (zteModalMode === "edit" && editingZte) {
+        const res = await healthCheckZTE(editingZte.id)
+        setZteTestResult({ ok: res.status === 'ok', latency: res.latency_ms })
+      } else {
+        const res = await testZTEConnection(zteForm.baseUrl.trim())
+        setZteTestResult({ ok: res.status === 'ok', latency: res.latency_ms })
+      }
+    } catch {
+      setZteTestResult(null)
+      showToast({ title: "Gagal terhubung", variant: "error" })
+    } finally {
+      setZteTesting(false)
+    }
+  }
+
+  const handleZteSubmit = () => {
+    if (zteModalMode === "edit" && editingZte) {
+      updateZteMutation.mutate({ id: editingZte.id, values: zteForm })
+      return
+    }
+    createZteMutation.mutate(zteForm)
+  }
 
   return (
     <div className="route-shell-page route-shell-settings space-y-7">
@@ -873,6 +1016,85 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
+        <CardHeader>
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-3 w-8 border-2 border-border bg-accent" />
+            <div className="h-3 w-5 border-2 border-border bg-primary" />
+          </div>
+          <PageSectionHeader
+            title={<CardTitle className="text-xl sm:text-2xl">ZTE OLT Connections</CardTitle>}
+            description={<CardDescription>Manage zzte container endpoints for ONU monitoring. Each connection represents a zzte API base URL.</CardDescription>}
+            actions={
+              <Button className="w-full sm:w-auto" onClick={openCreateZteModal} type="button"><Plus className="mr-2 h-4 w-4" />Add ZTE OLT</Button>
+            }
+          />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {zteConnectionsQuery.isLoading ? (
+            <div className="rounded-2xl border border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground">Loading ZTE connections...</div>
+          ) : null}
+
+          {zteConnectionsQuery.isError ? (
+            <div className="rounded-2xl border border-border/70 bg-destructive/10 p-4 text-sm text-destructive">{getApiErrorMessage(zteConnectionsQuery.error)}</div>
+          ) : null}
+
+          {!zteConnectionsQuery.isLoading && !zteConnectionsQuery.isError && (zteConnectionsQuery.data?.length ?? 0) === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/70 bg-muted/10 p-6 text-sm text-muted-foreground">
+              No ZTE OLT connections registered yet. Use <span className="font-semibold text-foreground">Add ZTE OLT</span> to create one.
+            </div>
+          ) : null}
+
+          {!zteConnectionsQuery.isLoading && !zteConnectionsQuery.isError && (zteConnectionsQuery.data?.length ?? 0) > 0 ? (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {(zteConnectionsQuery.data ?? []).map((conn) => {
+                const online = zteHealthMap.get(conn.id)
+                return (
+                  <div className="rounded-2xl border-2 border-border bg-card/95 p-4 shadow-brutal-sm" key={conn.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Network className="h-4 w-4 text-primary" />
+                          <p className="truncate text-base font-semibold text-foreground">{conn.olt_id || conn.id}</p>
+                          {online != null && (
+                            <span className={`inline-flex items-center rounded-md border-2 px-2 py-[2px] text-[9px] font-extrabold uppercase tracking-wider ${online ? 'border-success/40 bg-success/20 text-success' : 'border-destructive/40 bg-destructive/20 text-destructive'}`}>
+                              {online ? 'Online' : 'Offline'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm font-semibold text-muted-foreground">{conn.name}</p>
+                        <p className="mt-1 break-all font-mono text-xs text-muted-foreground/70">{conn.base_url}</p>
+                      </div>
+                      <Link
+                        className="inline-flex h-8 items-center justify-center rounded-md border-2 border-input bg-background px-3 text-[11px] font-medium text-muted-foreground shadow-brutal-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                        to={`/zte/${conn.olt_id}`}
+                      >
+                        Open
+                      </Link>
+                    </div>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <Button className="w-full sm:w-auto" onClick={() => openEditZteModal(conn)} type="button" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
+                      <Button
+                        className="w-full sm:w-auto"
+                        disabled={deleteZteMutation.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Delete ZTE OLT ${conn.name}?`)) return
+                          deleteZteMutation.mutate(conn.id)
+                        }}
+                        type="button"
+                        variant="outline"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />Delete
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <OverlayPanel
         description={userModalMode === "edit"
           ? "Update username and role. Password is optional and only used if you want to change it."
@@ -960,6 +1182,49 @@ export default function Settings() {
           <Button disabled={isRegistrySubmitting} onClick={handleRegistrySubmit} type="button">
             <Save className="mr-2 h-4 w-4" />
             {isRegistrySubmitting ? "Saving..." : registryModalMode === "edit" ? "Save Changes" : "Create Router"}
+          </Button>
+        </div>
+      </OverlayPanel>
+
+      <OverlayPanel
+        description={zteModalMode === "edit"
+          ? "Update the zzte backend endpoint URL or display name."
+          : "Add a new zzte backend endpoint. Test the connection first, then save."}
+        onClose={closeZteModal}
+        open={zteModalMode !== "closed"}
+        title={zteModalMode === "edit" ? `Edit ZTE OLT · ${editingZte?.name ?? ""}` : "Add ZTE OLT"}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-name">Display Name <span className="font-normal text-muted-foreground/60">(auto-filled from OLT)</span></label>
+            <Input id="zte-name" placeholder="Auto-filled after save" value={zteForm.name} onChange={(event) => setZteForm((current) => ({ ...current, name: event.target.value }))} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-baseurl">zzte Backend URL</label>
+            <Input id="zte-baseurl" placeholder="http://olt-monitor:8081" value={zteForm.baseUrl} onChange={(event) => setZteForm((current) => ({ ...current, baseUrl: event.target.value }))} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <Button type="button" variant="outline" onClick={handleZteTest} disabled={zteTesting || !zteForm.baseUrl}>
+            <Wifi className="mr-2 h-4 w-4" />{zteTesting ? "Testing..." : "Test Connection"}
+          </Button>
+          {zteTestResult && (
+            <Badge variant={zteTestResult.ok ? "success" : "destructive"}>
+              {zteTestResult.ok ? `Online · ${zteTestResult.latency}ms` : "Gagal terhubung"}
+            </Badge>
+          )}
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button onClick={closeZteModal} type="button" variant="outline">Cancel</Button>
+          <Button
+            disabled={isZteSubmitting || !zteForm.baseUrl}
+            onClick={handleZteSubmit}
+            type="button"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {isZteSubmitting ? "Saving..." : zteModalMode === "edit" ? "Save Changes" : "Create ZTE OLT"}
           </Button>
         </div>
       </OverlayPanel>

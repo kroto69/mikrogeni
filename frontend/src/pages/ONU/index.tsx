@@ -14,7 +14,7 @@ import { showToast } from "@/lib/toast";
 import { isAcsDeviceIncomplete } from "@/types/onu";
 import type { AcsDeviceListItem, OnuDevice, OnuDeviceDetail, OnuStatus } from "@/types/onu";
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
 type FilterTab = "all" | OnuStatus;
 type SortKey = "id" | "serialNumber" | "vendorType" | "pppoeUsername" | "ipAddress" | "rxDbm" | "lastInformAt";
@@ -238,7 +238,7 @@ export default function OnuIndex() {
   const closeOverlayButtonRef = useRef<HTMLButtonElement>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ["acs-devices"],
@@ -546,8 +546,9 @@ export default function OnuIndex() {
           </div>
         }
         meta={<span className="inline-flex rounded-full border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{counts.all} total</span>}
-        actions={
-          <div className="grid w-full gap-3">
+      />
+      {renderSummaryRail()}
+      <div className="grid w-full gap-3 mt-4">
             <div className="relative min-w-0 w-full">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -560,42 +561,18 @@ export default function OnuIndex() {
                 value={searchTerm}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+<div className="grid grid-cols-2 gap-2">
               <Button className="h-10 rounded-2xl text-[12px] font-semibold" disabled={isInventoryActionPending} onClick={() => void handleManualRefresh()} type="button" variant="outline">
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 {isFetching ? "Refreshing..." : "Refresh"}
               </Button>
-              <Button className="h-10 rounded-2xl text-[12px] font-semibold" disabled={isInventoryActionPending || visibleIncompleteIds.length === 0} onClick={handleToggleVisibleIncomplete} type="button" variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
-                {allVisibleIncompleteSelected ? "Clear visible" : "Select visible"}
+              <Button className="h-10 w-full rounded-2xl text-[12px] font-semibold" disabled={isInventoryActionPending || selectedDeviceIds.length === 0} onClick={() => summonSelectedMutation.mutate(selectedDeviceIds)} type="button">
+                <Zap className="mr-2 h-4 w-4" />
+                {summonSelectedMutation.isPending ? "Summoning..." : `Summon selected (${selectedDeviceIds.length})`}
               </Button>
             </div>
-            <Button className="h-10 w-full rounded-2xl text-[12px] font-semibold" disabled={isInventoryActionPending || selectedDeviceIds.length === 0} onClick={() => summonSelectedMutation.mutate(selectedDeviceIds)} type="button">
-              <Zap className="mr-2 h-4 w-4" />
-              {summonSelectedMutation.isPending ? "Summoning..." : `Summon selected (${selectedDeviceIds.length})`}
-            </Button>
-            <div className="flex justify-end">
-              <select
-                className="h-10 rounded-lg border-2 border-input bg-card px-3 text-sm font-medium text-foreground shadow-brutal-sm"
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
-                  setPage(1);
-                }}
-              >
-                {PAGE_SIZE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}/page
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
-        }
-      />
       </section>
-
-      {renderSummaryRail()}
 
       {isError ? (
         <Card className="border-2 shadow-brutal-sm">
@@ -603,9 +580,8 @@ export default function OnuIndex() {
         </Card>
       ) : null}
 
-      <p className="text-xs text-muted-foreground">Only eligible devices can be selected and summoned.</p>
+      
 
-      <div className="max-h-[62vh] overflow-y-auto overscroll-contain pr-1 sm:max-h-[66vh] xl:max-h-[68vh]">
       {!isError ? (
       <Card className="border-2 shadow-brutal">
         <CardContent className="p-0">
@@ -616,11 +592,19 @@ export default function OnuIndex() {
 
           {!isLoading && !isError ? (
             <>
-              <div className="hidden overflow-x-auto lg:block">
+              <div className="hidden max-h-[62vh] overflow-y-auto overflow-x-auto overscroll-contain sm:max-h-[66vh] xl:max-h-[68vh] lg:block">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-muted/30 text-xs uppercase tracking-[0.15em] text-muted-foreground">
+              <thead className="sticky top-0 z-10 bg-muted text-xs uppercase tracking-[0.15em] text-muted-foreground">
                 <tr>
-                  <th className="px-6 py-4">Select</th>
+                  <th className="px-6 py-4">
+                  <input
+                    checked={allVisibleIncompleteSelected}
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    disabled={visibleIncompleteIds.length === 0}
+                    onChange={handleToggleVisibleIncomplete}
+                    type="checkbox"
+                  />
+                </th>
                   <th className="px-6 py-4">{renderSortHeader("Device ID", "id")}</th>
                   <th className="px-6 py-4">{renderSortHeader("Serial Number", "serialNumber")}</th>
                   <th className="px-6 py-4">{renderSortHeader("Type / Vendor", "vendorType")}</th>
@@ -711,12 +695,12 @@ export default function OnuIndex() {
                               {device.id.slice(0, 8)}
                             </span>
                           </div>
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2 sm:flex-col sm:gap-1">
                             <div className="min-w-0">
                               <p className="truncate text-[12px] font-semibold leading-tight text-foreground">{device.serialNumber}</p>
                               <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{device.vendorType}</p>
                             </div>
-                            <div className="flex shrink-0 items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-2 sm:self-end">
                               {device.isIncomplete ? (
                                 <input checked={selectedDeviceIds.includes(device.id)} className="h-4 w-4 rounded border-border text-primary focus:ring-primary" onChange={() => toggleSelectedDevice(device.id)} type="checkbox" />
                               ) : null}
@@ -806,7 +790,6 @@ export default function OnuIndex() {
         </CardContent>
       </Card>
       ) : null}
-      </div>
 
       <OverlayPanel
         closeButtonRef={closeOverlayButtonRef}

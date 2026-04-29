@@ -123,6 +123,8 @@ func needsACSRefresh(device map[string]interface{}) bool {
 	return len(computeACSMissingFields(pppoeUsername, hasRXPower, hasTemperature, deviceUptime)) > 0
 }
 
+// NOTE: this function is duplicated in internal/scheduler/acs_offline_summon_scheduler.go
+// If you modify this, update the duplicate too.
 func defaultACSRefreshObjects() []string {
 	return []string{
 		"InternetGatewayDevice.WANDevice",
@@ -138,6 +140,8 @@ func defaultACSRefreshObjects() []string {
 	}
 }
 
+// NOTE: this function is duplicated in internal/scheduler/acs_offline_summon_scheduler.go
+// If you modify this, update the duplicate too.
 func enqueueACSRefreshTargets(genieACSURL string, deviceID string, objectNames []string) (int, int) {
 	queued := 0
 	failed := 0

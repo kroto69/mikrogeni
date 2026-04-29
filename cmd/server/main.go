@@ -14,6 +14,7 @@ import (
 	"genieacs-backend/internal/db"
 	"genieacs-backend/internal/handlers"
 	"genieacs-backend/internal/middleware"
+	"genieacs-backend/internal/scheduler"
 )
 
 func main() {
@@ -57,6 +58,7 @@ func main() {
 	// Jalankan background services
 	handlers.StartTelegramBotFromEnv()
 	handlers.StartACSAutoRefreshFromEnv()
+	scheduler.StartACSOfflineSummonScheduler()
 	handlers.StartBillingSchedulersFromEnv()
 
 	// Buat router chi
@@ -208,6 +210,17 @@ func main() {
 			r.Get("/devices/{device_id}/health", handlers.HiosoHealthHandler)
 			r.Get("/devices/{device_id}/ports", handlers.HiosoPortsHandler)
 		})
+
+		// ZTE Plugin routes
+	r.Route("/api/zte", func(r chi.Router) {
+   			r.Post("/connections/test", handlers.TestZTEConnection)  // ← bukan /api/zte/connections/test
+    		r.Get("/connections", handlers.ListZTEConnections)
+    		r.Post("/connections", handlers.CreateZTEConnection)
+   			r.Patch("/connections/{id}", handlers.UpdateZTEConnection)
+    		r.Delete("/connections/{id}", handlers.DeleteZTEConnection)
+    		r.Post("/connections/{id}/health", handlers.HealthCheckZTE)
+			})
+r.HandleFunc("/api/zte/olt/{connId}/*", handlers.ForwardZTEProxy)
 
 		})
 

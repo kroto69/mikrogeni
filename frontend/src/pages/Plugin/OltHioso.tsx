@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ export default function OltHiosoPage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [onuFilter, setOnuFilter] = useState<"all" | "online" | "offline">("all");
   const [onuSearch, setOnuSearch] = useState("");
-  const [portFilter, setPortFilter] = useState<number | null>(null);
+  const [portFilter, setPortFilter] = useState<number>(1);
   const [detailOnuIndex, setDetailOnuIndex] = useState<string | null>(null);
   const [editOnu, setEditOnu] = useState<{ index: string; name: string } | null>(null);
   const [deviceModalMode, setDeviceModalMode] = useState<"closed" | "create" | "edit">("closed");
@@ -136,9 +136,16 @@ export default function OltHiosoPage() {
 
   const onusQuery = useQuery({
     queryKey: ["hioso-onus", deviceId, portFilter],
-    queryFn: () => getHiosoOnus(deviceId!, portFilter ?? undefined),
+    queryFn: () => getHiosoOnus(deviceId!, portFilter),
     enabled: Boolean(deviceId),
   });
+
+  useEffect(() => {
+    const ports = portsQuery.data;
+    if (ports && ports.length > 0 && !ports.includes(portFilter)) {
+      setPortFilter(ports[0]);
+    }
+  }, [portsQuery.data, portFilter]);
 
   const onuDetailQuery = useQuery({
     queryKey: ["hioso-onu-detail", deviceId, detailOnuIndex],
@@ -417,18 +424,11 @@ export default function OltHiosoPage() {
                 ))}
               </div>
               <div className="flex items-center gap-2 overflow-x-auto">
-                <button
-                  className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter == null ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
-                  onClick={() => setPortFilter(null)}
-                  type="button"
-                >
-                  All Ports
-                </button>
                 {(portsQuery.data ?? []).map((p) => (
                   <button
                     className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
                     key={p}
-                    onClick={() => setPortFilter(p === portFilter ? null : p)}
+                    onClick={() => setPortFilter(p)}
                     type="button"
                   >
                     P{p}

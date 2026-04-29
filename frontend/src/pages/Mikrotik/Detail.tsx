@@ -192,26 +192,23 @@ function getInterfaceStatus(item: MikrotikInterfaceRow) {
   if (disabled) {
     return {
       label: "Disabled",
-      dotClassName: "text-muted-foreground",
-      chipClassName: "border-border bg-muted text-muted-foreground",
-      accentClassName: "from-muted-foreground/70 via-muted-foreground/35 to-transparent",
+      dotClassName: "bg-gray-400",
+      chipClassName: "rounded-full border-2 border-border bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-foreground",
     };
   }
 
   if (running) {
     return {
       label: "Up",
-      dotClassName: "text-success",
-      chipClassName: "border-border bg-success text-success-foreground",
-      accentClassName: "from-success/80 via-success/40 to-transparent",
+      dotClassName: "bg-[#166534]",
+      chipClassName: "rounded-full border-2 border-border bg-success px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-success-foreground",
     };
   }
 
   return {
     label: "Down",
-    dotClassName: "text-warning",
-    chipClassName: "border-border bg-warning text-warning-foreground",
-    accentClassName: "from-warning/80 via-warning/40 to-transparent",
+    dotClassName: "bg-amber-500",
+    chipClassName: "rounded-full border-2 border-border bg-destructive px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-destructive-foreground",
   };
 }
 
@@ -1099,36 +1096,14 @@ export default function MikrotikDetail() {
   };
 
   const renderInterfaceTab = () => {
-    const runningCount = filteredInterfaces.filter((item) => getInterfaceStatus(item).label === "Up").length;
-
     return (
-      <div className="overflow-hidden rounded-[28px] border border-border bg-card/95 shadow-[0_20px_52px_-36px_rgba(15,23,42,0.24)]">
-        <div className="border-b border-border bg-card/90 px-4 py-4 sm:px-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Interfaces</p>
-                <h3 className="mt-1 text-lg font-semibold text-foreground">Live Interface Inventory</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Desktop uses a denser table layout, while mobile keeps compact operational cards.</p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-semibold text-muted-foreground">
-                  Showing {filteredInterfaces.length} / {interfaceFilterCounts.all}
-                </span>
-                <Button
-                  className="h-9 rounded-full px-4 text-[12px]"
-                  disabled={interfaceFilter === "all"}
-                  onClick={() => setInterfaceFilter("all")}
-                  type="button"
-                  variant="outline"
-                >
-                  View All
-                </Button>
-              </div>
+      <div className="overflow-hidden rounded-[24px] border-2 border-border bg-card shadow-brutal">
+        <div className="border-b-2 border-border bg-card px-4 py-3 sm:px-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Interface</h3>
             </div>
-
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {([
                 ["all", "All", interfaceFilterCounts.all],
                 ["ether", "Ether", interfaceFilterCounts.ether],
@@ -1137,10 +1112,10 @@ export default function MikrotikDetail() {
               ] as const).map(([key, label, count]) => (
                 <button
                   className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-[11px] font-semibold transition-colors",
+                    "rounded-full border-2 border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
                     interfaceFilter === key
-                      ? "border-border bg-primary text-primary-foreground"
-                      : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                      ? "bg-foreground text-background"
+                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
                   )}
                   key={key}
                   onClick={() => setInterfaceFilter(key)}
@@ -1153,108 +1128,92 @@ export default function MikrotikDetail() {
           </div>
         </div>
 
-        <div className="p-3 sm:p-4">
-          <div className="rounded-[24px] border border-border bg-card">
-            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:px-5">
-              <span>Total {filteredInterfaces.length}</span>
-              <span>Running {runningCount}</span>
+        <div className="space-y-2 bg-card/80 p-3 sm:p-4">
+          {filteredInterfaces.length === 0 ? (
+            <div className="rounded-3xl border-2 border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+              No interfaces found for the selected filter.
             </div>
+          ) : null}
 
-            {filteredInterfaces.length > 0 ? (
-              <>
-                <div className="hidden overflow-x-auto lg:block">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-muted/20 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      <tr>
-                        <th className="px-5 py-3">Status</th>
-                        <th className="px-5 py-3">Name</th>
-                        <th className="px-5 py-3">Type</th>
-                        <th className="px-5 py-3">MAC</th>
-                        <th className="px-5 py-3">MTU</th>
-                        <th className="px-5 py-3">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredInterfaces.map((item) => {
-                        const interfaceSelectionKey = getInterfaceSelectionKey(item);
-                        const status = getInterfaceStatus(item);
-                        const commentValue = formatInterfaceValue(item.comment);
-                        const hasComment = commentValue !== "-";
+          {filteredInterfaces.map((item) => {
+            const interfaceSelectionKey = getInterfaceSelectionKey(item);
+            const status = getInterfaceStatus(item);
+            const commentValue = formatInterfaceValue(item.comment);
+            const hasComment = commentValue !== "-";
 
-                        return (
-                          <tr className="border-t border-border/70" key={interfaceSelectionKey}>
-                            <td className="px-5 py-3">
-                              <Badge className={cn("border", status.chipClassName)}>{status.label}</Badge>
-                            </td>
-                            <td className="px-5 py-3">
-                              <p className="font-mono text-sm font-semibold text-foreground">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">{hasComment ? commentValue : "—"}</p>
-                            </td>
-                            <td className="px-5 py-3 text-muted-foreground">{formatInterfaceValue(item.type)}</td>
-                            <td className="px-5 py-3 text-muted-foreground">{getInterfaceMacAddress(item)}</td>
-                            <td className="px-5 py-3 text-muted-foreground">{formatInterfaceValue(item.mtu)}</td>
-                            <td className="px-5 py-3">
-                              <Button aria-haspopup="dialog" className="h-8 px-3 text-[11px]" onClick={() => void openInterfaceMonitor(item)} type="button" variant="outline">
-                                View
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/95 lg:hidden">
-                  <div className="divide-y divide-border/60">
-                    {filteredInterfaces.map((item) => {
-                      const interfaceSelectionKey = getInterfaceSelectionKey(item);
-                      const status = getInterfaceStatus(item);
-                      const commentValue = formatInterfaceValue(item.comment);
-                      const hasComment = commentValue !== "-";
-
-                      return (
-                        <div className="space-y-2.5 px-3 py-2.5" key={interfaceSelectionKey}>
-                          <div className="flex items-start justify-between gap-2.5">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", status.dotClassName)} />
-                                <p className="truncate font-mono text-[13px] font-semibold text-foreground">{item.name}</p>
-                              </div>
-                              <p className="mt-1 truncate text-[11px] text-muted-foreground">{formatInterfaceValue(item.type)} · MTU {formatInterfaceValue(item.mtu)}</p>
-                            </div>
-
-                            <div className="flex shrink-0 flex-col items-end gap-2">
-                              <Badge className={cn("border", status.chipClassName)}>{status.label}</Badge>
-                              <Button aria-haspopup="dialog" className="h-8 px-3 text-[11px]" onClick={() => void openInterfaceMonitor(item)} type="button" variant="outline">
-                                View
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1 text-[11px] text-muted-foreground">
-                            <p className="truncate font-mono">MAC {getInterfaceMacAddress(item)}</p>
-                            {hasComment ? <p className="truncate">{commentValue}</p> : null}
-                          </div>
-                        </div>
-                      );
-                    })}
+            return (
+              <div key={interfaceSelectionKey}>
+                <div className="rounded-xl border border-border/80 px-3 py-2 sm:hidden">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-foreground">{item.name}</p>
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{formatInterfaceValue(item.type)} · {status.label}</p>
+                      {hasComment ? <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{commentValue}</p> : null}
+                    </div>
+                    <span className={status.chipClassName}>{status.label}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-muted-foreground">MAC {getInterfaceMacAddress(item)}</span>
+                    <Button
+                      aria-haspopup="dialog"
+                      className="h-7 px-2.5 text-[10px]"
+                      onClick={() => void openInterfaceMonitor(item)}
+                      type="button"
+                      variant="outline"
+                    >
+                      View
+                    </Button>
                   </div>
                 </div>
-              </>
-            ) : null}
 
-            {filteredInterfaces.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                No interfaces found for the selected filter.
+                <div className="hidden rounded-2xl border border-border/80 p-3 shadow-[0_12px_24px_-24px_rgba(15,23,42,0.24)] sm:block">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-[14px] font-semibold text-foreground">{item.name}</h4>
+                        <span className={status.chipClassName}>{status.label}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {([
+                          ["Type", formatInterfaceValue(item.type)],
+                          ["MAC", getInterfaceMacAddress(item)],
+                          ["MTU", formatInterfaceValue(item.mtu)],
+                        ] as const).map(([label, value]) => (
+                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground" key={label}>
+                            <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+                            <span className="break-all font-medium text-foreground">{value}</span>
+                          </div>
+                        ))}
+                        {hasComment ? (
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                            <span className="font-semibold uppercase tracking-[0.1em]">Note</span>
+                            <span className="font-medium text-foreground">{commentValue}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-24">
+                      <Button
+                        aria-haspopup="dialog"
+                        className="h-8 w-full text-[12px] sm:w-full"
+                        onClick={() => void openInterfaceMonitor(item)}
+                        type="button"
+                        variant="outline"
+                      >
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : null}
-          </div>
+            );
+          })}
+        </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 px-1 text-sm text-muted-foreground">
-            <span>Showing {filteredInterfaces.length} of {interfaceFilterCounts.all} interfaces</span>
-            <span>Traffic refreshes every 5s</span>
-          </div>
+        <div className="border-t border-border/50 px-4 py-2 sm:px-5">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            Showing {filteredInterfaces.length} of {interfaceFilterCounts.all} interfaces
+          </span>
         </div>
       </div>
     );
@@ -1571,61 +1530,65 @@ export default function MikrotikDetail() {
     </div>
   );
 
-  const renderTabRail = () => (
-    <Card className="border-2 bg-card/95 shadow-brutal-sm backdrop-blur">
-      <CardContent className="space-y-1.5 p-1">
-        <div className="grid grid-cols-4 gap-1.5">
-        {TAB_ITEMS.map((tab) => (
-          <button
-            className={cn(
-              "flex min-h-[72px] min-w-0 flex-col items-start justify-between gap-2 rounded-[16px] px-2.5 py-2.5 text-left transition-all sm:min-h-0 sm:flex-row sm:items-center sm:justify-between sm:px-3",
-              activeTab === tab.key
-                ? "bg-primary text-primary-foreground ring-2 ring-inset ring-border shadow-brutal-sm"
-                : "bg-card/80 text-muted-foreground ring-1 ring-inset ring-border/80 hover:bg-muted/20 hover:text-foreground hover:ring-border",
-            )}
-            key={tab.key}
-            onClick={() => {
-              setActiveTab(tab.key);
-              setTabSearchTerm("");
-            }}
-            type="button"
-          >
-            <span className="text-[12px] font-semibold leading-tight text-inherit sm:text-sm">{tab.label}</span>
-            <span className={cn("inline-flex min-w-8 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold", activeTab === tab.key ? "bg-white/20 text-primary-foreground" : "bg-muted/20 text-foreground")}>
-              {tabCounts[tab.key]}
-            </span>
-          </button>
-        ))}
-        </div>
-
-        <div className="flex flex-col gap-2 rounded-[16px] border border-border/80 bg-muted/10 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative block w-full sm:max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label={`${activeTab} search`}
-              className="h-9 rounded-full border-border bg-background pl-9 pr-3 text-[13px] shadow-none"
-              onChange={(event) => setTabSearchTerm(event.target.value)}
-              placeholder={activeTabSearchMeta[activeTab].placeholder}
-              type="search"
-              value={tabSearchTerm}
-            />
+  const renderTabRail = () => {
+    return (
+      <Card className="border-2 border-border shadow-brutal">
+        <CardContent className="space-y-3 p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {TAB_ITEMS.map((tab) => (
+              <button
+                className={cn(
+                  "flex flex-col items-center rounded-xl border border-border/80 px-2 py-3 transition-colors",
+                  activeTab === tab.key
+                    ? "border-2 border-border bg-foreground/5 shadow-brutal-sm"
+                    : "hover:bg-muted/30"
+                )}
+                key={tab.key}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  setTabSearchTerm("");
+                }}
+                type="button"
+              >
+                <span className="text-lg font-bold tabular-nums text-foreground">{tabCounts[tab.key]}</span>
+                <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{tab.label}</span>
+              </button>
+            ))}
           </div>
 
-          <div className="flex items-center justify-between gap-2 sm:justify-end">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Showing {activeTabSearchMeta[activeTab].resultCount} / {activeTabSearchMeta[activeTab].totalCount}
-            </span>
-            {tabSearchTerm ? (
-              <Button className="h-8 rounded-full px-3 text-[12px]" onClick={() => setTabSearchTerm("")} type="button" variant="outline">
-                Clear
-              </Button>
-            ) : null}
-          </div>
-        </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label={`${activeTab} search`}
+                className="h-9 w-full pl-9 pr-3"
+                onChange={(event) => setTabSearchTerm(event.target.value)}
+                placeholder={activeTabSearchMeta[activeTab].placeholder}
+                type="search"
+                value={tabSearchTerm}
+              />
+            </div>
 
-      </CardContent>
-    </Card>
-  );
+            <div className="flex items-center justify-between gap-2 sm:justify-end">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Showing {activeTabSearchMeta[activeTab].resultCount} / {activeTabSearchMeta[activeTab].totalCount}
+              </span>
+              {tabSearchTerm ? (
+                <Button
+                  className="h-8 text-[11px]"
+                  onClick={() => setTabSearchTerm("")}
+                  type="button"
+                  variant="outline"
+                >
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="route-shell-page route-shell-mikrotik-detail space-y-6">

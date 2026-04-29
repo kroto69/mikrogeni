@@ -95,6 +95,10 @@ func createTables() error {
 		return err
 	}
 
+	if err := createZTEConnectionTables(); err != nil {
+		return err
+	}
+
 	MigrateHiosoProfilesIfNeeded()
 
 	return nil

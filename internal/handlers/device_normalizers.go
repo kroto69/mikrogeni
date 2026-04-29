@@ -93,6 +93,8 @@ func normalizeParameterValue(value interface{}, xsdType string) (interface{}, er
 	}
 }
 
+// NOTE: this function is duplicated in internal/scheduler/acs_offline_summon_scheduler.go
+// If you modify this, update the duplicate too.
 func parseLastInform(device map[string]interface{}) (time.Time, bool) {
 	value, ok := extractValueByKey(device, "_lastInform")
 	if !ok {
