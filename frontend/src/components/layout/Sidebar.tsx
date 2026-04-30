@@ -2,12 +2,13 @@ import { Blocks, LayoutDashboard, Plus, ReceiptText, Router, Settings, Wifi } fr
 import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
+import { useRole } from "@/hooks/useRole";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "Mikrotik", to: "/mikrotik", icon: Router },
-  { label: "Billing", to: "/billing", icon: ReceiptText },
+  { label: "Billing", to: "/billing", icon: ReceiptText, feature: "billing" as const },
   { label: "Acs/ONU Device", to: "/onu", icon: Wifi },
   { label: "Hioso", to: "/hioso", icon: Blocks },
 ];
@@ -20,6 +21,8 @@ type SidebarProps = {
 export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const navLinkBase = "neo-panel neo-interactive relative flex items-center gap-3 rounded-lg border-2 border-border bg-card px-4 py-3 text-xs font-extrabold uppercase tracking-[0.08em] text-foreground shadow-brutal-sm transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:bg-muted/40 hover:shadow-brutal";
   const navLinkActive = "bg-primary text-primary-foreground shadow-brutal";
+
+  const { can } = useRole();
 
   const { data: zteConnections } = useQuery({
     queryKey: ['zte-connections'],
@@ -40,7 +43,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </div>
 
       <nav className="mt-6 space-y-2">
-        {navigation.map(({ label, to, icon: Icon }) => (
+        {navigation.filter((item) => !item.feature || can(item.feature as any)).map(({ label, to, icon: Icon }) => (
           <NavLink
             key={to}
             onClick={onNavigate}
@@ -61,6 +64,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       <div className="mt-4 space-y-2">
         <p className="px-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">ZTE OLT</p>
         {(!zteConnections || zteConnections.length === 0) ? (
+          can("zte_connections_crud") ? (
           <NavLink
             onClick={onNavigate}
             to="/settings/zte"
@@ -69,6 +73,9 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
             <Plus className="h-4 w-4" />
             <span>Tambah OLT</span>
           </NavLink>
+          ) : (
+            <p className="px-2 text-[10px] text-muted-foreground">No OLT connections</p>
+          )
         ) : (
           zteConnections.map((conn) => (
             <NavLink
@@ -85,6 +92,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </div>
 
       <div className="mt-auto space-y-4">
+        {can("settings") && (
         <NavLink
           onClick={onNavigate}
           to="/settings"
@@ -93,6 +101,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           <Settings className="h-4 w-4" />
           <span>Settings</span>
         </NavLink>
+        )}
 
         <div className="sidebar-health-surface rounded-xl border-2 border-border bg-secondary p-4 text-secondary-foreground shadow-brutal">
           <div className="flex items-center justify-between">

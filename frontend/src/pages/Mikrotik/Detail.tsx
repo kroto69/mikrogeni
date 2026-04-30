@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRole } from "@/hooks/useRole";
 import { Search, Settings2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAsyncTask } from "@/hooks/useAsyncTask";
@@ -483,6 +484,7 @@ export default function MikrotikDetail() {
   const { deviceId = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { can } = useRole();
   const [activeTab, setActiveTab] = useState<DetailTab>("interface");
   const [tabSearchTerm, setTabSearchTerm] = useState("");
   const [interfaceFilter, setInterfaceFilter] = useState<InterfaceFilter>("all");
@@ -1313,6 +1315,7 @@ export default function MikrotikDetail() {
       <Card>
         <CardHeader className="sticky top-0 z-10 flex flex-col gap-2.5 border-b border-border/80 bg-card/95 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Secret Inventory</CardTitle>
+          {can("mikrotik_ppp_write") && (
           <Button
             className="w-full sm:w-auto"
             onClick={() => {
@@ -1323,6 +1326,7 @@ export default function MikrotikDetail() {
           >
             Add Secret
           </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
           {filteredSecretRows.length === 0 ? <p className="text-sm text-muted-foreground">{normalizedTabSearchTerm ? activeTabSearchMeta.secret.emptyLabel : "No PPP secrets found."}</p> : null}
@@ -1347,6 +1351,7 @@ export default function MikrotikDetail() {
                     <Badge className="text-[10px]" variant={isTruthy(secret.disabled) ? "secondary" : "success"}>{isTruthy(secret.disabled) ? "Off" : "On"}</Badge>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
+                    {can("mikrotik_ppp_write") && (
                     <Button
                       aria-haspopup="dialog"
                       className="h-8 text-[11px]"
@@ -1355,6 +1360,8 @@ export default function MikrotikDetail() {
                     >
                       Edit
                     </Button>
+                    )}
+                    {can("mikrotik_ppp_write") && (
                     <Button
                       className="h-8 text-[11px]"
                       disabled={deleteSecretMutation.isPending}
@@ -1363,6 +1370,7 @@ export default function MikrotikDetail() {
                     >
                       Delete
                     </Button>
+                    )}
                   </div>
                 </div>
 
@@ -1383,6 +1391,7 @@ export default function MikrotikDetail() {
                       </div>
                     </div>
                     <div className="flex flex-row gap-2 sm:w-auto">
+                      {can("mikrotik_ppp_write") && (
                       <Button
                         aria-haspopup="dialog"
                         className="h-8 w-full text-[12px] sm:w-24"
@@ -1391,6 +1400,8 @@ export default function MikrotikDetail() {
                       >
                         Edit
                       </Button>
+                      )}
+                      {can("mikrotik_ppp_write") && (
                       <Button
                         className="h-8 w-full text-[12px] sm:w-24"
                         disabled={deleteSecretMutation.isPending}
@@ -1399,6 +1410,7 @@ export default function MikrotikDetail() {
                       >
                         Delete
                       </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1415,6 +1427,7 @@ export default function MikrotikDetail() {
       <Card>
         <CardHeader className="sticky top-0 z-10 flex flex-col gap-2.5 border-b border-border/80 bg-card/95 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Profile Inventory</CardTitle>
+          {can("mikrotik_ppp_write") && (
           <Button
             className="w-full sm:w-auto"
             onClick={() => {
@@ -1425,6 +1438,7 @@ export default function MikrotikDetail() {
           >
             Add Profile
           </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
           {filteredProfileRows.length === 0 ? <p className="text-sm text-muted-foreground">{normalizedTabSearchTerm ? activeTabSearchMeta.profile.emptyLabel : "No PPP profiles found."}</p> : null}
@@ -1445,7 +1459,8 @@ export default function MikrotikDetail() {
                     <p className="mt-1 truncate text-[11px] text-muted-foreground">Local {profile["local-address"] || "-"} · Pool {profile["remote-address"] || "-"}</p>
                     <p className="mt-1 truncate text-[11px] text-muted-foreground">Rate {profile["rate-limit"] || "-"}</p>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+<div className="mt-2 grid grid-cols-2 gap-2">
+                    {can("mikrotik_ppp_write") && (
                     <Button
                       className="h-8 text-[11px]"
                       onClick={() => {
@@ -1466,6 +1481,8 @@ export default function MikrotikDetail() {
                     >
                       Edit
                     </Button>
+                    )}
+                    {can("mikrotik_ppp_write") && (
                     <Button
                       className="h-8 text-[11px]"
                       disabled={deleteProfileMutation.isPending}
@@ -1474,6 +1491,7 @@ export default function MikrotikDetail() {
                     >
                       Delete
                     </Button>
+                    )}
                   </div>
                 </div>
 
@@ -1491,6 +1509,7 @@ export default function MikrotikDetail() {
                       </div>
                     </div>
                     <div className="flex flex-row gap-2 sm:w-auto">
+                      {can("mikrotik_ppp_write") && (
                       <Button
                         className="h-8 w-full text-[12px] sm:w-24"
                         onClick={() => {
@@ -1511,6 +1530,8 @@ export default function MikrotikDetail() {
                       >
                         Edit
                       </Button>
+                      )}
+                      {can("mikrotik_ppp_write") && (
                       <Button
                         className="h-8 w-full text-[12px] sm:w-24"
                         disabled={deleteProfileMutation.isPending}
@@ -1519,6 +1540,7 @@ export default function MikrotikDetail() {
                       >
                         Delete
                       </Button>
+                      )}
                     </div>
                   </div>
                 </div>

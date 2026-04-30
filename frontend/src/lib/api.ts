@@ -59,6 +59,7 @@ export type AuthSession = {
   refreshToken: string;
   expiresIn: number;
   username: string;
+  role: string;
 };
 
 export type AcsUserRole = "admin" | "teknisi";
@@ -173,6 +174,7 @@ export function getStoredAuthSession(): AuthSession | null {
       refreshToken: typeof parsed.refreshToken === "string" ? parsed.refreshToken : "",
       expiresIn: typeof parsed.expiresIn === "number" ? parsed.expiresIn : 3600,
       username: typeof parsed.username === "string" ? parsed.username : "Admin",
+      role: typeof parsed.role === "string" ? parsed.role : "user",
     };
   } catch {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);

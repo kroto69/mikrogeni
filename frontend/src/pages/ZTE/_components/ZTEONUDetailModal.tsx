@@ -4,6 +4,7 @@ import { ZTESkeleton } from './ZTESkeleton'
 import { getZTEONUDetail, rebootZTEONU, getApiErrorMessage } from '@/lib/zteApi'
 import { showToast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+
 import type { ZTEONUListItem, ZTEONUDetail } from '@/types/zte'
 
 type ZTEONUDetailModalProps = {
@@ -64,6 +65,7 @@ function statusBadge(statusCode: number, status: string) {
 }
 
 export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalProps) {
+  
   const [detail, setDetail] = useState<ZTEONUDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)

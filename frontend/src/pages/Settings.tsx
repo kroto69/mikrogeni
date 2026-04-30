@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSectionHeader } from "@/components/page/section-header";
 import { Input } from "@/components/ui/input";
+import { useRole } from "@/hooks/useRole";
 import {
   API_BASE_URL,
   createAcsUser,
@@ -246,6 +247,7 @@ function formatUserUpdatedAt(user: AcsUser) {
 
 export default function Settings() {
   const queryClient = useQueryClient();
+  const { can } = useRole();
   const [form, setForm] = useState<SettingsFormState>(EMPTY_FORM);
   const [registryModalMode, setRegistryModalMode] = useState<RegistryModalMode>("closed");
   const [registryForm, setRegistryForm] = useState<RegistryFormState>(EMPTY_REGISTRY_FORM);
@@ -1026,7 +1028,9 @@ export default function Settings() {
             title={<CardTitle className="text-xl sm:text-2xl">ZTE OLT Connections</CardTitle>}
             description={<CardDescription>Manage zzte container endpoints for ONU monitoring. Each connection represents a zzte API base URL.</CardDescription>}
             actions={
-              <Button className="w-full sm:w-auto" onClick={openCreateZteModal} type="button"><Plus className="mr-2 h-4 w-4" />Add ZTE OLT</Button>
+              can("zte_connections_crud") ? (
+                <Button className="w-full sm:w-auto" onClick={openCreateZteModal} type="button"><Plus className="mr-2 h-4 w-4" />Add ZTE OLT</Button>
+              ) : undefined
             }
           />
         </CardHeader>
@@ -1073,6 +1077,8 @@ export default function Settings() {
                       </Link>
                     </div>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      {can("zte_connections_crud") && (
+                      <>
                       <Button className="w-full sm:w-auto" onClick={() => openEditZteModal(conn)} type="button" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
                       <Button
                         className="w-full sm:w-auto"
@@ -1086,6 +1092,8 @@ export default function Settings() {
                       >
                         <Trash2 className="mr-2 h-4 w-4" />Delete
                       </Button>
+                      </>
+                      )}
                     </div>
                   </div>
                 )

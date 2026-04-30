@@ -18,8 +18,18 @@ import {
   type LoginPayload,
 } from "@/lib/api";
 
+function decodeJwtRole(token: string): string {
+  try {
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return decoded.role || "user";
+  } catch {
+    return "user";
+  }
+}
+
 type AuthContextValue = {
-  user: { username: string } | null;
+  user: { username: string; role: string } | null;
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -62,6 +72,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         refreshToken: response.refresh_token,
         expiresIn: response.expires_in,
         username: credentials.username,
+        role: decodeJwtRole(response.access_token),
       };
 
       setStoredAuthSession(nextSession);
@@ -79,7 +90,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: session ? { username: session.username } : null,
+      user: session ? { username: session.username, role: session.role } : null,
       accessToken: session?.accessToken ?? null,
       isAuthenticated: Boolean(session?.accessToken),
       isLoading,

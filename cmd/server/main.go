@@ -83,50 +83,56 @@ func main() {
 			r.Get("/devices", handlers.GetDevices)
 			r.Get("/devices/{id}", handlers.GetDeviceDetail)
 			r.Post("/devices/refresh", handlers.RefreshACSDevices)
-			r.Post("/devices/{id}/reboot", handlers.RebootDevice)
-			r.Post("/devices/{id}/config/wifi", handlers.ConfigureDeviceWiFi)
-			r.Post("/devices/{id}/config/wan", handlers.ConfigureDeviceWAN)
-			r.Post("/devices/{id}/config/security", handlers.ConfigureDeviceSecurity)
-			r.Post("/devices/{id}/config/parameters", handlers.ConfigureDeviceParameters)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{id}/reboot", handlers.RebootDevice)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{id}/config/wifi", handlers.ConfigureDeviceWiFi)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{id}/config/wan", handlers.ConfigureDeviceWAN)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{id}/config/security", handlers.ConfigureDeviceSecurity)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{id}/config/parameters", handlers.ConfigureDeviceParameters)
 			r.Get("/tasks/{id}", handlers.GetTaskStatus)
 
 			// Dashboard
 			r.Get("/dashboard", handlers.GetDashboard)
 
-			// Settings
-			r.Get("/settings", handlers.GetSettings)
-			r.Get("/settings/hioso-olts", handlers.GetHiosoOLTProfiles)
-			r.Post("/settings/hioso-olts", handlers.CreateHiosoOLTProfile)
-			r.Patch("/settings/hioso-olts/{id}", handlers.UpdateHiosoOLTProfile)
-			r.Delete("/settings/hioso-olts/{id}", handlers.DeleteHiosoOLTProfile)
-			r.Post("/settings/hioso-olts/{id}/activate", handlers.ActivateHiosoOLTProfile)
-			r.Get("/settings/acs-learned-profiles", handlers.GetACSLearnedProfiles)
-			r.Post("/settings/acs-learned-profiles", handlers.UpsertACSLearnedProfile)
-			r.Delete("/settings/acs-learned-profiles", handlers.DeleteACSLearnedProfile)
-			r.Post("/settings", handlers.UpdateSetting)
+			// Settings (admin-only)
+			r.Route("/settings", func(r chi.Router) {
+				r.Use(middleware.RequireRole("admin"))
+				r.Get("/", handlers.GetSettings)
+				r.Get("/hioso-olts", handlers.GetHiosoOLTProfiles)
+				r.Post("/hioso-olts", handlers.CreateHiosoOLTProfile)
+				r.Patch("/hioso-olts/{id}", handlers.UpdateHiosoOLTProfile)
+				r.Delete("/hioso-olts/{id}", handlers.DeleteHiosoOLTProfile)
+				r.Post("/hioso-olts/{id}/activate", handlers.ActivateHiosoOLTProfile)
+				r.Get("/acs-learned-profiles", handlers.GetACSLearnedProfiles)
+				r.Post("/acs-learned-profiles", handlers.UpsertACSLearnedProfile)
+				r.Delete("/acs-learned-profiles", handlers.DeleteACSLearnedProfile)
+				r.Post("/", handlers.UpdateSetting)
+			})
 
-			// User Management
-			r.Get("/users", handlers.GetUsers)
-			r.Post("/users", handlers.CreateUser)
-			r.Patch("/users/{id}", handlers.UpdateUser)
-			r.Delete("/users/{id}", handlers.DeleteUser)
+			// User Management (admin-only)
+			r.Route("/users", func(r chi.Router) {
+				r.Use(middleware.RequireRole("admin"))
+				r.Get("/", handlers.GetUsers)
+				r.Post("/", handlers.CreateUser)
+				r.Patch("/{id}", handlers.UpdateUser)
+				r.Delete("/{id}", handlers.DeleteUser)
+			})
 
 			// Vendor & Tag
 			r.Get("/vendors", handlers.GetVendors)
-			r.Post("/vendors", handlers.CreateVendor)
+			r.With(middleware.RequireRole("admin")).Post("/vendors", handlers.CreateVendor)
 			r.Get("/tags", handlers.GetTags)
-			r.Post("/tags", handlers.CreateTag)
+			r.With(middleware.RequireRole("admin")).Post("/tags", handlers.CreateTag)
 
-			// Bulk config
-			r.Post("/config/wifi", handlers.ConfigureWiFi)
-			r.Post("/config/wan", handlers.ConfigureWAN)
-			r.Post("/config/security", handlers.ConfigureSecurity)
+			// Bulk config (admin-only)
+			r.With(middleware.RequireRole("admin")).Post("/config/wifi", handlers.ConfigureWiFi)
+			r.With(middleware.RequireRole("admin")).Post("/config/wan", handlers.ConfigureWAN)
+			r.With(middleware.RequireRole("admin")).Post("/config/security", handlers.ConfigureSecurity)
 
 			// Monitoring
 			r.Get("/check/wan", handlers.CheckWAN)
 			r.Get("/check/gpon-epon", handlers.CheckGPONEPON)
 			r.Get("/faults", handlers.GetFaults)
-			r.Delete("/faults/{id}", handlers.DeleteFault)
+			r.With(middleware.RequireRole("admin")).Delete("/faults/{id}", handlers.DeleteFault)
 
 			// Portal & Search
 			r.Post("/portal/validate-accesscode", handlers.ValidateAccessCode)
@@ -153,25 +159,26 @@ func main() {
 			r.Delete("/devices/{device_id}/ppp/active/{session_id}", handlers.KickMikroTikPPPActive)
 			r.Post("/devices/{device_id}/ppp/active/kick", handlers.KickMikroTikPPPActiveBulk)
 
-			// PPP Secrets
+			// PPP Secrets (write: admin-only)
 			r.Get("/devices/{device_id}/ppp/secrets", handlers.GetMikroTikPPPSecrets)
-			r.Post("/devices/{device_id}/ppp/secrets", handlers.CreateMikroTikPPPSecret)
-			r.Patch("/devices/{device_id}/ppp/secrets/{secret_id}", handlers.UpdateMikroTikPPPSecret)
-			r.Delete("/devices/{device_id}/ppp/secrets/{secret_id}", handlers.DeleteMikroTikPPPSecret)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{device_id}/ppp/secrets", handlers.CreateMikroTikPPPSecret)
+			r.With(middleware.RequireRole("admin")).Patch("/devices/{device_id}/ppp/secrets/{secret_id}", handlers.UpdateMikroTikPPPSecret)
+			r.With(middleware.RequireRole("admin")).Delete("/devices/{device_id}/ppp/secrets/{secret_id}", handlers.DeleteMikroTikPPPSecret)
 
-			// PPP Profiles
+			// PPP Profiles (write: admin-only)
 			r.Get("/devices/{device_id}/ppp/profiles", handlers.GetMikroTikPPPProfiles)
-			r.Post("/devices/{device_id}/ppp/profiles", handlers.CreateMikroTikPPPProfile)
-			r.Patch("/devices/{device_id}/ppp/profiles/{profile_id}", handlers.UpdateMikroTikPPPProfile)
-			r.Delete("/devices/{device_id}/ppp/profiles/{profile_id}", handlers.DeleteMikroTikPPPProfile)
+			r.With(middleware.RequireRole("admin")).Post("/devices/{device_id}/ppp/profiles", handlers.CreateMikroTikPPPProfile)
+			r.With(middleware.RequireRole("admin")).Patch("/devices/{device_id}/ppp/profiles/{profile_id}", handlers.UpdateMikroTikPPPProfile)
+			r.With(middleware.RequireRole("admin")).Delete("/devices/{device_id}/ppp/profiles/{profile_id}", handlers.DeleteMikroTikPPPProfile)
 
 			// Bulk & Tasks
 			r.Post("/bulk/jobs", handlers.CreateMikroTikBulkJob)
 			r.Get("/tasks/{id}", handlers.GetTaskStatus)
 		})
 
-		// ── Billing ─────────────────────────────────────────────────────────
+		// ── Billing (admin-only) ──────────────────────────────────────────
 		r.Route("/api/billing", func(r chi.Router) {
+			r.Use(middleware.RequireRole("admin"))
 			r.Get("/service-plans", handlers.GetBillingServicePlans)
 			r.Post("/service-plans", handlers.CreateBillingServicePlan)
 
@@ -211,15 +218,15 @@ func main() {
 			r.Get("/devices/{device_id}/ports", handlers.HiosoPortsHandler)
 		})
 
-		// ZTE Plugin routes
+// ZTE Plugin routes
 	r.Route("/api/zte", func(r chi.Router) {
-   			r.Post("/connections/test", handlers.TestZTEConnection)  // ← bukan /api/zte/connections/test
+   			r.Post("/connections/test", handlers.TestZTEConnection)
     		r.Get("/connections", handlers.ListZTEConnections)
-    		r.Post("/connections", handlers.CreateZTEConnection)
-   			r.Patch("/connections/{id}", handlers.UpdateZTEConnection)
-    		r.Delete("/connections/{id}", handlers.DeleteZTEConnection)
+    		r.With(middleware.RequireRole("admin")).Post("/connections", handlers.CreateZTEConnection)
+   		r.With(middleware.RequireRole("admin")).Patch("/connections/{id}", handlers.UpdateZTEConnection)
+    		r.With(middleware.RequireRole("admin")).Delete("/connections/{id}", handlers.DeleteZTEConnection)
     		r.Post("/connections/{id}/health", handlers.HealthCheckZTE)
-			})
+		})
 r.HandleFunc("/api/zte/olt/{connId}/*", handlers.ForwardZTEProxy)
 
 		})
