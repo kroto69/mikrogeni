@@ -576,8 +576,9 @@ export default function Settings() {
     mutationFn: (values: ZteFormState) => {
       return addZTEConnection({ name: values.name.trim() || undefined, base_url: values.baseUrl.trim() })
     },
-    onSuccess: async () => {
-      showToast({ title: "ZTE OLT ditambahkan", variant: "success" })
+    onSuccess: async (result) => {
+      const count = result.length
+      showToast({ title: count > 1 ? `${count} ZTE OLT ditambahkan` : "ZTE OLT ditambahkan", variant: "success" })
       setZteModalMode("closed")
       setZteForm(EMPTY_ZTE_FORM)
       setEditingZte(null)

@@ -15,9 +15,10 @@ export async function getZTEConnections(): Promise<ZTEConnection[]> {
   return unwrap(data) ?? []
 }
 
-export async function addZTEConnection(payload: { name?: string; base_url: string }): Promise<ZTEConnection> {
-  const { data } = await api.post<ApiEnvelope<ZTEConnection> | ZTEConnection>('/zte/connections', payload)
-  return unwrap(data)
+export async function addZTEConnection(payload: { name?: string; base_url: string }): Promise<ZTEConnection[]> {
+  const { data } = await api.post<ApiEnvelope<ZTEConnection[] | ZTEConnection> | ZTEConnection[] | ZTEConnection>('/zte/connections', payload)
+  const result = unwrap(data)
+  return Array.isArray(result) ? result : [result]
 }
 
 export async function deleteZTEConnection(id: string): Promise<void> {
