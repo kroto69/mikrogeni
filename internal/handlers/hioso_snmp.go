@@ -39,7 +39,13 @@ type HiosoONU struct {
 }
 
 type hiosoOIDProfile struct {
-	Name, NameOID, SNOID, StatOID, TxOID, RxOID string
+	Name    string
+	NameOID string
+	SNOID   string
+	StatOID string
+	TxOID   string
+	RxOID   string
+	Divider float64
 }
 
 type hiosoProfileCacheEntry struct {
@@ -57,6 +63,7 @@ var hiosoProfiles = []hiosoOIDProfile{
 		StatOID: ".1.3.6.1.4.1.25355.3.3.1.1.1.11",
 		TxOID:   ".1.3.6.1.4.1.25355.3.3.1.1.4.1.2",
 		RxOID:   ".1.3.6.1.4.1.25355.3.3.1.1.4.1.1",
+		Divider: 100,
 	},
 	{
 		Name:    "HIOSO_B",
@@ -65,6 +72,7 @@ var hiosoProfiles = []hiosoOIDProfile{
 		StatOID: ".1.3.6.1.4.1.3320.101.10.1.1.26",
 		TxOID:   ".1.3.6.1.4.1.3320.101.10.5.1.5",
 		RxOID:   ".1.3.6.1.4.1.3320.101.10.5.1.6",
+		Divider: 10,
 	},
 	{
 		Name:    "HIOSO_C",
@@ -73,6 +81,16 @@ var hiosoProfiles = []hiosoOIDProfile{
 		StatOID: ".1.3.6.1.4.1.25355.3.2.6.3.2.1.39",
 		TxOID:   ".1.3.6.1.4.1.25355.3.2.6.14.2.1.4",
 		RxOID:   ".1.3.6.1.4.1.25355.3.2.6.14.2.1.8",
+		Divider: 1,
+	},
+	{
+		Name:    "HIOSO_HA73",
+		NameOID: ".1.3.6.1.4.1.34592.1.3.100.12.1.1.2",
+		SNOID:   "",
+		StatOID: ".1.3.6.1.4.1.34592.1.3.100.12.1.1.5",
+		TxOID:   ".1.3.6.1.4.1.34592.1.3.100.12.1.1.13",
+		RxOID:   ".1.3.6.1.4.1.34592.1.3.100.12.1.1.14",
+		Divider: 10,
 	},
 }
 
@@ -550,7 +568,7 @@ func FetchAllONU(ctx context.Context, target SNMPTarget) ([]HiosoONU, string, er
 		tx := hiosoParseSignal(txValues[idx])
 		rx := hiosoParseSignal(rxValues[idx])
 
-		if hiosoIsGhost(name, sn, tx, rx) {
+		if hiosoIsGhost(name, sn, idx, tx, rx) {
 			continue
 		}
 
@@ -591,56 +609,45 @@ func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoON
 	txOID := profile.TxOID + portSuffix
 	rxOID := profile.RxOID + portSuffix
 
-	var (
-		names    map[string]string
-		sns      map[string]string
-		statuses map[string]string
-		txValues map[string]string
-		rxValues map[string]string
-		nameErr  error
-	)
+	statusFallbacks, txFallbacks, rxFallbacks := hiosoGetFallbackOIDs(profile)
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		names, nameErr = hiosoSNMPWalk(target, nameOID)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		sns, _ = hiosoSNMPWalk(target, snOID)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		statuses, _ = hiosoSNMPWalk(target, statOID)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		txValues, _ = hiosoSNMPWalk(target, txOID)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		rxValues, _ = hiosoSNMPWalk(target, rxOID)
-	}()
-
-	wg.Wait()
-
-	if ctx.Err() != nil {
-		return nil, "", ctx.Err()
-	}
-
+	names, nameErr := hiosoSNMPWalk(target, nameOID)
 	if nameErr != nil {
 		return nil, profile.Name, fmt.Errorf("gagal baca nama ONU: %w", nameErr)
 	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	var snFallbackPort []string
+	for _, fb := range hiosoSNFallbacks {
+		snFallbackPort = append(snFallbackPort, fb+portSuffix)
+	}
+	sns, _ := hiosoWalkWithFallback(target, snOID, snFallbackPort)
+
+	time.Sleep(500 * time.Millisecond)
+
+	statFallbackPort := make([]string, len(statusFallbacks))
+	for i, fb := range statusFallbacks {
+		statFallbackPort[i] = fb + portSuffix
+	}
+	statuses, _ := hiosoWalkWithFallback(target, statOID, statFallbackPort)
+
+	time.Sleep(500 * time.Millisecond)
+
+	txFallbackPort := make([]string, len(txFallbacks))
+	for i, fb := range txFallbacks {
+		txFallbackPort[i] = fb + portSuffix
+	}
+	txValues, _ := hiosoWalkWithFallback(target, txOID, txFallbackPort)
+
+	time.Sleep(500 * time.Millisecond)
+
+	rxFallbackPort := make([]string, len(rxFallbacks))
+	for i, fb := range rxFallbacks {
+		rxFallbackPort[i] = fb + portSuffix
+	}
+	rxValues, _ := hiosoWalkWithFallback(target, rxOID, rxFallbackPort)
+
 	if names == nil {
 		names = make(map[string]string)
 	}
@@ -698,18 +705,22 @@ func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoON
 		name := strings.TrimSpace(names[idx])
 		sn := hiosoDecodeMacOrSN(sns[idx])
 		status := hiosoParseStatus(statuses[idx], isGPON)
-		tx := hiosoParseSignal(txValues[idx])
-		rx := hiosoParseSignal(rxValues[idx])
+		tx := hiosoParseSignalWithDivider(txValues[idx], profile.Divider)
+		rx := hiosoParseSignalWithDivider(rxValues[idx], profile.Divider)
+		robustIdx := hiosoExtractIndexRobust(idx, profile.NameOID+portSuffix)
+		if robustIdx == "" {
+			robustIdx = idx
+		}
 
-		if hiosoIsGhost(name, sn, tx, rx) {
+		if hiosoIsGhost(name, sn, robustIdx, tx, rx) {
 			continue
 		}
 
-		onuPort, onuID := hiosoParsePortAndID(idx)
+		onuPort, onuID := hiosoParsePortAndID(robustIdx)
 
 		onu := HiosoONU{
-			Index:   idx,
-			WebID:   hiosoResolveWebID(idx),
+			Index:   robustIdx,
+			WebID:   hiosoResolveWebID(robustIdx),
 			Port:    onuPort,
 			ONUID:   onuID,
 			Name:    name,
@@ -818,6 +829,114 @@ func hiosoExtractIndex(rawOID, baseOID string) string {
 	}
 
 	return ""
+}
+
+func hiosoExtractIndexRobust(rawOID, baseOID string) string {
+	raw := strings.TrimSpace(rawOID)
+	base := strings.TrimSpace(baseOID)
+	if raw == "" || base == "" {
+		return ""
+	}
+
+	rawDot := raw
+	if !strings.HasPrefix(rawDot, ".") {
+		rawDot = "." + rawDot
+	}
+	baseDot := base
+	if !strings.HasPrefix(baseDot, ".") {
+		baseDot = "." + baseDot
+	}
+
+	if strings.HasPrefix(rawDot, baseDot+".") {
+		return strings.TrimPrefix(rawDot, baseDot+".")
+	}
+	if rawDot == baseDot {
+		return ""
+	}
+
+	rawParts := strings.Split(strings.Trim(raw, "."), ".")
+	baseParts := strings.Split(strings.Trim(base, "."), ".")
+	if len(baseParts) > 0 {
+		lastAnchor := baseParts[len(baseParts)-1]
+		found := -1
+		for i := len(rawParts) - 1; i >= 0; i-- {
+			if rawParts[i] == lastAnchor {
+				found = i
+				break
+			}
+		}
+		if found != -1 && found+1 < len(rawParts) {
+			return strings.Join(rawParts[found+1:], ".")
+		}
+	}
+
+	return strings.TrimPrefix(strings.TrimPrefix(raw, base), ".")
+}
+
+func hiosoParentBranch(oid string) string {
+	trimmed := strings.Trim(strings.TrimSpace(oid), ".")
+	lastDot := strings.LastIndex(trimmed, ".")
+	if lastDot <= 0 {
+		return "." + trimmed
+	}
+	return "." + trimmed[:lastDot]
+}
+
+func hiosoWalkWithFallback(target SNMPTarget, mainOID string, fallbacks []string) (map[string]string, error) {
+	if mainOID == "" && len(fallbacks) == 0 {
+		return nil, errors.New("OID kosong, tidak ada fallback")
+	}
+
+	if mainOID != "" {
+		result, err := hiosoSNMPWalk(target, mainOID)
+		if err == nil && len(result) > 0 {
+			return result, nil
+		}
+	}
+
+	for _, foid := range fallbacks {
+		result, err := hiosoSNMPWalk(target, foid)
+		if err == nil && len(result) > 0 {
+			return result, nil
+		}
+	}
+
+	return make(map[string]string), nil
+}
+
+func hiosoGetFallbackOIDs(profile *hiosoOIDProfile) (statusFallbacks, txFallbacks, rxFallbacks []string) {
+	profileName := strings.ToUpper(strings.TrimSpace(profile.Name))
+	switch profileName {
+	case "HIOSO_C":
+		pb := hiosoParentBranch(profile.NameOID)
+		statusFallbacks = []string{pb + ".2", pb + ".5", pb + ".39"}
+		txFallbacks = []string{pb + ".13", ".1.3.6.1.4.1.25355.3.2.6.1.1.1.1.9"}
+		rxFallbacks = []string{pb + ".14", ".1.3.6.1.4.1.25355.3.2.6.1.1.1.1.10"}
+	}
+	return
+}
+
+func hiosoParseSignalWithDivider(raw string, divider float64) float64 {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return 0
+	}
+
+	numberText := hiosoSignalRegex.FindString(text)
+	if numberText == "" {
+		return 0
+	}
+
+	value, err := strconv.ParseFloat(numberText, 64)
+	if err != nil {
+		return 0
+	}
+
+	if divider > 0 {
+		return math.Round(value/divider*100) / 100
+	}
+
+	return hiosoParseSignal(raw)
 }
 
 func hiosoParseSignal(raw string) float64 {
@@ -969,15 +1088,31 @@ func hiosoParseStatus(raw string, isGPON bool) string {
 	return "Down"
 }
 
-func hiosoIsGhost(name, sn string, tx, rx float64) bool {
+func hiosoIsGhost(name, sn, index string, tx, rx float64) bool {
 	trimmedName := strings.TrimSpace(name)
 	trimmedSN := strings.TrimSpace(sn)
+
 	if tx == 0 && rx == 0 && trimmedName == "" && trimmedSN == "" {
 		return true
 	}
 	if strings.Contains(strings.ToLower(trimmedName), "no such") {
 		return true
 	}
+
+	lowerName := strings.ToLower(trimmedName)
+	for _, g := range []string{"public", "internal", "private", "all", "grpcomm"} {
+		if strings.Contains(lowerName, g) {
+			return true
+		}
+	}
+
+	if len(index) > 20 {
+		return true
+	}
+	if strings.Count(index, ".") > 5 {
+		return true
+	}
+
 	return false
 }
 
