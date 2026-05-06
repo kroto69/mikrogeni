@@ -978,120 +978,104 @@ export default function MikrotikDetail() {
     const rxLinePath = buildTrafficPath(rxLinePoints);
     const txLinePath = buildTrafficPath(txLinePoints);
     const detailRows = [
-      ["Name", formatInterfaceValue(selectedInterface.name)],
       ["Type", formatInterfaceValue(selectedInterface.type)],
       ["MAC", formatInterfaceValue(macAddress)],
-      ["Status", status.label],
       ["MTU", formatInterfaceValue(selectedInterface.mtu)],
     ];
 
     return (
-      <div className="space-y-4">
-        <div className="rounded-[26px] border border-border/70 bg-card/95 p-4 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.28)] sm:p-5">
-          <div className="flex items-center justify-between gap-3 border-b border-border/70 pb-4">
-            <div className="min-w-0 flex items-center gap-2">
-              <h4 className="truncate font-mono text-lg font-semibold text-foreground">{selectedInterface.name}</h4>
-              <span className="inline-flex rounded-full bg-muted/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {formatInterfaceValue(selectedInterface.type)}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/15 px-2.5 py-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Interface</span>
+            <span className="font-mono text-xs font-semibold text-foreground">{formatInterfaceValue(selectedInterface.name)}</span>
+          </div>
+          <span className={cn("inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]", status.chipClassName)}>
+            {status.label}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">TX</p>
+            <p className="mt-1 text-sm font-bold text-foreground">{traffic ? formatTrafficCompact(traffic.tx_mbps) : "—"}</p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">RX</p>
+            <p className="mt-1 text-sm font-bold text-foreground">{traffic ? formatTrafficCompact(traffic.rx_mbps) : "—"}</p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">TX PPS</p>
+            <p className="mt-1 text-sm font-bold text-foreground">{traffic ? traffic.tx_pps.toLocaleString() : "—"}</p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">RX PPS</p>
+            <p className="mt-1 text-sm font-bold text-foreground">{traffic ? traffic.rx_pps.toLocaleString() : "—"}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border/70 bg-card/95 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-orange-500" />
+                TX
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                RX
               </span>
             </div>
-
-            <span className={cn("inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]", status.chipClassName)}>
-              {status.label}
-            </span>
+            <span>Peak {formatTrafficCompact(throughputCeiling)}</span>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.95fr)]">
-            <div className="rounded-[22px] border border-border/70 bg-card/90 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <div className="rounded-lg border border-border bg-secondary/60 px-2.5 py-1.5">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">TX</p>
-                    <p className="mt-0.5 text-xs font-semibold text-foreground">{traffic ? formatTrafficCompact(traffic.tx_mbps) : "—"}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-secondary/60 px-2.5 py-1.5">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">RX</p>
-                    <p className="mt-0.5 text-xs font-semibold text-foreground">{traffic ? formatTrafficCompact(traffic.rx_mbps) : "—"}</p>
-                  </div>
-                </div>
+          <div className="relative h-28 overflow-hidden rounded-lg bg-muted/10">
+            {chartSamples.length === 0 ? null : (
+              <svg
+                aria-label={`Traffic chart for ${selectedInterface.name}`}
+                className="absolute inset-0 h-full w-full"
+                preserveAspectRatio="none"
+                role="img"
+                viewBox="0 0 100 100"
+              >
+                <title>{`Traffic chart for ${selectedInterface.name}`}</title>
 
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <p>TX PPS {traffic ? traffic.tx_pps.toLocaleString() : "—"}</p>
-                  <p>RX PPS {traffic ? traffic.rx_pps.toLocaleString() : "—"}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 p-2 sm:p-3">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-orange-500" />
-                      TX line
-                    </span>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-blue-500" />
-                      RX line
-                    </span>
-                  </div>
-                  <span>Peak {formatTrafficCompact(throughputCeiling)}</span>
-                </div>
-
-                <div className="relative h-40 overflow-hidden rounded-[8px] bg-muted/10">
-                  {chartSamples.length === 0 ? null : (
-                    <svg
-                      aria-label={`Traffic chart for ${selectedInterface.name}`}
-                      className="absolute inset-0 h-full w-full"
-                      preserveAspectRatio="none"
-                      role="img"
-                      viewBox="0 0 100 100"
-                    >
-                      <title>{`Traffic chart for ${selectedInterface.name}`}</title>
-
-                      {[0, 20, 40, 60, 80, 100].map((pos) => (
-                        <line key={`h-${pos}`} stroke="rgb(203 213 225)" strokeWidth="0.6" x1="0" x2="100" y1={pos} y2={pos} />
-                      ))}
-                      {[0, 20, 40, 60, 80, 100].map((pos) => (
-                        <line key={`v-${pos}`} stroke="rgb(203 213 225)" strokeWidth="0.6" x1={pos} x2={pos} y1="0" y2="100" />
-                      ))}
-
-                      {txLinePath ? (
-                        <path
-                          d={txLinePath}
-                          fill="none"
-                          stroke="rgb(249 115 22)"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="1.6"
-                        />
-                      ) : null}
-                      {rxLinePath ? (
-                        <path
-                          d={rxLinePath}
-                          fill="none"
-                          stroke="rgb(59 130 246)"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="1.6"
-                        />
-                      ) : null}
-                    </svg>
-                  )}
-                </div>
-
-              </div>
-            </div>
-
-            <div className="rounded-[22px] border border-border/70 bg-card/95 p-4">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {detailRows.map(([label, value]) => (
-                  <div className="rounded-lg border border-border/60 bg-card px-3 py-2" key={label}>
-                    <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
-                    <span className="mt-1 block break-all text-sm font-medium text-foreground">{value}</span>
-                  </div>
+                {[0, 25, 50, 75, 100].map((pos) => (
+                  <line key={`h-${pos}`} stroke="rgb(203 213 225)" strokeWidth="0.6" x1="0" x2="100" y1={pos} y2={pos} />
                 ))}
-              </div>
-            </div>
+
+                {txLinePath ? (
+                  <path
+                    d={txLinePath}
+                    fill="none"
+                    stroke="rgb(249 115 22)"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.7"
+                  />
+                ) : null}
+                {rxLinePath ? (
+                  <path
+                    d={rxLinePath}
+                    fill="none"
+                    stroke="rgb(59 130 246)"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.7"
+                  />
+                ) : null}
+              </svg>
+            )}
           </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {detailRows.map(([label, value]) => (
+            <div className="rounded-lg border border-border/60 bg-card px-3 py-2" key={label}>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+              <span className="mt-1 block break-all text-sm font-medium text-foreground">{value}</span>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -1313,11 +1297,11 @@ export default function MikrotikDetail() {
   const renderSecretTab = () => (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="sticky top-0 z-10 flex flex-col gap-2.5 border-b border-border/80 bg-card/95 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Secret Inventory</CardTitle>
+        <CardHeader className="z-10 flex flex-col gap-2 border-b border-border/80 bg-card/95 backdrop-blur lg:sticky lg:top-0 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base sm:text-lg">Secret Inventory</CardTitle>
           {can("mikrotik_ppp_write") && (
           <Button
-            className="w-full sm:w-auto"
+            className="h-8 self-start px-3 text-[11px] sm:min-w-28"
             onClick={() => {
               setNewSecret(EMPTY_SECRET_FORM);
               setSecretModalOpen("create");
@@ -1350,7 +1334,7 @@ export default function MikrotikDetail() {
                     </div>
                     <Badge className="text-[10px]" variant={isTruthy(secret.disabled) ? "secondary" : "success"}>{isTruthy(secret.disabled) ? "Off" : "On"}</Badge>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid gap-2 min-[420px]:grid-cols-2">
                     {can("mikrotik_ppp_write") && (
                     <Button
                       aria-haspopup="dialog"
@@ -1425,11 +1409,11 @@ export default function MikrotikDetail() {
   const renderProfileTab = () => (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="sticky top-0 z-10 flex flex-col gap-2.5 border-b border-border/80 bg-card/95 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Profile Inventory</CardTitle>
+        <CardHeader className="z-10 flex flex-col gap-2 border-b border-border/80 bg-card/95 backdrop-blur lg:sticky lg:top-0 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base sm:text-lg">Profile Inventory</CardTitle>
           {can("mikrotik_ppp_write") && (
           <Button
-            className="w-full sm:w-auto"
+            className="h-8 self-start px-3 text-[11px] sm:min-w-28"
             onClick={() => {
               setNewProfile(EMPTY_PROFILE_FORM);
               setProfileModalOpen("create");
@@ -1459,7 +1443,7 @@ export default function MikrotikDetail() {
                     <p className="mt-1 truncate text-[11px] text-muted-foreground">Local {profile["local-address"] || "-"} · Pool {profile["remote-address"] || "-"}</p>
                     <p className="mt-1 truncate text-[11px] text-muted-foreground">Rate {profile["rate-limit"] || "-"}</p>
                   </div>
-<div className="mt-2 grid grid-cols-2 gap-2">
+<div className="mt-2 grid gap-2 min-[420px]:grid-cols-2">
                     {can("mikrotik_ppp_write") && (
                     <Button
                       className="h-8 text-[11px]"
@@ -1555,27 +1539,34 @@ export default function MikrotikDetail() {
   const renderTabRail = () => {
     return (
       <Card className="border-2 border-border shadow-brutal">
-        <CardContent className="space-y-3 p-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {TAB_ITEMS.map((tab) => (
-              <button
-                className={cn(
-                  "flex flex-col items-center rounded-xl border border-border/80 px-2 py-3 transition-colors",
-                  activeTab === tab.key
-                    ? "border-2 border-border bg-foreground/5 shadow-brutal-sm"
-                    : "hover:bg-muted/30"
-                )}
-                key={tab.key}
-                onClick={() => {
-                  setActiveTab(tab.key);
-                  setTabSearchTerm("");
-                }}
-                type="button"
-              >
-                <span className="text-lg font-bold tabular-nums text-foreground">{tabCounts[tab.key]}</span>
-                <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{tab.label}</span>
-              </button>
-            ))}
+        <CardContent className="space-y-2.5 p-2.5 sm:p-3">
+          <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex w-max touch-pan-x gap-2 whitespace-nowrap pr-1">
+              {TAB_ITEMS.map((tab) => (
+                <button
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border-2 border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors",
+                    activeTab === tab.key
+                      ? "bg-primary/25 text-foreground shadow-brutal-sm"
+                      : "bg-card text-foreground hover:bg-muted/30"
+                  )}
+                  key={tab.key}
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    setTabSearchTerm("");
+                  }}
+                  type="button"
+                >
+                  <span>{tab.label}</span>
+                  <span className={cn(
+                    "inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums",
+                    activeTab === tab.key ? "bg-card text-foreground" : "bg-muted text-foreground"
+                  )}>
+                    {tabCounts[tab.key]}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1613,31 +1604,29 @@ export default function MikrotikDetail() {
   };
 
   return (
-    <div className="route-shell-page route-shell-mikrotik-detail space-y-6">
+    <div className="route-shell-page route-shell-mikrotik-detail space-y-4">
       <Card className="route-shell-panel border-2 bg-card/95 shadow-brutal">
-        <CardContent className="space-y-3.5 p-3.5 sm:p-4">
-          <div className="grid grid-cols-[auto,1fr,auto] items-center gap-2.5">
+        <CardContent className="space-y-3 p-3 sm:p-3.5">
+          <div className="flex items-center justify-between gap-2">
             <Button className="h-8 rounded-full px-3 text-[11px]" onClick={handleBackNavigation} type="button" variant="outline">
               BACK
             </Button>
 
-            <div className="flex min-w-0 items-center justify-center gap-2 text-center">
-             </div>
-
             <Button className="h-8 border-border bg-primary px-3 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={() => setShowSettings((current) => !current)} variant="outline">
               <Settings2 className="mr-1.5 h-3.5 w-3.5" />
-              OPEN SETTINGS
+              <span className="sm:hidden">SETTINGS</span>
+              <span className="hidden sm:inline">OPEN SETTINGS</span>
             </Button>
           </div>
 
-          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 space-y-2">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h2 className="break-words text-[1.65rem] font-black tracking-[-0.03em] text-foreground sm:text-[2rem]">{deviceTitle}</h2>
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="break-words text-[1.35rem] font-black tracking-[-0.02em] text-foreground sm:text-[1.6rem]">{deviceTitle}</h2>
                 <Badge variant={getStatusVariant(headerStatus)}>{headerStatus.toUpperCase()}</Badge>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-[15px] font-semibold text-foreground sm:text-[12px]">
+              <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-foreground">
                 <span>Router {modelLabel}</span>
                 <span aria-hidden="true" className="text-muted-foreground">·</span>
                 <span>RouterOS {routerOsLabel}</span>
@@ -1657,28 +1646,22 @@ export default function MikrotikDetail() {
           </div>
 
           <div className="mt-1 overflow-x-auto">
-            <div className="flex min-w-max items-center gap-3 text-[11px] sm:gap-4 sm:text-[12px]">
-              <div className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Uptime</span>
-                <span className="font-mono font-semibold text-foreground">{uptimeLabel}</span>
+            <div className="flex min-w-max items-center gap-2 text-[11px] sm:text-[12px]">
+              <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground">Uptime</span>
+              <span className="font-mono font-semibold text-foreground">{uptimeLabel}</span>
+
+              <span aria-hidden="true" className="text-muted-foreground">·</span>
+
+              <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground">CPU</span>
+              <span className="font-mono font-semibold text-foreground">{cpuLoadLabel}</span>
+              <div className="h-1.5 w-14 rounded-full bg-muted/25">
+                <div className={cn("h-1.5 rounded-full transition-all", cpuMeterClassName)} style={{ width: `${cpuPercent}%` }} />
               </div>
 
               <span aria-hidden="true" className="text-muted-foreground">·</span>
 
-              <div className="flex items-center gap-2 whitespace-nowrap">
-                <span className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">CPU Load</span>
-                <span className="font-mono font-semibold text-foreground">{cpuLoadLabel}</span>
-                <div className="h-1.5 w-16 rounded-full bg-muted/20">
-                  <div className={cn("h-1.5 rounded-full transition-all", cpuMeterClassName)} style={{ width: `${cpuPercent}%` }} />
-                </div>
-              </div>
-
-              <span aria-hidden="true" className="text-muted-foreground">·</span>
-
-              <div className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Free Memory</span>
-                <span className="font-mono font-semibold text-foreground">{freeMemoryLabel}</span>
-              </div>
+              <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground">Memory</span>
+              <span className="font-mono font-semibold text-foreground">{freeMemoryLabel}</span>
             </div>
           </div>
         </CardContent>
@@ -1757,7 +1740,7 @@ export default function MikrotikDetail() {
 
       {renderTabRail()}
 
-      <div className="max-h-[62vh] overflow-y-auto overscroll-contain pr-1 sm:max-h-[66vh] xl:max-h-[68vh]">
+      <div className="pr-1 lg:max-h-[68vh] lg:overflow-y-auto lg:overscroll-contain">
         {activeTab === "interface" ? renderInterfaceTab() : null}
         {activeTab === "ppp-active" ? renderPppActiveTab() : null}
         {activeTab === "secret" ? renderSecretTab() : null}
@@ -1765,10 +1748,11 @@ export default function MikrotikDetail() {
       </div>
 
       <OverlayPanel
+        description={selectedInterface ? selectedInterface.name : selectedInterfaceLabel ?? undefined}
         onClose={closeInterfaceMonitor}
         open={Boolean(selectedInterfaceKey)}
         panelClassName="max-w-5xl"
-        title={selectedInterface ? `Interface · ${selectedInterface.name}` : selectedInterfaceLabel ? `Interface · ${selectedInterfaceLabel}` : "Interface Detail"}
+        title="Interface Monitor"
       >
         {renderSelectedInterfaceContent()}
       </OverlayPanel>

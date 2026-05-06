@@ -13,7 +13,6 @@ import {
   getHiosoOnuDetail,
   getHiosoOnus,
   getHiosoPluginHealth,
-  getHiosoPorts,
   rebootHiosoOnu,
   renameHiosoOnu,
   testHiosoDevice,
@@ -128,11 +127,7 @@ export default function OltHiosoPage() {
     enabled: Boolean(deviceId),
   });
 
-  const portsQuery = useQuery({
-    queryKey: ["hioso-ports", deviceId],
-    queryFn: () => getHiosoPorts(deviceId!),
-    enabled: Boolean(deviceId),
-  });
+  const ports = [1, 2, 3, 4];
 
   const onusQuery = useQuery({
     queryKey: ["hioso-onus", deviceId, portFilter],
@@ -141,11 +136,10 @@ export default function OltHiosoPage() {
   });
 
   useEffect(() => {
-    const ports = portsQuery.data;
-    if (ports && ports.length > 0 && !ports.includes(portFilter)) {
+    if (!ports.includes(portFilter)) {
       setPortFilter(ports[0]);
     }
-  }, [portsQuery.data, portFilter]);
+  }, [portFilter]);
 
   const onuDetailQuery = useQuery({
     queryKey: ["hioso-onu-detail", deviceId, detailOnuIndex],
@@ -339,7 +333,6 @@ export default function OltHiosoPage() {
                       void devicesQuery.refetch();
                       void healthQuery.refetch();
                       void onusQuery.refetch();
-                      void portsQuery.refetch();
                     }}
                     type="button"
                     variant="outline"
@@ -411,7 +404,7 @@ export default function OltHiosoPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Input placeholder="Search index, name, serial, port, profile" value={onuSearch} onChange={(event) => setOnuSearch(event.target.value)} />
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {(["all", "online", "offline"] as const).map((filter) => (
                   <button
                     className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${onuFilter === filter ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
@@ -423,8 +416,8 @@ export default function OltHiosoPage() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto">
-                {(portsQuery.data ?? []).map((p) => (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {ports.map((p) => (
                   <button
                     className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
                     key={p}
@@ -437,7 +430,10 @@ export default function OltHiosoPage() {
               </div>
               <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Total: {totalCount}</div>
             </div>
-            <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Online: {onlineCount} · Down: {downCount}</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Online: {onlineCount}</div>
+              <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Down: {downCount}</div>
+            </div>
 
             <div className="rounded-2xl border-2 border-border bg-muted/10 px-4 py-3 text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">
               {healthDetail}
@@ -449,7 +445,49 @@ export default function OltHiosoPage() {
               </div>
             ) : null}
 
-            <div className="overflow-x-auto rounded-2xl border-2 border-border shadow-[6px_6px_0_0_hsl(var(--border))]">
+            <div className="space-y-2 md:hidden">
+              {filteredOnus.map((onu: HiosoOnuRow) => (
+                <div className="rounded-2xl border-2 border-border bg-card px-3 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]" key={onu.index}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black uppercase tracking-[0.04em] text-foreground">{onu.name || "ONU"}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        IDX {onu.index} · P{onu.port ?? "-"}
+                      </p>
+                    </div>
+                    <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
+                  </div>
+
+                  <div className="mt-2 space-y-1 text-xs font-semibold text-muted-foreground">
+                    <p className="break-all">SN: {onu.sn || "-"}</p>
+                    <p>TX {onu.tx_power ?? "-"} / RX {onu.rx_power ?? "-"}</p>
+                    <p className="break-all">Profile: {onu.profile || "-"}</p>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <Button onClick={() => setDetailOnuIndex(onu.index)} size="sm" type="button" variant="outline">Detail</Button>
+                    <Button onClick={() => setEditOnu({ index: onu.index, name: onu.name || "" })} size="sm" type="button" variant="outline">Edit</Button>
+                    <Button
+                      disabled={rebootOnuMutation.isPending}
+                      onClick={() => rebootOnuMutation.mutate(onu.index)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Reboot
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {filteredOnus.length === 0 ? (
+                <div className="rounded-2xl border-2 border-border bg-card px-4 py-8 text-center text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">
+                  {onusQuery.isLoading ? "Loading ONU data..." : "No ONU matched current filter."}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-2xl border-2 border-border shadow-[6px_6px_0_0_hsl(var(--border))] md:block">
               <table className="min-w-full text-sm">
                 <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>

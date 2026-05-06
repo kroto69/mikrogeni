@@ -574,6 +574,172 @@ func FetchAllONU(ctx context.Context, target SNMPTarget) ([]HiosoONU, string, er
 	return result, profile.Name, nil
 }
 
+func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoONU, string, error) {
+	profile, err := hiosoGetOrDetectProfile(target)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if ctx.Err() != nil {
+		return nil, "", ctx.Err()
+	}
+
+	portSuffix := fmt.Sprintf(".1.%d", port)
+	nameOID := profile.NameOID + portSuffix
+	snOID := profile.SNOID + portSuffix
+	statOID := profile.StatOID + portSuffix
+	txOID := profile.TxOID + portSuffix
+	rxOID := profile.RxOID + portSuffix
+
+	var (
+		names    map[string]string
+		sns      map[string]string
+		statuses map[string]string
+		txValues map[string]string
+		rxValues map[string]string
+		nameErr  error
+	)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		names, nameErr = hiosoSNMPWalk(target, nameOID)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sns, _ = hiosoSNMPWalk(target, snOID)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		statuses, _ = hiosoSNMPWalk(target, statOID)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		txValues, _ = hiosoSNMPWalk(target, txOID)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rxValues, _ = hiosoSNMPWalk(target, rxOID)
+	}()
+
+	wg.Wait()
+
+	if ctx.Err() != nil {
+		return nil, "", ctx.Err()
+	}
+
+	if nameErr != nil {
+		return nil, profile.Name, fmt.Errorf("gagal baca nama ONU: %w", nameErr)
+	}
+	if names == nil {
+		names = make(map[string]string)
+	}
+	if sns == nil {
+		sns = make(map[string]string)
+	}
+
+	for _, oid := range hiosoSNFallbacks {
+		if hiosoHasMeaningfulSNMPValues(sns) {
+			break
+		}
+		fallbackData, fallbackErr := hiosoSNMPWalk(target, oid)
+		if fallbackErr != nil || len(fallbackData) == 0 {
+			continue
+		}
+		for idx, val := range fallbackData {
+			if !hiosoIsMeaningfulSNMPValue(val) {
+				continue
+			}
+			if !hiosoIsMeaningfulSNMPValue(sns[idx]) {
+				sns[idx] = val
+			}
+		}
+	}
+
+	indexSet := make(map[string]struct{})
+	for idx := range names {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range sns {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range statuses {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range txValues {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range rxValues {
+		indexSet[idx] = struct{}{}
+	}
+
+	indices := make([]string, 0, len(indexSet))
+	for idx := range indexSet {
+		if strings.TrimSpace(idx) == "" {
+			continue
+		}
+		indices = append(indices, idx)
+	}
+	sort.Strings(indices)
+
+	isGPON := strings.Contains(strings.ToUpper(profile.Name), "GPON")
+	result := make([]HiosoONU, 0, len(indices))
+	for _, idx := range indices {
+		name := strings.TrimSpace(names[idx])
+		sn := hiosoDecodeMacOrSN(sns[idx])
+		status := hiosoParseStatus(statuses[idx], isGPON)
+		tx := hiosoParseSignal(txValues[idx])
+		rx := hiosoParseSignal(rxValues[idx])
+
+		if hiosoIsGhost(name, sn, tx, rx) {
+			continue
+		}
+
+		onuPort, onuID := hiosoParsePortAndID(idx)
+
+		onu := HiosoONU{
+			Index:   idx,
+			WebID:   hiosoResolveWebID(idx),
+			Port:    onuPort,
+			ONUID:   onuID,
+			Name:    name,
+			SN:      sn,
+			Status:  status,
+			TxPower: tx,
+			RxPower: rx,
+			Profile: profile.Name,
+		}
+		result = append(result, onu)
+	}
+
+	if len(result) == 0 {
+		allONUs, profileName, err := FetchAllONU(ctx, target)
+		if err != nil {
+			return nil, profileName, err
+		}
+
+		filtered := make([]HiosoONU, 0, len(allONUs))
+		for _, onu := range allONUs {
+			if onu.Port == port {
+				filtered = append(filtered, onu)
+			}
+		}
+		return filtered, profileName, nil
+	}
+
+	return result, profile.Name, nil
+}
+
 // FetchONUByIndex mengambil satu ONU berdasarkan index.
 func FetchONUByIndex(ctx context.Context, target SNMPTarget, index string) (*HiosoONU, error) {
 	index = strings.TrimSpace(index)

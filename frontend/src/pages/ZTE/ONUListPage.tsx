@@ -51,9 +51,9 @@ function DashboardHeader({ title, subtitle, systemInfo, autoRefresh, onSyncClick
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onSyncClick}>SYNC</Button>
-        <Button variant={autoRefresh ? 'default' : 'secondary'} size="sm" onClick={onSettingsClick}>
+      <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+        <Button className="flex-1 md:flex-none" variant="outline" size="sm" onClick={onSyncClick}>SYNC</Button>
+        <Button className="flex-1 md:flex-none" variant={autoRefresh ? 'default' : 'secondary'} size="sm" onClick={onSettingsClick}>
           AUTO [{autoRefresh ? 'ON' : 'OFF'}]
         </Button>
       </div>
@@ -110,14 +110,14 @@ function FilterToolbar({
     <div className="neo-panel border-2 border-border bg-card p-4 shadow-brutal-sm flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
       <div className="w-full lg:w-auto">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Pilih Board &amp; Pon</p>
-        <div className="flex w-full gap-2 lg:w-auto">
+        <div className="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto">
           <select
             value={String(board)}
             onChange={(e) => {
               onBoardChange(Number(e.target.value))
               onPonChange(null)
             }}
-            className="h-10 flex-1 rounded-lg border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36"
+            className="h-10 w-full rounded-lg border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36"
           >
             {boardOptions.map((item) => (
               <option key={item} value={item}>
@@ -129,7 +129,7 @@ function FilterToolbar({
           <select
             value={pon != null ? String(pon) : ''}
             onChange={(e) => onPonChange(e.target.value ? Number(e.target.value) : null)}
-            className="h-10 flex-1 rounded-lg border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36"
+            className="h-10 w-full rounded-lg border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36"
           >
             <option value="" disabled>
               Pilih PON
@@ -141,20 +141,20 @@ function FilterToolbar({
             ))}
           </select>
 
-          <Button className="h-10 px-4 font-bold uppercase" onClick={onLoad} disabled={pon == null}>
+          <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
             LOAD
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
         <Input
           placeholder="Search Name, SN..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-10 flex-1 border-2 border-input bg-card text-sm font-medium shadow-brutal-sm lg:max-w-72"
+          className="h-10 w-full border-2 border-input bg-card text-sm font-medium shadow-brutal-sm lg:min-w-72"
         />
-        <Button variant="outline" className="h-10 border-2 border-input px-3 font-bold uppercase shadow-brutal-sm" onClick={onRefresh}>
+        <Button variant="outline" className="h-10 w-full border-2 border-input px-3 font-bold uppercase shadow-brutal-sm sm:w-auto" onClick={onRefresh}>
           REFRESH
         </Button>
       </div>
@@ -210,7 +210,37 @@ type DataTableProps = {
 function DataTable({ rows, onViewDetail }: DataTableProps) {
   return (
     <div className="neo-panel border-2 border-border bg-card shadow-brutal-sm rounded-lg overflow-hidden">
-      <div className="max-h-[60vh] overflow-y-auto overflow-x-auto">
+      <div className="space-y-2 p-2.5 sm:p-3 md:hidden">
+        {rows.map((row) => (
+          <button
+            key={`${row.id}-${row.sn}`}
+            type="button"
+            onClick={() => onViewDetail(row)}
+            className="w-full rounded-xl border-2 border-border bg-card px-3 py-3 text-left shadow-brutal-sm transition-all hover:-translate-y-[1px] hover:shadow-brutal"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-extrabold uppercase text-foreground">{row.nama}</p>
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">ID {row.id}</p>
+              </div>
+              <StatusBadge status={row.status} />
+            </div>
+
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-2 py-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Serial</p>
+                <p className="mt-0.5 break-all font-semibold text-foreground">{row.sn}</p>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-2 py-1.5 text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX</p>
+                <p className="mt-0.5 font-extrabold text-foreground">{row.rx === 'NONE' ? 'NONE' : `${row.rx} dBm`}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="hidden max-h-[60vh] overflow-y-auto overflow-x-auto md:block">
         <table className="min-w-full text-left text-sm">
           <thead className="sticky top-0 z-10 border-b-2 border-border bg-muted">
             <tr>

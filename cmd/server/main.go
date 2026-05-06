@@ -59,6 +59,15 @@ func main() {
 	handlers.StartTelegramBotFromEnv()
 	handlers.StartACSAutoRefreshFromEnv()
 	scheduler.StartACSOfflineSummonScheduler()
+	scheduler.StartHiosoHealthScheduler(func(deviceID, host string, port uint16, community, version string) {
+		target := handlers.SNMPTarget{
+			Host:      host,
+			Port:      port,
+			Community: community,
+			Version:   handlers.HiosoParseSNMPVersion(version),
+		}
+		handlers.HiosoRunHealthCheck(deviceID, target)
+	})
 	handlers.StartBillingSchedulersFromEnv()
 
 	// Buat router chi

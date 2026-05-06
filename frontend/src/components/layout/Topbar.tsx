@@ -54,7 +54,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
           <Button
             aria-label={brutalStyle === "lebih-ekstrim" ? "Mode aktif lebih ekstrim. Klik untuk pindah ke rapi brutal" : "Mode aktif rapi brutal. Klik untuk pindah ke lebih ekstrim"}
             className="text-[10px] sm:text-xs"
@@ -62,7 +62,8 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
             size="sm"
             variant="secondary"
           >
-            {brutalStyle === "lebih-ekstrim" ? "Mode: Lebih Ekstrim" : "Mode: Rapi Brutal"}
+            <span className="sm:hidden">{brutalStyle === "lebih-ekstrim" ? "Ekstrim" : "Rapi"}</span>
+            <span className="hidden sm:inline">{brutalStyle === "lebih-ekstrim" ? "Mode: Lebih Ekstrim" : "Mode: Rapi Brutal"}</span>
           </Button>
           <Button variant="outline" size="icon" aria-label="Notifications">
             <Bell className="h-4 w-4" />

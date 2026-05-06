@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +17,7 @@ import (
 	"genieacs-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gosnmp/gosnmp"
 )
 
 var hiosoEnabled atomic.Bool
@@ -38,6 +39,91 @@ type hiosoRuntimeSettings struct {
 	WebPort   string
 	Username  string
 	Password  string
+}
+
+type hiosoDevicePublic struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Host          string    `json:"host"`
+	Port          int       `json:"port"`
+	SNMPVersion   string    `json:"snmp_version"`
+	SNMPCommunity string    `json:"snmp_community"`
+	WebHost       string    `json:"web_host"`
+	WebPort       int       `json:"web_port"`
+	Status        string    `json:"status"`
+	Profile       string    `json:"profile"`
+	LastError     string    `json:"last_error"`
+	LastHealthAt  string    `json:"last_health_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func toHiosoDevicePublic(d db.HiosoOLTDeviceRecord) hiosoDevicePublic {
+	return hiosoDevicePublic{
+		ID:            d.ID,
+		Name:          d.Name,
+		Host:          d.Host,
+		Port:          d.Port,
+		SNMPVersion:   d.SNMPVersion,
+		SNMPCommunity: d.SNMPCommunity,
+		WebHost:       d.WebHost,
+		WebPort:       d.WebPort,
+		Status:        d.Status,
+		Profile:       d.Profile,
+		LastError:     d.LastError,
+		LastHealthAt:  d.LastHealthAt,
+		CreatedAt:     hiosoParseDBTime(d.CreatedAt),
+		UpdatedAt:     hiosoParseDBTime(d.UpdatedAt),
+	}
+}
+
+func hiosoParseDBTime(raw string) time.Time {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return time.Time{}
+	}
+
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed
+		}
+	}
+
+	return time.Time{}
+}
+
+func HiosoRunHealthCheck(deviceID string, target SNMPTarget) {
+	deviceID = strings.TrimSpace(deviceID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	sysDescr, err := hiosoSNMPWalk(target, ".1.3.6.1.2.1.1.1")
+	if ctx.Err() != nil || err != nil || !hiosoHasMeaningfulSNMPValues(sysDescr) {
+		_ = db.UpdateHiosoOLTDeviceHealth(deviceID, "", "offline", "SNMP not reachable")
+		log.Printf("[hioso-health] deviceID=%s status=%s", deviceID, "offline")
+		return
+	}
+
+	profileName := "unknown"
+	if profile, profileErr := hiosoGetOrDetectProfile(target); profileErr == nil && profile != nil && strings.TrimSpace(profile.Name) != "" {
+		profileName = profile.Name
+	}
+
+	_ = db.UpdateHiosoOLTDeviceHealth(deviceID, profileName, "online", "")
+	log.Printf("[hioso-health] deviceID=%s status=%s", deviceID, "online")
+}
+
+func HiosoParseSNMPVersion(raw string) gosnmp.SnmpVersion {
+	return hiosoParseSNMPVersion(raw)
 }
 
 var (
@@ -293,33 +379,21 @@ func HiosoFetchAllHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	port := 1
+	if parsed, parseErr := strconv.Atoi(strings.TrimSpace(chi.URLParam(r, "port"))); parseErr == nil && parsed > 0 {
+		port = parsed
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 
-	onus, _, err := FetchAllONU(ctx, target)
+	onus, _, err := FetchONUByPort(ctx, target, port)
 	if ctx.Err() != nil {
 		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
 		return
 	}
 	if err != nil {
 		hiosoError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-
-	portFilter := strings.TrimSpace(r.URL.Query().Get("port"))
-	if portFilter != "" {
-		portNum, parseErr := strconv.Atoi(portFilter)
-		if parseErr != nil {
-			hiosoError(w, http.StatusBadRequest, "port harus berupa angka")
-			return
-		}
-		filtered := make([]HiosoONU, 0, len(onus))
-		for _, onu := range onus {
-			if onu.Port == portNum {
-				filtered = append(filtered, onu)
-			}
-		}
-		hiosoJSON(w, filtered)
 		return
 	}
 
@@ -468,7 +542,11 @@ func HiosoListDevicesHandler(w http.ResponseWriter, r *http.Request) {
 		hiosoError(w, http.StatusInternalServerError, "gagal list devices: "+err.Error())
 		return
 	}
-	hiosoJSON(w, devices)
+	result := make([]hiosoDevicePublic, 0, len(devices))
+	for _, device := range devices {
+		result = append(result, toHiosoDevicePublic(device))
+	}
+	hiosoJSON(w, result)
 }
 
 func HiosoGetDeviceHandler(w http.ResponseWriter, r *http.Request) {
@@ -482,7 +560,7 @@ func HiosoGetDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		hiosoError(w, http.StatusNotFound, "device tidak ditemukan")
 		return
 	}
-	hiosoJSON(w, device)
+	hiosoJSON(w, toHiosoDevicePublic(*device))
 }
 
 func HiosoCreateDeviceHandler(w http.ResponseWriter, r *http.Request) {
@@ -519,8 +597,17 @@ func HiosoCreateDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		hiosoError(w, http.StatusInternalServerError, "gagal create device: "+err.Error())
 		return
 	}
+
+	target := SNMPTarget{
+		Host:      result.Host,
+		Port:      hiosoParseSNMPPort(strconv.Itoa(result.Port)),
+		Community: result.SNMPCommunity,
+		Version:   hiosoParseSNMPVersion(result.SNMPVersion),
+	}
+	go HiosoRunHealthCheck(result.ID, target)
+
 	w.WriteHeader(http.StatusCreated)
-	hiosoJSON(w, result)
+	hiosoJSON(w, toHiosoDevicePublic(*result))
 }
 
 func HiosoUpdateDeviceHandler(w http.ResponseWriter, r *http.Request) {
@@ -574,7 +661,7 @@ func HiosoUpdateDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		hiosoError(w, http.StatusInternalServerError, "gagal update device: "+err.Error())
 		return
 	}
-	hiosoJSON(w, result)
+	hiosoJSON(w, toHiosoDevicePublic(*result))
 }
 
 func HiosoDeleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
@@ -638,43 +725,5 @@ func HiosoPortsHandler(w http.ResponseWriter, r *http.Request) {
 	if !hiosoGuard(w, r) {
 		return
 	}
-
-	cfg, err := hiosoSettingsFromRequest(r)
-	if err != nil {
-		hiosoError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	target := cfg.ToSNMPTarget()
-	if target.Host == "" || target.Community == "" {
-		hiosoError(w, http.StatusBadRequest, "OLT_HOST/OLT_COMMUNITY belum diisi")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-
-	onus, _, err := FetchAllONU(ctx, target)
-	if ctx.Err() != nil {
-		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
-		return
-	}
-	if err != nil {
-		hiosoError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-
-	portSet := make(map[int]struct{})
-	for _, onu := range onus {
-		if onu.Port > 0 {
-			portSet[onu.Port] = struct{}{}
-		}
-	}
-
-	ports := make([]int, 0, len(portSet))
-	for p := range portSet {
-		ports = append(ports, p)
-	}
-	sort.Ints(ports)
-
-	hiosoJSON(w, ports)
+	hiosoJSON(w, []int{1, 2, 3, 4})
 }
