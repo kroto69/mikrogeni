@@ -384,10 +384,12 @@ func HiosoFetchAllHandler(w http.ResponseWriter, r *http.Request) {
 		port = parsed
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	force := r.URL.Query().Get("force") == "true"
+
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
 
-	onus, _, err := FetchONUByPort(ctx, target, port)
+	onus, _, err := FetchONUByPortCached(ctx, target, port, force)
 	if ctx.Err() != nil {
 		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
 		return

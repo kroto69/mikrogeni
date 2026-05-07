@@ -55,6 +55,15 @@ type hiosoProfileCacheEntry struct {
 
 var hiosoProfileCache sync.Map
 
+type portCacheEntry struct {
+	onus     []HiosoONU
+	profile  string
+	cachedAt time.Time
+}
+
+var hiosoPortCache sync.Map // key: "host:community:port"
+const hiosoPortCacheTTL = 20 * time.Second
+
 var hiosoProfiles = []hiosoOIDProfile{
 	{
 		Name:    "HIOSO_GPON",
@@ -1206,4 +1215,227 @@ func hiosoPDUToString(pdu gosnmp.SnmpPDU) string {
 	default:
 		return strings.TrimSpace(fmt.Sprintf("%v", pdu.Value))
 	}
+}
+
+func hiosoNewSNMPClientOptimized(target SNMPTarget) *gosnmp.GoSNMP {
+	return &gosnmp.GoSNMP{
+		Target:                target.Host,
+		Port:                  target.Port,
+		Community:             target.Community,
+		Version:               target.Version,
+		Timeout:               10 * time.Second,
+		Retries:               5,
+		MaxRepetitions:        20,
+		UseUnconnectedUDPSocket: true,
+	}
+}
+
+func hiosoGetProfileOptimized(target SNMPTarget) (*hiosoOIDProfile, error) {
+	cacheKey := "optimized:" + target.Host + ":" + target.Community
+	if cached, ok := hiosoProfileCache.Load(cacheKey); ok {
+		entry := cached.(*hiosoProfileCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			return entry.profile, nil
+		}
+		hiosoProfileCache.Delete(cacheKey)
+	}
+
+	hiosoC := hiosoFindProfileByName("HIOSO_C")
+	if hiosoC != nil {
+		values, err := hiosoSNMPWalk(target, hiosoC.NameOID)
+		if err == nil && len(values) > 0 {
+			hiosoProfileCache.Store(cacheKey, &hiosoProfileCacheEntry{
+				profile:   hiosoC,
+				expiresAt: time.Now().Add(2 * time.Hour),
+			})
+			log.Printf("[hioso] profile optimized fast-path: HIOSO_C host=%s", target.Host)
+			return hiosoC, nil
+		}
+	}
+
+	profile, err := hiosoGetOrDetectProfile(target)
+	if err != nil {
+		return nil, err
+	}
+
+	hiosoProfileCache.Store(cacheKey, &hiosoProfileCacheEntry{
+		profile:   profile,
+		expiresAt: time.Now().Add(2 * time.Hour),
+	})
+	log.Printf("[hioso] profile optimized fallback: %s host=%s", profile.Name, target.Host)
+	return profile, nil
+}
+
+func fetchONUByPortInternal(ctx context.Context, target SNMPTarget, port int) ([]HiosoONU, string, error) {
+	profile, err := hiosoGetProfileOptimized(target)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if ctx.Err() != nil {
+		return nil, "", ctx.Err()
+	}
+
+	portSuffix := ".1." + strconv.Itoa(port)
+	nameOID := profile.NameOID + portSuffix
+	snOID := profile.SNOID + portSuffix
+	statOID := profile.StatOID + portSuffix
+	txOID := profile.TxOID + portSuffix
+	rxOID := profile.RxOID + portSuffix
+
+	statusFallbacks, txFallbacks, rxFallbacks := hiosoGetFallbackOIDs(profile)
+
+	snFallbackPort := make([]string, len(hiosoSNFallbacks))
+	for i, fb := range hiosoSNFallbacks {
+		snFallbackPort[i] = fb + portSuffix
+	}
+	statFallbackPort := make([]string, len(statusFallbacks))
+	for i, fb := range statusFallbacks {
+		statFallbackPort[i] = fb + portSuffix
+	}
+	txFallbackPort := make([]string, len(txFallbacks))
+	for i, fb := range txFallbacks {
+		txFallbackPort[i] = fb + portSuffix
+	}
+	rxFallbackPort := make([]string, len(rxFallbacks))
+	for i, fb := range rxFallbacks {
+		rxFallbackPort[i] = fb + portSuffix
+	}
+
+	names, nameErr := hiosoSNMPWalk(target, nameOID)
+	if nameErr != nil {
+		return nil, profile.Name, fmt.Errorf("gagal baca nama ONU: %w", nameErr)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+
+	sns, _ := hiosoWalkWithFallback(target, snOID, snFallbackPort)
+
+	time.Sleep(300 * time.Millisecond)
+
+	statuses, _ := hiosoWalkWithFallback(target, statOID, statFallbackPort)
+
+	time.Sleep(300 * time.Millisecond)
+
+	txValues, _ := hiosoWalkWithFallback(target, txOID, txFallbackPort)
+
+	time.Sleep(300 * time.Millisecond)
+
+	rxValues, _ := hiosoWalkWithFallback(target, rxOID, rxFallbackPort)
+
+	if names == nil {
+		names = make(map[string]string)
+	}
+	if sns == nil {
+		sns = make(map[string]string)
+	}
+
+	for _, oid := range hiosoSNFallbacks {
+		if hiosoHasMeaningfulSNMPValues(sns) {
+			break
+		}
+		fallbackData, fallbackErr := hiosoSNMPWalk(target, oid)
+		if fallbackErr != nil || len(fallbackData) == 0 {
+			continue
+		}
+		for idx, val := range fallbackData {
+			if !hiosoIsMeaningfulSNMPValue(val) {
+				continue
+			}
+			if !hiosoIsMeaningfulSNMPValue(sns[idx]) {
+				sns[idx] = val
+			}
+		}
+	}
+
+	indexSet := make(map[string]struct{})
+	for idx := range names {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range sns {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range statuses {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range txValues {
+		indexSet[idx] = struct{}{}
+	}
+	for idx := range rxValues {
+		indexSet[idx] = struct{}{}
+	}
+
+	indices := make([]string, 0, len(indexSet))
+	for idx := range indexSet {
+		if strings.TrimSpace(idx) == "" {
+			continue
+		}
+		indices = append(indices, idx)
+	}
+	sort.Strings(indices)
+
+	isGPON := strings.Contains(strings.ToUpper(profile.Name), "GPON")
+	result := make([]HiosoONU, 0, len(indices))
+	for _, idx := range indices {
+		name := strings.TrimSpace(names[idx])
+		sn := hiosoDecodeMacOrSN(sns[idx])
+		status := hiosoParseStatus(statuses[idx], isGPON)
+		tx := hiosoParseSignalWithDivider(txValues[idx], profile.Divider)
+		rx := hiosoParseSignalWithDivider(rxValues[idx], profile.Divider)
+		robustIdx := hiosoExtractIndexRobust(idx, profile.NameOID+portSuffix)
+		if robustIdx == "" {
+			robustIdx = idx
+		}
+
+		if hiosoIsGhost(name, sn, robustIdx, tx, rx) {
+			continue
+		}
+
+		onuPort, onuID := hiosoParsePortAndID(robustIdx)
+
+		onu := HiosoONU{
+			Index:   robustIdx,
+			WebID:   hiosoResolveWebID(robustIdx),
+			Port:    onuPort,
+			ONUID:   onuID,
+			Name:    name,
+			SN:      sn,
+			Status:  status,
+			TxPower: tx,
+			RxPower: rx,
+			Profile: profile.Name,
+		}
+		result = append(result, onu)
+	}
+
+	log.Printf("[hioso] fetchONUByPortInternal port=%d profile=%s found=%d", port, profile.Name, len(result))
+	return result, profile.Name, nil
+}
+
+func FetchONUByPortCached(ctx context.Context, target SNMPTarget, port int, force bool) ([]HiosoONU, string, error) {
+	cacheKey := fmt.Sprintf("%s:%s:%d", target.Host, target.Community, port)
+
+	if !force {
+		if cached, ok := hiosoPortCache.Load(cacheKey); ok {
+			entry := cached.(*portCacheEntry)
+			if time.Since(entry.cachedAt) < hiosoPortCacheTTL {
+				log.Printf("[hioso] cache hit port=%d host=%s", port, target.Host)
+				return entry.onus, entry.profile, nil
+			}
+			hiosoPortCache.Delete(cacheKey)
+		}
+	}
+
+	onus, profileName, err := fetchONUByPortInternal(ctx, target, port)
+	if err != nil {
+		return nil, "", err
+	}
+
+	hiosoPortCache.Store(cacheKey, &portCacheEntry{
+		onus:     onus,
+		profile:  profileName,
+		cachedAt: time.Now(),
+	})
+
+	return onus, profileName, nil
 }
