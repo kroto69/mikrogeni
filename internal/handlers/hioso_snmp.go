@@ -222,6 +222,189 @@ func hiosoIsMeaningfulSNMPValue(raw string) bool {
 	return true
 }
 
+func hiosoCollectSortedIndices(valueMaps ...map[string]string) []string {
+	indexSet := make(map[string]struct{})
+	for _, values := range valueMaps {
+		for idx := range values {
+			trimmed := strings.TrimSpace(idx)
+			if trimmed == "" {
+				continue
+			}
+			indexSet[trimmed] = struct{}{}
+		}
+	}
+
+	indices := make([]string, 0, len(indexSet))
+	for idx := range indexSet {
+		indices = append(indices, idx)
+	}
+	sort.Strings(indices)
+	return indices
+}
+
+func hiosoBuildIndexedOID(baseOID, index string) string {
+	base := strings.TrimSuffix(strings.TrimSpace(baseOID), ".")
+	idx := strings.TrimPrefix(strings.TrimSpace(index), ".")
+	if base == "" || idx == "" {
+		return ""
+	}
+	if !strings.HasPrefix(base, ".") {
+		base = "." + base
+	}
+	return base + "." + idx
+}
+
+func hiosoSNMPGetIndexedWithContext(ctx context.Context, target SNMPTarget, baseOID string, indices []string) (map[string]string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	requested := make([]string, 0, len(indices))
+	requestedSet := make(map[string]struct{})
+	oidToIndex := make(map[string]string)
+	for _, idx := range indices {
+		trimmed := strings.TrimSpace(idx)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := requestedSet[trimmed]; exists {
+			continue
+		}
+		requestedSet[trimmed] = struct{}{}
+		requested = append(requested, trimmed)
+		oid := hiosoBuildIndexedOID(baseOID, trimmed)
+		if oid == "" {
+			continue
+		}
+		oidToIndex[strings.TrimPrefix(oid, ".")] = trimmed
+	}
+
+	if len(requested) == 0 {
+		return map[string]string{}, nil
+	}
+
+	client := hiosoNewSNMPClient(target, 5*time.Second)
+	client.Retries = 1
+	if err := client.Connect(); err != nil {
+		return nil, fmt.Errorf("gagal konek SNMP get ke %s: %w", target.Host, err)
+	}
+	defer client.Conn.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = client.Conn.SetDeadline(deadline)
+	}
+
+	const chunkSize = 20
+	results := make(map[string]string)
+	var firstErr error
+
+	for start := 0; start < len(requested); start += chunkSize {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		end := start + chunkSize
+		if end > len(requested) {
+			end = len(requested)
+		}
+
+		oids := make([]string, 0, end-start)
+		for _, idx := range requested[start:end] {
+			oid := hiosoBuildIndexedOID(baseOID, idx)
+			if oid != "" {
+				oids = append(oids, oid)
+			}
+		}
+		if len(oids) == 0 {
+			continue
+		}
+
+		packet, err := client.Get(oids)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if packet == nil {
+			continue
+		}
+
+		for _, variable := range packet.Variables {
+			idx := hiosoExtractIndexRobust(variable.Name, baseOID)
+			if idx == "" {
+				idx = oidToIndex[strings.TrimPrefix(strings.TrimSpace(variable.Name), ".")]
+			}
+			if strings.TrimSpace(idx) == "" {
+				continue
+			}
+			results[idx] = hiosoPDUToString(variable)
+		}
+	}
+
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+
+	return results, nil
+}
+
+func hiosoFetchValuesByIndicesWithFallback(ctx context.Context, target SNMPTarget, mainOID string, fallbacks []string, indices []string) map[string]string {
+	if len(indices) == 0 {
+		values, _ := hiosoWalkWithFallbackCtx(ctx, target, mainOID, fallbacks)
+		if values == nil {
+			return make(map[string]string)
+		}
+		return values
+	}
+
+	out := make(map[string]string)
+	sources := make([]string, 0, 1+len(fallbacks))
+	if strings.TrimSpace(mainOID) != "" {
+		sources = append(sources, mainOID)
+	}
+	for _, oid := range fallbacks {
+		if strings.TrimSpace(oid) != "" {
+			sources = append(sources, oid)
+		}
+	}
+
+	for _, oid := range sources {
+		if ctx != nil && ctx.Err() != nil {
+			break
+		}
+		missing := make([]string, 0, len(indices))
+		for _, idx := range indices {
+			if !hiosoIsMeaningfulSNMPValue(out[idx]) {
+				missing = append(missing, idx)
+			}
+		}
+		if len(missing) == 0 {
+			break
+		}
+
+		fetched, err := hiosoSNMPGetIndexedWithContext(ctx, target, oid, missing)
+		if err != nil || len(fetched) == 0 {
+			continue
+		}
+		for idx, value := range fetched {
+			if !hiosoIsMeaningfulSNMPValue(out[idx]) || hiosoIsMeaningfulSNMPValue(value) {
+				out[idx] = value
+			}
+		}
+	}
+
+	if !hiosoHasMeaningfulSNMPValues(out) {
+		values, _ := hiosoWalkWithFallbackCtx(ctx, target, mainOID, fallbacks)
+		if values != nil {
+			return values
+		}
+	}
+
+	return out
+}
+
 func hiosoFindProfileByName(name string) *hiosoOIDProfile {
 	needle := strings.TrimSpace(strings.ToUpper(name))
 	if needle == "" {
@@ -692,22 +875,6 @@ func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoON
 		return nil, profile.Name, err
 	}
 
-	txFallbackPort := make([]string, len(txFallbacks))
-	for i, fb := range txFallbacks {
-		txFallbackPort[i] = fb + portSuffix
-	}
-	txValues, _ := hiosoWalkWithFallbackCtx(ctx, target, txOID, txFallbackPort)
-
-	if err := hiosoSleepWithContext(ctx, 200*time.Millisecond); err != nil {
-		return nil, profile.Name, err
-	}
-
-	rxFallbackPort := make([]string, len(rxFallbacks))
-	for i, fb := range rxFallbacks {
-		rxFallbackPort[i] = fb + portSuffix
-	}
-	rxValues, _ := hiosoWalkWithFallbackCtx(ctx, target, rxOID, rxFallbackPort)
-
 	if names == nil {
 		names = make(map[string]string)
 	}
@@ -733,31 +900,25 @@ func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoON
 		}
 	}
 
-	indexSet := make(map[string]struct{})
-	for idx := range names {
-		indexSet[idx] = struct{}{}
+	identityIndices := hiosoCollectSortedIndices(names, sns, statuses)
+
+	txFallbackPort := make([]string, len(txFallbacks))
+	for i, fb := range txFallbacks {
+		txFallbackPort[i] = fb + portSuffix
 	}
-	for idx := range sns {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range statuses {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range txValues {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range rxValues {
-		indexSet[idx] = struct{}{}
+	txValues := hiosoFetchValuesByIndicesWithFallback(ctx, target, txOID, txFallbackPort, identityIndices)
+
+	if err := hiosoSleepWithContext(ctx, 100*time.Millisecond); err != nil {
+		return nil, profile.Name, err
 	}
 
-	indices := make([]string, 0, len(indexSet))
-	for idx := range indexSet {
-		if strings.TrimSpace(idx) == "" {
-			continue
-		}
-		indices = append(indices, idx)
+	rxFallbackPort := make([]string, len(rxFallbacks))
+	for i, fb := range rxFallbacks {
+		rxFallbackPort[i] = fb + portSuffix
 	}
-	sort.Strings(indices)
+	rxValues := hiosoFetchValuesByIndicesWithFallback(ctx, target, rxOID, rxFallbackPort, identityIndices)
+
+	indices := hiosoCollectSortedIndices(names, sns, statuses, txValues, rxValues)
 
 	isGPON := strings.Contains(strings.ToUpper(profile.Name), "GPON")
 	result := make([]HiosoONU, 0, len(indices))
@@ -1378,14 +1539,6 @@ func fetchONUByPortInternal(ctx context.Context, target SNMPTarget, port int) ([
 		return nil, profile.Name, err
 	}
 
-	txValues, _ := hiosoWalkWithFallbackCtx(ctx, target, txOID, txFallbackPort)
-
-	if err := hiosoSleepWithContext(ctx, 150*time.Millisecond); err != nil {
-		return nil, profile.Name, err
-	}
-
-	rxValues, _ := hiosoWalkWithFallbackCtx(ctx, target, rxOID, rxFallbackPort)
-
 	if names == nil {
 		names = make(map[string]string)
 	}
@@ -1411,31 +1564,15 @@ func fetchONUByPortInternal(ctx context.Context, target SNMPTarget, port int) ([
 		}
 	}
 
-	indexSet := make(map[string]struct{})
-	for idx := range names {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range sns {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range statuses {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range txValues {
-		indexSet[idx] = struct{}{}
-	}
-	for idx := range rxValues {
-		indexSet[idx] = struct{}{}
+	identityIndices := hiosoCollectSortedIndices(names, sns, statuses)
+	txValues := hiosoFetchValuesByIndicesWithFallback(ctx, target, txOID, txFallbackPort, identityIndices)
+
+	if err := hiosoSleepWithContext(ctx, 75*time.Millisecond); err != nil {
+		return nil, profile.Name, err
 	}
 
-	indices := make([]string, 0, len(indexSet))
-	for idx := range indexSet {
-		if strings.TrimSpace(idx) == "" {
-			continue
-		}
-		indices = append(indices, idx)
-	}
-	sort.Strings(indices)
+	rxValues := hiosoFetchValuesByIndicesWithFallback(ctx, target, rxOID, rxFallbackPort, identityIndices)
+	indices := hiosoCollectSortedIndices(names, sns, statuses, txValues, rxValues)
 
 	isGPON := strings.Contains(strings.ToUpper(profile.Name), "GPON")
 	result := make([]HiosoONU, 0, len(indices))
