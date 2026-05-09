@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSectionHeader } from "@/components/page/section-header";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/retroui/Select";
 import { useRole } from "@/hooks/useRole";
 import {
   API_BASE_URL,
@@ -1119,22 +1120,25 @@ export default function Settings() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="user-role">Role</label>
-            <select
-              className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
-              id="user-role"
+            <Select
               value={userForm.role}
-              onChange={(event) => {
-                const nextRole = event.target.value as AcsUserRole;
+              onValueChange={(value) => {
+                const nextRole = value as AcsUserRole;
                 if (!USER_ROLE_OPTIONS.includes(nextRole)) {
                   return;
                 }
                 setUserForm((current) => ({ ...current, role: nextRole }));
               }}
             >
-              {USER_ROLE_OPTIONS.map((role) => (
-                <option key={role} value={role}>{role}</option>
-              ))}
-            </select>
+              <Select.Trigger id="user-role" className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring">
+                <Select.Value placeholder="Select role" />
+              </Select.Trigger>
+              <Select.Content>
+                {USER_ROLE_OPTIONS.map((role) => (
+                  <Select.Item key={role} value={role}>{role}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
           </div>
           <SecretInput
             inputId="user-password"

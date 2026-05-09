@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { api, getApiErrorMessage } from '@/lib/api'
 import type { ZTEConnection, ZTESystemInfo, ZTEPONInfo, ZTEONUListItem, ZTEONUDetail } from '@/types/zte'
 
@@ -11,8 +12,16 @@ function unwrap<T>(payload: ApiEnvelope<T> | T): T {
 }
 
 export async function getZTEConnections(): Promise<ZTEConnection[]> {
-  const { data } = await api.get<ApiEnvelope<ZTEConnection[]> | ZTEConnection[]>('/zte/connections')
-  return unwrap(data) ?? []
+  try {
+    const { data } = await api.get<ApiEnvelope<ZTEConnection[]> | ZTEConnection[]>('/zte/connections')
+    return unwrap(data) ?? []
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.warn('[ZTE] GET /zte/connections returned 404, falling back to empty list')
+      return []
+    }
+    throw error
+  }
 }
 
 export async function addZTEConnection(payload: { name?: string; base_url: string }): Promise<ZTEConnection[]> {

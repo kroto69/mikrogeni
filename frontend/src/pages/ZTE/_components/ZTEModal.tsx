@@ -1,5 +1,4 @@
 import { useEffect, useCallback } from 'react'
-import { cn } from '@/lib/utils'
 
 type ZTEModalProps = {
   isOpen: boolean
@@ -31,20 +30,20 @@ export function ZTEModal({ isOpen, onClose, title, children }: ZTEModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/50 px-3 py-4 sm:items-center"
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-2xl rounded-lg border-2 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:mx-0 sm:p-6"
+        className="neo-panel box-border max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-none border-2 border-border bg-card p-4 text-card-foreground shadow-brutal sm:max-h-[90dvh] sm:max-w-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between border-b-2 border-border pb-3">
           <h2 className="font-heading text-sm font-extrabold uppercase tracking-tight sm:text-base">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="border-2 border-black bg-white px-2 py-1 text-[10px] font-extrabold uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+            className="neo-panel neo-interactive rounded-none border-2 border-border bg-card px-2 py-1 text-[10px] font-extrabold uppercase shadow-brutal-sm transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:bg-accent hover:text-accent-foreground hover:shadow-brutal"
           >
             X
           </button>

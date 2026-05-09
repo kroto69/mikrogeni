@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/retroui/Select";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
   createHiosoDevice,
@@ -20,7 +22,10 @@ import {
   type HiosoOLTDevice,
   type HiosoOnuRow,
 } from "@/lib/api";
+import { addZTEConnection, deleteZTEConnection, getZTEConnections, healthCheckZTE, testZTEConnection, updateZTEConnection } from "@/lib/zteApi";
+import type { ZTEConnection } from "@/types/zte";
 import { showToast } from "@/lib/toast";
+import { useRole } from "@/hooks/useRole";
 
 type DeviceFormState = {
   name: string;
@@ -34,6 +39,13 @@ type DeviceFormState = {
   password: string;
 };
 
+type OltType = "hioso" | "zte";
+
+type ZteFormState = {
+  name: string;
+  baseUrl: string;
+};
+
 const EMPTY_DEVICE_FORM: DeviceFormState = {
   name: "",
   host: "",
@@ -44,6 +56,11 @@ const EMPTY_DEVICE_FORM: DeviceFormState = {
   web_port: "80",
   username: "admin",
   password: "",
+};
+
+const EMPTY_ZTE_FORM: ZteFormState = {
+  name: "",
+  baseUrl: "",
 };
 
 function buildDeviceForm(device?: HiosoOLTDevice): DeviceFormState {
@@ -69,9 +86,9 @@ function PluginOverlay({ open, title, description, onClose, children }: { open: 
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-foreground/35 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-foreground/35 p-3 sm:p-6">
       <button aria-label="Close overlay" className="absolute inset-0" onClick={onClose} type="button" />
-      <div className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] border-2 border-border bg-card shadow-brutal-lg sm:rounded-[28px]">
+      <div className="relative z-10 my-auto box-border max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-[28px] border-2 border-border bg-card shadow-brutal-lg sm:max-h-[90vh] sm:max-w-2xl">
         <div className="flex items-center justify-between gap-3 border-b-2 border-border px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
@@ -102,8 +119,12 @@ function getDeviceStatusVariant(status?: string): "success" | "destructive" | "s
 }
 
 export default function OltHiosoPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { can } = useRole();
+  const canManageOlt = can("zte_connections_crud");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [createOltType, setCreateOltType] = useState<OltType>("hioso");
   const [onuFilter, setOnuFilter] = useState<"all" | "online" | "offline">("all");
   const [onuSearch, setOnuSearch] = useState("");
   const [portFilter, setPortFilter] = useState<number>(1);
@@ -112,10 +133,30 @@ export default function OltHiosoPage() {
   const [deviceModalMode, setDeviceModalMode] = useState<"closed" | "create" | "edit">("closed");
   const [deviceForm, setDeviceForm] = useState<DeviceFormState>(EMPTY_DEVICE_FORM);
   const [editingDevice, setEditingDevice] = useState<HiosoOLTDevice | null>(null);
+  const [editingZte, setEditingZte] = useState<ZTEConnection | null>(null);
+  const [zteForm, setZteForm] = useState<ZteFormState>(EMPTY_ZTE_FORM);
+  const [zteTesting, setZteTesting] = useState(false);
+  const [zteTestResult, setZteTestResult] = useState<{ ok: boolean; latency: number } | null>(null);
+
+  const resetOltModalState = () => {
+    setEditingDevice(null);
+    setEditingZte(null);
+    setDeviceForm({ ...EMPTY_DEVICE_FORM });
+    setZteForm(EMPTY_ZTE_FORM);
+    setZteTestResult(null);
+    setZteTesting(false);
+    setCreateOltType("hioso");
+    setDeviceModalMode("closed");
+  };
 
   const devicesQuery = useQuery({
     queryKey: ["hioso-devices"],
     queryFn: getHiosoDevices,
+  });
+
+  const zteConnectionsQuery = useQuery({
+    queryKey: ["zte-connections"],
+    queryFn: getZTEConnections,
   });
 
   const selectedDevice = (devicesQuery.data ?? []).find((d) => d.id === selectedDeviceId) ?? null;
@@ -254,31 +295,110 @@ export default function OltHiosoPage() {
     },
   });
 
+  const createZteMutation = useMutation({
+    mutationFn: (values: ZteFormState) => addZTEConnection({ name: values.name.trim() || undefined, base_url: values.baseUrl.trim() }),
+    onSuccess: async (result) => {
+      const count = result.length;
+      showToast({ title: count > 1 ? `${count} ZTE OLT ditambahkan` : "ZTE OLT ditambahkan", variant: "success" });
+      resetOltModalState();
+      await queryClient.invalidateQueries({ queryKey: ["zte-connections"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Gagal menambahkan ZTE OLT", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const updateZteMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: ZteFormState }) => {
+      return updateZTEConnection(id, { name: values.name.trim(), base_url: values.baseUrl.trim() });
+    },
+    onSuccess: async () => {
+      showToast({ title: "ZTE OLT diupdate", variant: "success" });
+      resetOltModalState();
+      await queryClient.invalidateQueries({ queryKey: ["zte-connections"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Gagal mengupdate ZTE OLT", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const deleteZteMutation = useMutation({
+    mutationFn: (id: string) => deleteZTEConnection(id),
+    onSuccess: async () => {
+      showToast({ title: "ZTE OLT dihapus", variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: ["zte-connections"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Gagal menghapus ZTE OLT", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
   const isDeviceSubmitting = createDeviceMutation.isPending || updateDeviceMutation.isPending;
 
   const openCreateDeviceModal = () => {
-    setEditingDevice(null);
-    setDeviceForm({ ...EMPTY_DEVICE_FORM });
+    resetOltModalState();
     setDeviceModalMode("create");
   };
 
   const openEditDeviceModal = (device: HiosoOLTDevice) => {
     setEditingDevice(device);
+    setEditingZte(null);
     setDeviceForm(buildDeviceForm(device));
+    setCreateOltType("hioso");
+    setDeviceModalMode("edit");
+  };
+
+  const openEditZteModal = (conn: ZTEConnection) => {
+    setEditingDevice(null);
+    setEditingZte(conn);
+    setCreateOltType("zte");
+    setZteForm({
+      name: conn.name ?? "",
+      baseUrl: conn.base_url ?? "",
+    });
+    setZteTestResult(null);
+    setZteTesting(false);
     setDeviceModalMode("edit");
   };
 
   const closeDeviceModal = () => {
-    setEditingDevice(null);
-    setDeviceForm({ ...EMPTY_DEVICE_FORM });
-    setDeviceModalMode("closed");
+    resetOltModalState();
+  };
+
+  const handleZteTest = async () => {
+    setZteTesting(true);
+    setZteTestResult(null);
+    try {
+      const res = (deviceModalMode === "edit" && editingZte && zteForm.baseUrl.trim() === editingZte.base_url)
+        ? await healthCheckZTE(editingZte.id)
+        : await testZTEConnection(zteForm.baseUrl.trim());
+      setZteTestResult({ ok: res.status === "ok", latency: res.latency_ms });
+    } catch {
+      setZteTestResult(null);
+      showToast({ title: "Gagal terhubung", variant: "error" });
+    } finally {
+      setZteTesting(false);
+    }
   };
 
   const handleDeviceSubmit = () => {
-    if (deviceModalMode === "edit" && editingDevice) {
-      updateDeviceMutation.mutate({ deviceId: editingDevice.id, values: deviceForm });
+    if (deviceModalMode === "edit") {
+      if (createOltType === "zte" && editingZte) {
+        updateZteMutation.mutate({ id: editingZte.id, values: zteForm });
+        return;
+      }
+
+      if (editingDevice) {
+        updateDeviceMutation.mutate({ deviceId: editingDevice.id, values: deviceForm });
+      }
       return;
     }
+
+    if (createOltType === "zte") {
+      createZteMutation.mutate(zteForm);
+      return;
+    }
+
     createDeviceMutation.mutate(deviceForm);
   };
 
@@ -311,9 +431,36 @@ export default function OltHiosoPage() {
   const healthDetail = healthQuery.data?.detail || (healthOnline ? "OLT reachable" : "Health status unavailable");
 
   const devices = devicesQuery.data ?? [];
-  if (!selectedDeviceId && devices.length > 0 && !devicesQuery.isLoading) {
-    setSelectedDeviceId(devices[0].id);
-  }
+  const zteConnections = zteConnectionsQuery.data ?? [];
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("device");
+    if (fromQuery && devices.some((device) => device.id === fromQuery)) {
+      setSelectedDeviceId(fromQuery);
+      return;
+    }
+
+    if (!selectedDeviceId && devices.length > 0 && !devicesQuery.isLoading) {
+      setSelectedDeviceId(devices[0].id);
+    }
+  }, [devices, devicesQuery.isLoading, searchParams, selectedDeviceId]);
+
+  useEffect(() => {
+    if (!selectedDeviceId) {
+      return;
+    }
+
+    if (!devices.some((device) => device.id === selectedDeviceId)) {
+      return;
+    }
+
+    const next = new URLSearchParams(searchParams);
+    if (next.get("device") === selectedDeviceId) {
+      return;
+    }
+    next.set("device", selectedDeviceId);
+    setSearchParams(next, { replace: true });
+  }, [devices, searchParams, selectedDeviceId, setSearchParams]);
 
   return (
     <div className="route-shell-page route-shell-plugin-hioso space-y-5">
@@ -321,16 +468,18 @@ export default function OltHiosoPage() {
         <div className="pointer-events-none absolute -right-5 top-4 h-20 w-20 rotate-12 border-2 border-border bg-primary/90" />
         <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
         <PageSectionHeader
-          badge={<Badge>Plugin</Badge>}
-          description={selectedDevice ? `HIOSO OLT · ${selectedDevice.host}` : "Select or add an OLT device to view data."}
-          title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">OLT HIOSO</h2>}
+          badge={<Badge>Manage</Badge>}
+          description={selectedDevice ? `HIOSO OLT · ${selectedDevice.host}` : "Kelola OLT HIOSO dan ZTE dari satu halaman."}
+          title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">MANAGE OLT</h2>}
           actions={(
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               {selectedDeviceId ? (
                 <>
                   <Button
+                    className="w-full sm:w-auto"
                     onClick={() => {
                       void devicesQuery.refetch();
+                      void zteConnectionsQuery.refetch();
                       void healthQuery.refetch();
                       void onusQuery.refetch();
                     }}
@@ -340,6 +489,7 @@ export default function OltHiosoPage() {
                     Refresh
                   </Button>
                   <Button
+                    className="w-full sm:w-auto"
                     disabled={testDeviceMutation.isPending}
                     onClick={() => testDeviceMutation.mutate(selectedDeviceId!)}
                     type="button"
@@ -347,18 +497,23 @@ export default function OltHiosoPage() {
                   >
                     Test
                   </Button>
-                  <Button
-                    onClick={() => openEditDeviceModal(selectedDevice!)}
-                    type="button"
-                    variant="outline"
-                  >
-                    Edit Device
-                  </Button>
+                  {canManageOlt ? (
+                    <Button
+                      className="w-full sm:w-auto"
+                      onClick={() => openEditDeviceModal(selectedDevice!)}
+                      type="button"
+                      variant="outline"
+                    >
+                      Edit Device
+                    </Button>
+                  ) : null}
                 </>
               ) : null}
-              <Button onClick={openCreateDeviceModal} type="button">
-                + Add Device
-              </Button>
+              {canManageOlt ? (
+                <Button className="w-full sm:w-auto" onClick={openCreateDeviceModal} type="button">
+                  + Add OLT
+                </Button>
+              ) : null}
             </div>
           )}
           meta={selectedDeviceId ? <Badge variant={getDeviceStatusVariant(selectedDevice?.status)}>{selectedDevice?.status || "unknown"}</Badge> : undefined}
@@ -383,11 +538,58 @@ export default function OltHiosoPage() {
       {devices.length === 0 && !devicesQuery.isLoading ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
-            <p>No OLT devices registered yet.</p>
-            <p>Use <span className="font-semibold text-foreground">+ Add Device</span> to register your first Hioso OLT.</p>
+            <p>Belum ada OLT HIOSO terdaftar.</p>
+            <p>Gunakan <span className="font-semibold text-foreground">+ Add OLT</span> untuk menambahkan HIOSO atau ZTE.</p>
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="overflow-hidden border-2 shadow-brutal">
+        <CardContent className="space-y-3 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-black uppercase tracking-[0.08em] text-foreground">ZTE OLT Connections</p>
+            <Badge variant="secondary">{zteConnections.length} total</Badge>
+          </div>
+          {zteConnections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Belum ada ZTE OLT terdaftar.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {zteConnections.map((conn: ZTEConnection) => (
+                <div className="rounded-lg border-2 border-border bg-card px-3 py-2 text-sm text-foreground shadow-brutal-sm" key={conn.id}>
+                  <Link
+                    className="block transition hover:-translate-x-[1px] hover:-translate-y-[1px]"
+                    to={`/zte/${conn.olt_id}`}
+                  >
+                    <div className="truncate font-semibold">{conn.olt_id || conn.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{conn.base_url}</div>
+                  </Link>
+                  {canManageOlt ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" type="button" variant="outline" onClick={() => openEditZteModal(conn)}>
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        disabled={deleteZteMutation.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Delete ZTE OLT ${conn.name || conn.olt_id}?`)) {
+                            return;
+                          }
+                          deleteZteMutation.mutate(conn.id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {devicesQuery.isError ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
@@ -416,7 +618,7 @@ export default function OltHiosoPage() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="flex flex-wrap items-center gap-2">
                 {ports.map((p) => (
                   <button
                     className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
@@ -445,7 +647,7 @@ export default function OltHiosoPage() {
               </div>
             ) : null}
 
-            <div className="space-y-2 md:hidden">
+            <div className="space-y-2 lg:hidden">
               {filteredOnus.map((onu: HiosoOnuRow) => (
                 <div className="rounded-2xl border-2 border-border bg-card px-3 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]" key={onu.index}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -487,7 +689,7 @@ export default function OltHiosoPage() {
               ) : null}
             </div>
 
-            <div className="hidden overflow-x-auto rounded-2xl border-2 border-border shadow-[6px_6px_0_0_hsl(var(--border))] md:block">
+            <div className="hidden overflow-x-auto rounded-2xl border-2 border-border shadow-[6px_6px_0_0_hsl(var(--border))] lg:block">
               <table className="min-w-full text-sm">
                 <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
@@ -544,7 +746,7 @@ export default function OltHiosoPage() {
         </Card>
       ) : null}
 
-      {selectedDeviceId && selectedDevice ? (
+      {selectedDeviceId && selectedDevice && canManageOlt ? (
         <div className="flex justify-end">
           <Button
             disabled={deleteDeviceMutation.isPending}
@@ -597,12 +799,41 @@ export default function OltHiosoPage() {
       </PluginOverlay>
 
       <PluginOverlay
-        description={deviceModalMode === "edit" ? "Update OLT device SNMP and WebUI credentials." : "Register a new Hioso OLT device for monitoring."}
+        description={
+          deviceModalMode === "edit"
+            ? createOltType === "zte"
+              ? "Update endpoint dan nama ZTE OLT."
+              : "Update OLT device SNMP dan WebUI credentials."
+            : "Pilih tipe OLT lalu isi form sesuai vendor."
+        }
         onClose={closeDeviceModal}
-        open={deviceModalMode !== "closed"}
-        title={deviceModalMode === "edit" ? `Edit Device · ${editingDevice?.name ?? ""}` : "Add OLT Device"}
+        open={deviceModalMode !== "closed" && canManageOlt}
+        title={
+          deviceModalMode === "edit"
+            ? createOltType === "zte"
+              ? `Edit ZTE OLT · ${editingZte?.name ?? ""}`
+              : `Edit Device · ${editingDevice?.name ?? ""}`
+            : "Add OLT"
+        }
       >
         <div className="grid gap-4 sm:grid-cols-2">
+          {deviceModalMode === "create" ? (
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="device-type">Tipe OLT</label>
+              <Select value={createOltType} onValueChange={(value) => setCreateOltType(value as OltType)}>
+                <Select.Trigger id="device-type" className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring">
+                  <Select.Value placeholder="Pilih tipe OLT" />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="hioso">HIOSO</Select.Item>
+                  <Select.Item value="zte">ZTE</Select.Item>
+                </Select.Content>
+              </Select>
+            </div>
+          ) : null}
+
+          {(deviceModalMode === "edit" || createOltType === "hioso") ? (
+            <>
           <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-name">Device Name</label>
             <Input id="device-name" value={deviceForm.name} onChange={(event) => setDeviceForm((current) => ({ ...current, name: event.target.value }))} />
@@ -621,15 +852,21 @@ export default function OltHiosoPage() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-snmp-version">Version</label>
-            <select
-              className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
-              id="device-snmp-version"
+            <Select
               value={deviceForm.snmp_version}
-              onChange={(event) => setDeviceForm((current) => ({ ...current, snmp_version: event.target.value }))}
+              onValueChange={(value) => setDeviceForm((current) => ({ ...current, snmp_version: value }))}
             >
-              <option value="1">v1</option>
-              <option value="2c">v2c</option>
-            </select>
+              <Select.Trigger
+                id="device-snmp-version"
+                className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Select.Value placeholder="Select version" />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="1">v1</Select.Item>
+                <Select.Item value="2c">v2c</Select.Item>
+              </Select.Content>
+            </Select>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-snmp-community">Community</label>
@@ -655,12 +892,47 @@ export default function OltHiosoPage() {
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-password">{deviceModalMode === "edit" ? "Password (leave empty to keep)" : "Password"}</label>
             <Input id="device-password" type="password" value={deviceForm.password} onChange={(event) => setDeviceForm((current) => ({ ...current, password: event.target.value }))} />
           </div>
+            </>
+          ) : null}
+
+          {deviceModalMode === "create" && createOltType === "zte" ? (
+            <>
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-name">Display Name</label>
+                <Input id="zte-name" placeholder="ZTE OLT Site A" value={zteForm.name} onChange={(event) => setZteForm((current) => ({ ...current, name: event.target.value }))} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-baseurl">ZTE Backend URL</label>
+                <Input id="zte-baseurl" placeholder="http://olt-monitor:8081" value={zteForm.baseUrl} onChange={(event) => setZteForm((current) => ({ ...current, baseUrl: event.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <div className="flex items-center gap-3">
+                  <Button type="button" variant="outline" onClick={handleZteTest} disabled={zteTesting || !zteForm.baseUrl.trim()}>
+                    {zteTesting ? "Testing..." : "Test Connection"}
+                  </Button>
+                  {zteTestResult ? (
+                    <Badge variant={zteTestResult.ok ? "success" : "destructive"}>
+                      {zteTestResult.ok ? `Online · ${zteTestResult.latency}ms` : "Gagal terhubung"}
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button onClick={closeDeviceModal} type="button" variant="outline">Cancel</Button>
-          <Button disabled={isDeviceSubmitting} onClick={handleDeviceSubmit} type="button">
-            {isDeviceSubmitting ? "Saving..." : deviceModalMode === "edit" ? "Save Changes" : "Create Device"}
+          <Button disabled={isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending || (createOltType === "zte" && !zteForm.baseUrl.trim())} onClick={handleDeviceSubmit} type="button">
+            {(isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending)
+              ? "Saving..."
+              : deviceModalMode === "edit"
+                ? createOltType === "zte"
+                  ? "Update ZTE OLT"
+                  : "Save Changes"
+                : createOltType === "zte"
+                  ? "Create ZTE OLT"
+                  : "Create HIOSO OLT"}
           </Button>
         </div>
       </PluginOverlay>

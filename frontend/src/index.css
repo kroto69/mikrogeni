@@ -4,31 +4,36 @@
 @import "tailwindcss/utilities";
 
 :root {
-  --background: 44 100% 94%;
-  --foreground: 222 47% 10%;
+  --background: 67 100% 95%;
+  --foreground: 0 0% 0%;
+  --muted: 350 49% 88%;
+  --muted-foreground: 350 64% 39%;
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 10%;
-  --primary: 48 100% 60%;
-  --primary-foreground: 222 47% 9%;
-  --secondary: 192 100% 82%;
-  --secondary-foreground: 222 47% 10%;
-  --muted: 44 100% 88%;
-  --muted-foreground: 223 25% 26%;
-  --accent: 339 100% 78%;
-  --accent-foreground: 222 47% 10%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  --success: 142 64% 42%;
-  --success-foreground: 144 80% 98%;
-  --warning: 34 97% 56%;
-  --warning-foreground: 34 100% 97%;
-  --border: 222 47% 10%;
-  --input: 222 47% 10%;
-  --ring: 222 47% 10%;
-  --radius: 0.75rem;
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --border: 0 0% 0%;
+  --input: 0 0% 100%;
+  --primary: 350 80% 59%;
+  --primary-hover: 0 100% 41%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 46 100% 68%;
+  --secondary-foreground: 0 0% 0%;
+  --accent: 202 88% 90%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 351 85% 44%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 0 0% 0%;
+  --success: 155 77% 40%;
+  --success-foreground: 0 0% 100%;
+  --warning: 29 100% 47%;
+  --warning-foreground: 0 0% 0%;
+  --complementary: 147 28% 48%;
+  --complementary-foreground: 0 0% 100%;
+  --radius: 0.5rem;
   --font-display: "Archivo Black", "Arial Black", "Segoe UI", sans-serif;
   --font-body: "Manrope", "Segoe UI", sans-serif;
-  --nb-radius: 0.8rem;
+  --nb-radius: 0.5rem;
   --nb-border-width: 2px;
   --nb-shadow-x: 4px;
   --nb-shadow-y: 4px;
@@ -36,14 +41,14 @@
   --nb-grid-alpha: 0.08;
   --nb-grid-alpha-dark: 0.12;
   --nb-glitch-opacity: 0;
-  --shell-accent-a: hsl(48 100% 62% / 0.24);
-  --shell-accent-b: hsl(339 100% 72% / 0.22);
+  --shell-accent-a: hsl(var(--primary) / 0.24);
+  --shell-accent-b: hsl(var(--accent) / 0.22);
   --shell-stripe-opacity: 0.18;
   --route-panel-tilt: -0.5deg;
 }
 
 :root[data-style-mode="lebih-ekstrim"] {
-  --nb-radius: 0.55rem;
+  --nb-radius: 0.5rem;
   --nb-border-width: 4px;
   --nb-shadow-x: 9px;
   --nb-shadow-y: 9px;
@@ -51,14 +56,14 @@
   --nb-grid-alpha: 0.16;
   --nb-grid-alpha-dark: 0.21;
   --nb-glitch-opacity: 0.26;
-  --shell-accent-a: hsl(48 100% 58% / 0.35);
-  --shell-accent-b: hsl(339 100% 64% / 0.34);
+  --shell-accent-a: hsl(var(--primary) / 0.35);
+  --shell-accent-b: hsl(var(--accent) / 0.34);
   --shell-stripe-opacity: 0.3;
   --route-panel-tilt: -1.25deg;
 }
 
 :root[data-style-mode="rapi-brutal"] {
-  --nb-radius: 1rem;
+  --nb-radius: 0.5rem;
   --nb-border-width: 2px;
   --nb-shadow-x: 3px;
   --nb-shadow-y: 3px;
@@ -66,34 +71,39 @@
   --nb-grid-alpha: 0.05;
   --nb-grid-alpha-dark: 0.08;
   --nb-glitch-opacity: 0;
-  --shell-accent-a: hsl(48 100% 62% / 0.19);
-  --shell-accent-b: hsl(339 100% 72% / 0.15);
+  --shell-accent-a: hsl(var(--primary) / 0.19);
+  --shell-accent-b: hsl(var(--accent) / 0.15);
   --shell-stripe-opacity: 0.12;
   --route-panel-tilt: -0.45deg;
 }
 
 .dark {
-  --background: 225 31% 8%;
-  --foreground: 44 100% 92%;
-  --card: 225 32% 12%;
-  --card-foreground: 44 100% 92%;
-  --primary: 48 100% 62%;
-  --primary-foreground: 225 31% 8%;
-  --secondary: 192 100% 68%;
-  --secondary-foreground: 225 31% 8%;
-  --muted: 224 24% 18%;
-  --muted-foreground: 45 48% 77%;
-  --accent: 339 96% 73%;
-  --accent-foreground: 225 31% 8%;
-  --destructive: 0 79% 63%;
-  --destructive-foreground: 210 40% 98%;
-  --success: 142 62% 48%;
-  --success-foreground: 222 47% 10%;
-  --warning: 35 100% 58%;
-  --warning-foreground: 222 47% 10%;
-  --border: 44 86% 78%;
-  --input: 44 86% 78%;
-  --ring: 48 100% 62%;
+  --background: 0 0% 6%;
+  --foreground: 0 0% 96%;
+  --muted: 349 30% 17%;
+  --muted-foreground: 351 74% 80%;
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 10%;
+  --popover-foreground: 0 0% 100%;
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
+  --primary: 350 80% 59%;
+  --primary-hover: 0 100% 41%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 46 100% 68%;
+  --secondary-foreground: 0 0% 0%;
+  --accent: 202 88% 90%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 351 85% 44%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 0 0% 100%;
+  --success: 155 77% 40%;
+  --success-foreground: 0 0% 100%;
+  --warning: 29 100% 47%;
+  --warning-foreground: 0 0% 0%;
+  --complementary: 147 28% 48%;
+  --complementary-foreground: 0 0% 100%;
 }
 
 * {
@@ -222,7 +232,7 @@ textarea {
 }
 
 .dark .neo-shell :is([class*="bg-[linear-gradient"]) {
-  background-image: linear-gradient(180deg, rgb(25 35 65 / 0.98) 0%, rgb(18 26 48 / 0.98) 100%);
+  background-image: linear-gradient(180deg, hsl(var(--card) / 0.98) 0%, hsl(var(--background) / 0.98) 100%);
 }
 
 .dark .neo-shell :is([class*="bg-[radial-gradient"]) {

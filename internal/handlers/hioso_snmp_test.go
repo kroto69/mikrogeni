@@ -87,6 +87,61 @@ func TestHiosoEnsureScalarOID(t *testing.T) {
 	}
 }
 
+func TestHiosoRuntimeSettingsToSNMPTargetUsesResolver(t *testing.T) {
+	tests := []struct {
+		name      string
+		settings  hiosoRuntimeSettings
+		wantHost  string
+		wantPort  uint16
+	}{
+		{
+			name: "host contains explicit port",
+			settings: hiosoRuntimeSettings{
+				Host:      "10.10.10.1:2161",
+				Port:      "161",
+				Version:   "2c",
+				Community: "public",
+			},
+			wantHost: "10.10.10.1",
+			wantPort: 2161,
+		},
+		{
+			name: "host is url with explicit port",
+			settings: hiosoRuntimeSettings{
+				Host:      "http://10.10.10.2:3161",
+				Port:      "161",
+				Version:   "2c",
+				Community: "public",
+			},
+			wantHost: "10.10.10.2",
+			wantPort: 3161,
+		},
+		{
+			name: "invalid host keeps fallback parsing",
+			settings: hiosoRuntimeSettings{
+				Host:      "",
+				Port:      "4321",
+				Version:   "2c",
+				Community: "public",
+			},
+			wantHost: "",
+			wantPort: 4321,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			target := tc.settings.ToSNMPTarget()
+			if target.Host != tc.wantHost {
+				t.Fatalf("unexpected host: got %q want %q", target.Host, tc.wantHost)
+			}
+			if target.Port != tc.wantPort {
+				t.Fatalf("unexpected port: got %d want %d", target.Port, tc.wantPort)
+			}
+		})
+	}
+}
+
 func TestHiosoInferProfileNameFromSystemText(t *testing.T) {
 	tests := []struct {
 		name          string

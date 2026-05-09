@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/retroui/Select";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
   createBillingCustomer,
@@ -683,6 +684,14 @@ export default function BillingIndex() {
               className="grid gap-3 sm:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
+                if (!customerForm.servicePlanId || !customerForm.mikrotikDeviceId) {
+                  showToast({
+                    title: "Lengkapi field wajib",
+                    description: "Pilih service plan dan perangkat MikroTik terlebih dahulu.",
+                    variant: "error",
+                  });
+                  return;
+                }
                 createCustomerMutation.mutate({
                   customer_code: customerForm.customerCode.trim(),
                   full_name: customerForm.fullName.trim(),
@@ -700,39 +709,49 @@ export default function BillingIndex() {
               <Input placeholder="Phone" value={customerForm.phone} onChange={(event) => setCustomerForm((prev) => ({ ...prev, phone: event.target.value }))} />
               <Input placeholder="PPP secret name" required value={customerForm.pppSecretName} onChange={(event) => setCustomerForm((prev) => ({ ...prev, pppSecretName: event.target.value }))} />
 
-              <select
-                className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
-                required
-                value={customerForm.servicePlanId}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, servicePlanId: event.target.value }))}
+              <Select
+                value={customerForm.servicePlanId || undefined}
+                onValueChange={(value) => setCustomerForm((prev) => ({ ...prev, servicePlanId: value }))}
               >
-                <option value="">Select service plan</option>
-                {plans.map((plan) => (
-                  <option key={plan.id} value={plan.id}>
-                    {plan.code} - {plan.name}
-                  </option>
-                ))}
-              </select>
+                <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                  <Select.Value placeholder="Select service plan" />
+                </Select.Trigger>
+                <Select.Content>
+                  {plans.map((plan) => (
+                    <Select.Item key={plan.id} value={String(plan.id)}>
+                      {plan.code} - {plan.name}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
 
-              <select
-                className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
-                required
-                value={customerForm.mikrotikDeviceId}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, mikrotikDeviceId: event.target.value }))}
+              <Select
+                value={customerForm.mikrotikDeviceId || undefined}
+                onValueChange={(value) => setCustomerForm((prev) => ({ ...prev, mikrotikDeviceId: value }))}
               >
-                <option value="">Select MikroTik device</option>
-                {mikrotikDevices.map((device) => (
-                  <option key={device.id} value={device.id}>
-                    {device.name} ({device.host})
-                  </option>
-                ))}
-              </select>
+                <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                  <Select.Value placeholder="Select MikroTik device" />
+                </Select.Trigger>
+                <Select.Content>
+                  {mikrotikDevices.map((device) => (
+                    <Select.Item key={device.id} value={String(device.id)}>
+                      {device.name} ({device.host})
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+
+              {!customerForm.servicePlanId || !customerForm.mikrotikDeviceId ? (
+                <p className="sm:col-span-2 text-xs font-semibold text-destructive">
+                  Service plan dan perangkat MikroTik wajib dipilih.
+                </p>
+              ) : null}
 
               <Input className="sm:col-span-2" placeholder="Address" value={customerForm.address} onChange={(event) => setCustomerForm((prev) => ({ ...prev, address: event.target.value }))} />
               <Input className="sm:col-span-2" placeholder="Next billing at (RFC3339 or YYYY-MM-DD, optional)" value={customerForm.nextBillingAt} onChange={(event) => setCustomerForm((prev) => ({ ...prev, nextBillingAt: event.target.value }))} />
 
               <div className="sm:col-span-2">
-                <Button disabled={createCustomerMutation.isPending} type="submit">Save Billing Customer</Button>
+                <Button disabled={createCustomerMutation.isPending || !customerForm.servicePlanId || !customerForm.mikrotikDeviceId} type="submit">Save Billing Customer</Button>
               </div>
             </form>
           </CardContent>
@@ -750,18 +769,21 @@ export default function BillingIndex() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
-            <select
-              className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
-              value={importMikrotikDeviceId}
-              onChange={(event) => setImportMikrotikDeviceId(event.target.value)}
+            <Select
+              value={importMikrotikDeviceId || undefined}
+              onValueChange={(value) => setImportMikrotikDeviceId(value)}
             >
-              <option value="">Default MikroTik device (opsional, untuk fallback)</option>
-              {mikrotikDevices.map((device) => (
-                <option key={device.id} value={device.id}>
-                  {device.name} ({device.host})
-                </option>
-              ))}
-            </select>
+              <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                <Select.Value placeholder="Default MikroTik device (opsional, untuk fallback)" />
+              </Select.Trigger>
+              <Select.Content>
+                {mikrotikDevices.map((device) => (
+                  <Select.Item key={device.id} value={String(device.id)}>
+                    {device.name} ({device.host})
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
 
             <Input
               placeholder="Prefix customer code (default CUST)"

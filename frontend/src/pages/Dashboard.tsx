@@ -19,21 +19,21 @@ function isOnuOnline(lastInform: string) {
 function getMikrotikStatusTone(status?: string) {
   if (status === "online") {
     return {
-      badgeVariant: "success" as const,
-      chipClassName: "bg-success/15 text-success",
+      badgeVariant: "online" as const,
+      chipClassName: "border-2 border-border bg-success/15 text-success",
     };
   }
 
   if (status === "offline" || status === "down") {
     return {
-      badgeVariant: "destructive" as const,
-      chipClassName: "bg-destructive/15 text-destructive",
+      badgeVariant: "offline" as const,
+      chipClassName: "border-2 border-border bg-destructive/15 text-destructive",
     };
   }
 
   return {
-    badgeVariant: "secondary" as const,
-    chipClassName: "bg-muted/20 text-muted-foreground",
+    badgeVariant: "disabled" as const,
+    chipClassName: "border-2 border-border bg-muted/20 text-muted-foreground",
   };
 }
 
@@ -98,7 +98,7 @@ export default function Dashboard() {
             <h2 className="mt-0 text-2xl font-black uppercase tracking-[0.04em] text-foreground sm:text-3xl">Operations</h2>
             <p className="text-sm font-semibold text-muted-foreground">Live network summary across ACS and MikroTik.</p>
           </div>
-          <span className="inline-flex rounded-full border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">Network Core</span>
+          <span className="inline-flex rounded-none border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">Network Core</span>
         </CardContent>
       </Card>
 
@@ -112,7 +112,7 @@ export default function Dashboard() {
                     <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
                     <p className="mt-2 text-2xl font-black text-foreground sm:text-3xl">{value}</p>
                   </div>
-                  <div className="rounded-2xl border-2 border-border bg-primary/15 p-2.5 text-primary shadow-brutal-sm">
+                  <div className="rounded-none border-2 border-border bg-primary/15 p-2.5 text-primary shadow-brutal-sm">
                     <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
@@ -122,7 +122,7 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <section className="route-shell-panel space-y-3 rounded-[24px] border-2 border-border bg-card/95 p-4 shadow-brutal sm:p-5">
+      <section className="route-shell-panel space-y-3 rounded-none border-2 border-border bg-card/95 p-4 shadow-brutal sm:p-5">
         <div className="flex items-center justify-between gap-3 border-b-2 border-border/70 pb-3">
           <div>
             <h3 className="text-lg font-black uppercase tracking-[0.03em] text-foreground">MikroTik PPP Active Summary</h3>
@@ -132,20 +132,20 @@ export default function Dashboard() {
         </div>
 
         {mikrotikDevicesQuery.isError ? (
-          <Card>
-            <CardContent className="p-4 text-sm text-rose-600">{getApiErrorMessage(mikrotikDevicesQuery.error)}</CardContent>
+          <Card className="border-destructive bg-destructive/10">
+            <CardContent className="p-4 text-sm font-semibold text-destructive">{getApiErrorMessage(mikrotikDevicesQuery.error)}</CardContent>
           </Card>
         ) : null}
 
         {mikrotikDevicesQuery.isLoading ? (
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">Loading MikroTik PPP summaries...</CardContent>
+          <Card className="bg-muted/20">
+            <CardContent className="p-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Loading MikroTik PPP summaries...</CardContent>
           </Card>
         ) : null}
 
         {!mikrotikDevicesQuery.isLoading && !mikrotikDevicesQuery.isError && mikrotikPppSummaries.length === 0 ? (
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">No MikroTik devices linked yet.</CardContent>
+          <Card className="border-dashed bg-muted/20">
+            <CardContent className="p-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">No MikroTik devices linked yet.</CardContent>
           </Card>
         ) : null}
 
@@ -167,7 +167,7 @@ export default function Dashboard() {
                         <p className="break-all text-base font-semibold text-foreground">{device.host}</p>
                         <Badge variant={tone.badgeVariant}>{device.status ?? "unknown"}</Badge>
                       </div>
-                      <div className={cn("inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-right", tone.chipClassName)}>
+                      <div className={cn("inline-flex items-center gap-2 rounded-none px-3 py-2 text-right", tone.chipClassName)}>
                         <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">PPPoE Active</span>
                         <span className="text-lg font-semibold">{totalActive}</span>
                       </div>
@@ -180,7 +180,7 @@ export default function Dashboard() {
                     </div>
 
                     {isLoadingSessions ? (
-                      <div className="rounded-xl border border-border/70 px-3 py-2 text-sm text-muted-foreground">
+                      <div className="rounded-none border-2 border-border px-3 py-2 text-sm text-muted-foreground">
                         Loading PPP active summary...
                       </div>
                     ) : null}

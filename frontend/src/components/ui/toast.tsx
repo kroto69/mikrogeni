@@ -50,7 +50,7 @@ export function ToastViewport() {
       {toasts.map((toast) => (
         <div
           className={cn(
-            "pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border-2 px-4 py-3 shadow-brutal backdrop-blur",
+            "pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-lg border-2 px-4 py-3 shadow-brutal backdrop-blur",
             variantClasses[toast.variant ?? "default"],
           )}
           key={toast.id}

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpDown, Filter, RefreshCcw, Search, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, RefreshCcw, Search, X, Zap } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageSectionHeader } from "@/components/page/section-header";
@@ -66,6 +67,46 @@ function formatDisplayValue(value: string | null | undefined) {
   return isMutedValue(value) ? "-" : value;
 }
 
+type OnuStatusTone = {
+  variant: "online" | "offline" | "warning" | "critical" | "disabled" | "provisioning";
+  label: "online" | "offline" | "warning" | "critical" | "disabled" | "provisioning";
+};
+
+function getOnuStatusTone(device: OnuDevice): OnuStatusTone {
+  if (device.isIncomplete) {
+    return {
+      variant: "provisioning",
+      label: "provisioning",
+    };
+  }
+
+  if (device.status === "offline") {
+    return {
+      variant: "offline",
+      label: "offline",
+    };
+  }
+
+  if (device.rxDbm !== null && device.rxDbm < -30) {
+    return {
+      variant: "critical",
+      label: "critical",
+    };
+  }
+
+  if (device.rxDbm !== null && device.rxDbm < -27) {
+    return {
+      variant: "warning",
+      label: "warning",
+    };
+  }
+
+  return {
+    variant: "online",
+    label: "online",
+  };
+}
+
 function OverlayPanel({
   open,
   title,
@@ -100,7 +141,7 @@ function OverlayPanel({
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border-2 border-border bg-card text-card-foreground shadow-brutal-lg"
+        className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-none border-2 border-border bg-card text-card-foreground shadow-brutal-lg"
         role="dialog"
       >
         <div className="flex items-start justify-between gap-3 border-b-2 border-border px-5 py-4 sm:px-6">
@@ -123,7 +164,7 @@ function OverlayPanel({
 function CompactDetailRow({ label, value, muted = false }: { label: string; value: ReactNode; muted?: boolean }) {
   return (
     <div className="grid gap-1 py-2.5 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-start sm:gap-3">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">{label}</dt>
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground sm:text-xs">{label}</dt>
       <dd className={cn("break-all text-[13px] font-medium text-foreground sm:text-sm", muted && "text-muted-foreground")}>{value}</dd>
     </div>
   );
@@ -149,9 +190,9 @@ function OnuDetailOverlayContent({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-border bg-muted/20 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-none border-2 border-border bg-muted/20 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={status === "online" ? "success" : "destructive"}>{status}</Badge>
+          <Badge variant={status === "online" ? "online" : "offline"}>{status}</Badge>
           <Badge variant="secondary">{detail.vendor} {detail.device_type}</Badge>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -163,7 +204,7 @@ function OnuDetailOverlayContent({
         </div>
       </div>
 
-      <div className="rounded-2xl border-2 border-border bg-muted/20 px-4 py-3 sm:px-5">
+      <div className="rounded-none border-2 border-border bg-muted/20 px-4 py-3 sm:px-5">
         <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
           <div className="space-y-1">
             <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Device ID</dt>
@@ -181,8 +222,8 @@ function OnuDetailOverlayContent({
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">
-        <section className="rounded-2xl border-2 border-border bg-card/95 px-4 py-3 shadow-brutal-sm sm:px-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">PPPoE & WAN</p>
+        <section className="rounded-none border-2 border-border bg-card/95 px-4 py-3 shadow-brutal-sm sm:px-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground">PPPoE & WAN</p>
           <dl className="mt-2 divide-y divide-border/70">
             <CompactDetailRow label="PPPoE Username" muted={isMutedValue(detail.pppoe_username)} value={formatDisplayValue(detail.pppoe_username)} />
             <CompactDetailRow label="WAN IP" muted={isMutedValue(detail.ip_pppoe)} value={formatDisplayValue(detail.ip_pppoe)} />
@@ -190,8 +231,8 @@ function OnuDetailOverlayContent({
           </dl>
         </section>
 
-        <section className="rounded-2xl border-2 border-border bg-card/95 px-4 py-3 shadow-brutal-sm sm:px-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">SSID & RX</p>
+        <section className="rounded-none border-2 border-border bg-card/95 px-4 py-3 shadow-brutal-sm sm:px-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground">SSID & RX</p>
           <dl className="mt-2 divide-y divide-border/70">
             <CompactDetailRow label="SSID 1" muted={isMutedValue(ssid1Value)} value={formatDisplayValue(ssid1Value)} />
             <CompactDetailRow label="Password SSID 1" muted={isMutedValue(ssid1PasswordValue)} value={formatDisplayValue(ssid1PasswordValue)} />
@@ -238,7 +279,7 @@ export default function OnuIndex() {
   const closeOverlayButtonRef = useRef<HTMLButtonElement>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
+  const [pageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ["acs-devices"],
@@ -486,12 +527,12 @@ export default function OnuIndex() {
 
   const summaryCards = [
     { key: "all" as FilterTab, label: "Devices", value: String(counts.all), note: "Global", variant: "default" as const },
-    { key: "online" as FilterTab, label: "Online", value: String(counts.online), note: "Healthy", variant: "success" as const },
-    { key: "offline" as FilterTab, label: "Offline", value: String(counts.offline), note: "Critical", variant: "destructive" as const },
+    { key: "online" as FilterTab, label: "Online", value: String(counts.online), note: "Healthy", variant: "online" as const },
+    { key: "offline" as FilterTab, label: "Offline", value: String(counts.offline), note: "Critical", variant: "offline" as const },
   ];
 
   const renderSummaryRail = (className?: string) => (
-    <section className={cn("grid grid-cols-3 gap-2 rounded-[22px] border-2 border-border bg-card px-1 py-1 shadow-brutal sm:gap-4 xl:grid-cols-3", className)}>
+    <section className={cn("grid grid-cols-3 gap-2 rounded-none border-2 border-border bg-card px-1 py-1 shadow-brutal sm:gap-4 xl:grid-cols-3", className)}>
       {summaryCards.map((item) => (
         <button
           className="text-left"
@@ -504,29 +545,38 @@ export default function OnuIndex() {
         >
           <Card className={cn(
             "bg-card transition-all",
-            activeTab === item.key ? "ring-2 ring-border bg-primary text-primary-foreground" : "",
+            activeTab === item.key ? "border-foreground bg-primary text-primary-foreground" : "",
           )}>
             <CardContent className="p-2 sm:flex sm:items-center sm:justify-between sm:p-6">
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
                   <span
                     className={cn(
-                      "h-2 w-2 rounded-full",
-                      item.variant === "success"
+                      "h-2 w-2 rounded-none",
+                      item.variant === "online"
                         ? "bg-success"
-                        : item.variant === "destructive"
+                        : item.variant === "offline"
                           ? "bg-destructive"
                           : "bg-primary",
                     )}
                   />
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-sm sm:normal-case sm:tracking-normal">
+                  <p className={cn(
+                    "text-[9px] font-semibold uppercase tracking-[0.14em] sm:text-sm sm:normal-case sm:tracking-normal",
+                    activeTab === item.key ? "text-primary-foreground/80" : "text-muted-foreground",
+                  )}>
                     {item.label}
                   </p>
                 </div>
-                <p className="text-[1.35rem] font-semibold leading-none text-foreground sm:mt-2 sm:text-3xl">{item.value}</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground sm:hidden">{item.note}</p>
+                <p className={cn(
+                  "text-[1.35rem] font-semibold leading-none sm:mt-2 sm:text-3xl",
+                  activeTab === item.key ? "text-primary-foreground" : "text-foreground",
+                )}>{item.value}</p>
+                <p className={cn(
+                  "mt-0.5 text-[10px] sm:hidden",
+                  activeTab === item.key ? "text-primary-foreground/70" : "text-muted-foreground",
+                )}>{item.note}</p>
               </div>
-              <Badge className="mt-3 hidden sm:inline-flex" variant={item.variant}>{item.note}</Badge>
+              <Badge className={cn("mt-3 hidden sm:inline-flex", activeTab === item.key && "border-primary-foreground/40")} variant={item.variant}>{item.note}</Badge>
             </CardContent>
           </Card>
         </button>
@@ -536,7 +586,7 @@ export default function OnuIndex() {
 
   return (
     <div className="route-shell-page route-shell-onu mx-auto max-w-[22rem] space-y-3 px-1 sm:max-w-none sm:space-y-6 sm:px-0">
-      <section className="route-shell-panel rounded-[26px] border-2 border-border bg-card/95 px-3.5 py-4 shadow-brutal sm:px-5 sm:py-5">
+      <section className="route-shell-panel rounded-none border-2 border-border bg-card/95 px-3.5 py-4 shadow-brutal sm:px-5 sm:py-5">
         <PageSectionHeader
         badge={<Button className="inline-flex items-center gap-2" onClick={() => navigate("/dashboard")} size="sm" type="button" variant="outline"><ArrowLeft className="h-4 w-4" />Back</Button>}
         title={
@@ -545,14 +595,14 @@ export default function OnuIndex() {
             <p className="text-sm font-semibold text-muted-foreground">Search, refresh, and summon the latest ONU discovery data.</p>
           </div>
         }
-        meta={<span className="inline-flex rounded-full border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{counts.all} total</span>}
+        meta={<span className="inline-flex rounded-none border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{counts.all} total</span>}
       />
       {renderSummaryRail()}
       <div className="grid w-full gap-3 mt-4">
             <div className="relative min-w-0 w-full">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                className="h-10 w-full rounded-lg border-2 border-input bg-card pl-10 pr-3 text-sm text-foreground shadow-brutal-sm outline-none placeholder:text-muted-foreground"
+              <Input
+                className="h-10 w-full pl-10 pr-3"
                 onChange={(event) => {
                   setSearchTerm(event.target.value);
                   setPage(1);
@@ -562,11 +612,11 @@ export default function OnuIndex() {
               />
             </div>
 <div className="grid grid-cols-2 gap-2">
-              <Button className="h-10 rounded-2xl text-[12px] font-semibold" disabled={isInventoryActionPending} onClick={() => void handleManualRefresh()} type="button" variant="outline">
+              <Button className="h-10 text-[12px] font-semibold" disabled={isInventoryActionPending} onClick={() => void handleManualRefresh()} type="button" variant="outline">
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 {isFetching ? "Refreshing..." : "Refresh"}
               </Button>
-              <Button className="h-10 w-full rounded-2xl text-[12px] font-semibold" disabled={isInventoryActionPending || selectedDeviceIds.length === 0} onClick={() => summonSelectedMutation.mutate(selectedDeviceIds)} type="button">
+              <Button className="h-10 w-full text-[12px] font-semibold" disabled={isInventoryActionPending || selectedDeviceIds.length === 0} onClick={() => summonSelectedMutation.mutate(selectedDeviceIds)} type="button">
                 <Zap className="mr-2 h-4 w-4" />
                 {summonSelectedMutation.isPending ? "Summoning..." : `Summon selected (${selectedDeviceIds.length})`}
               </Button>
@@ -575,8 +625,8 @@ export default function OnuIndex() {
       </section>
 
       {isError ? (
-        <Card className="border-2 shadow-brutal-sm">
-          <CardContent className="px-4 py-3 text-sm text-destructive">{getApiErrorMessage(error)}</CardContent>
+        <Card className="border-destructive bg-destructive/10 shadow-brutal-sm">
+          <CardContent className="px-4 py-3 text-sm font-semibold text-destructive">{getApiErrorMessage(error)}</CardContent>
         </Card>
       ) : null}
 
@@ -587,14 +637,14 @@ export default function OnuIndex() {
         <CardContent className="p-0">
 
           {isLoading ? (
-            <div className="px-6 py-10 text-sm text-muted-foreground">Loading ONU inventory...</div>
+            <div className="px-6 py-10 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Loading ONU inventory...</div>
           ) : null}
 
           {!isLoading && !isError ? (
             <>
               <div className="hidden max-h-[62vh] overflow-y-auto overflow-x-auto overscroll-contain sm:max-h-[66vh] xl:max-h-[68vh] lg:block">
             <table className="min-w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-muted text-xs uppercase tracking-[0.15em] text-muted-foreground">
+              <thead className="sticky top-0 z-10 border-b-2 border-border bg-muted/90 text-xs uppercase tracking-[0.15em] text-muted-foreground">
                 <tr>
                   <th className="px-6 py-4">
                   <input
@@ -617,8 +667,11 @@ export default function OnuIndex() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedDevices.map((device) => (
-                  <tr key={device.id} className="border-t border-border/80 text-foreground">
+                {paginatedDevices.map((device) => {
+                  const tone = getOnuStatusTone(device);
+
+                  return (
+                    <tr key={device.id} className="border-t border-border/80 text-foreground">
                     <td className="px-6 py-4">
                       {device.isIncomplete ? (
                         <input checked={selectedDeviceIds.includes(device.id)} className="h-4 w-4 rounded border-border text-primary focus:ring-primary" onChange={() => toggleSelectedDevice(device.id)} type="checkbox" />
@@ -635,18 +688,31 @@ export default function OnuIndex() {
                       {device.rxDbm === null ? (
                         <span className="text-muted-foreground">N/A</span>
                       ) : (
-                        <span className={device.rxDbm < -27 ? "text-destructive" : "text-success"}>{device.rxDbm}</span>
+                        <span
+                          className={cn(
+                            "font-semibold",
+                            tone.label === "critical" || tone.label === "offline"
+                              ? "text-destructive"
+                              : tone.label === "warning"
+                                ? "text-warning"
+                                : tone.label === "provisioning"
+                                  ? "text-accent"
+                                  : "text-success",
+                          )}
+                        >
+                          {device.rxDbm}
+                        </span>
                       )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <span className={device.status === "offline" ? "text-destructive" : "text-foreground"}>{device.lastInform}</span>
+                        <span className={tone.label === "offline" || tone.label === "critical" ? "text-destructive" : tone.label === "warning" ? "text-warning" : "text-foreground"}>{device.lastInform}</span>
                         <p className="text-xs text-muted-foreground">{new Date(device.lastInformAt).toLocaleString()}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant={device.status === "online" ? "success" : "destructive"}>{device.status}</Badge>
+                        <Badge variant={tone.variant}>{tone.label}</Badge>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -658,34 +724,44 @@ export default function OnuIndex() {
                         View
                       </button>
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
               <div className="space-y-2 bg-muted/15 p-2 lg:hidden">
-                {paginatedDevices.map((device) => (
-                  <Card
+                {paginatedDevices.map((device) => {
+                  const tone = getOnuStatusTone(device);
+
+                  return (
+                    <Card
                     key={device.id}
-                      className={cn(
+                    className={cn(
                       "neo-panel neo-interactive overflow-hidden border-2 bg-card",
-                      device.status === "online"
+                      tone.label === "online"
                         ? "ring-2 ring-success"
-                        : device.rxDbm !== null && device.rxDbm < -27
+                        : tone.label === "warning"
                           ? "ring-2 ring-warning"
-                          : "ring-2 ring-destructive",
+                          : tone.label === "provisioning"
+                            ? "ring-2 ring-accent"
+                            : tone.label === "critical"
+                              ? "ring-2 ring-destructive"
+                        : "ring-2 ring-destructive",
                     )}
                   >
                     <CardContent className="p-0">
                       <div className="flex items-start gap-2.5 px-3 py-2.5">
                         <div
                           className={cn(
-                            "mt-0.5 h-10 w-1 rounded-full shrink-0 shadow-[0_0_0_1px_rgba(255,255,255,0.35)]",
-                            device.status === "online"
+                            "mt-0.5 h-10 w-1 rounded-none shrink-0 shadow-[0_0_0_1px_rgba(255,255,255,0.35)]",
+                            tone.label === "online"
                               ? "bg-success"
-                              : device.rxDbm !== null && device.rxDbm < -27
+                              : tone.label === "warning"
                                 ? "bg-warning"
+                                : tone.label === "provisioning"
+                                  ? "bg-accent"
                                 : "bg-destructive",
                           )}
                         />
@@ -704,42 +780,30 @@ export default function OnuIndex() {
                               {device.isIncomplete ? (
                                 <input checked={selectedDeviceIds.includes(device.id)} className="h-4 w-4 rounded border-border text-primary focus:ring-primary" onChange={() => toggleSelectedDevice(device.id)} type="checkbox" />
                               ) : null}
-                              <div
-                                className={cn(
-                                  "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold",
-                                  device.status === "online"
-                                    ? "bg-success text-success-foreground"
-                                    : device.rxDbm !== null && device.rxDbm < -27
-                                      ? "bg-warning text-warning-foreground"
-                                      : "bg-destructive text-destructive-foreground",
-                                )}
-                              >
-                                <span
-                                  className={cn(
-                                    "h-1.5 w-1.5 rounded-full",
-                                    device.status === "online"
-                                      ? "bg-success"
-                                      : device.rxDbm !== null && device.rxDbm < -27
-                                        ? "bg-warning"
-                                        : "bg-destructive",
-                                  )}
-                                />
-                                {device.status === "online"
-                                  ? "Online"
-                                  : device.rxDbm !== null && device.rxDbm < -27
-                                    ? "Warning"
-                                    : "Offline"}
-                              </div>
+                              <Badge variant={tone.variant}>{tone.label}</Badge>
                             </div>
                           </div>
-                          <div className="flex items-center justify-between gap-2 rounded-xl border-2 border-border bg-muted/20 px-2.5 py-2">
+                          <div className="flex items-center justify-between gap-2 rounded-none border-2 border-border bg-muted/20 px-2.5 py-2">
                             <div className="min-w-0 space-y-1">
                               <p className="truncate text-[11px] font-medium text-foreground">{device.pppoeUsername}</p>
                               <p className="truncate text-[10px] text-muted-foreground">{device.ipAddress}</p>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               <div className="text-right">
-                                <p className={cn("text-[11px] font-semibold", device.rxDbm === null ? "text-muted-foreground" : device.rxDbm < -27 ? "text-warning" : "text-success")}>
+                                <p
+                                  className={cn(
+                                    "text-[11px] font-semibold",
+                                    device.rxDbm === null
+                                      ? "text-muted-foreground"
+                                      : tone.label === "critical" || tone.label === "offline"
+                                        ? "text-destructive"
+                                        : tone.label === "warning"
+                                          ? "text-warning"
+                                          : tone.label === "provisioning"
+                                            ? "text-accent"
+                                            : "text-success",
+                                  )}
+                                >
                                   {device.rxDbm === null ? "-" : `${device.rxDbm} dBm`}
                                 </p>
                               </div>
@@ -759,11 +823,12 @@ export default function OnuIndex() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
 
               {paginatedDevices.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">No ONU devices found for the selected filter.</div>
+                <div className="px-6 py-10 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">No ONU devices found for the selected filter.</div>
               ) : null}
 
               <div className="flex flex-col gap-3 border-t-2 border-border px-4 py-4 text-sm text-muted-foreground sm:px-6 sm:flex-row sm:items-center sm:justify-between">
@@ -786,7 +851,7 @@ export default function OnuIndex() {
             </>
           ) : null}
 
-          {isFetching && !isLoading ? <div className="border-t-2 border-border px-6 py-3 text-xs text-muted-foreground">Refreshing inventory...</div> : null}
+          {isFetching && !isLoading ? <div className="border-t-2 border-border px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Refreshing inventory...</div> : null}
         </CardContent>
       </Card>
       ) : null}

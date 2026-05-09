@@ -1,7 +1,6 @@
 import { Bell, LogOut, Menu } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useTheme } from "@/hooks/useTheme";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ const routeLabels: Record<string, string> = {
   onu: "ONU Devices",
   mikrotik: "Mikrotik",
   billing: "Billing",
+  hioso: "Manage OLT",
   settings: "Settings",
 };
 
@@ -21,7 +21,6 @@ type TopbarProps = {
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { brutalStyle, toggleBrutalStyle } = useTheme();
 
   const crumbs = location.pathname
     .split("/")
@@ -39,7 +38,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
               <Menu className="h-4 w-4" />
             </Button>
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground sm:text-xs">
-              <span className="inline-flex rounded-md border-2 border-border bg-card px-2 py-0.5 text-foreground shadow-brutal-sm">Home</span>
+              <span className="inline-flex rounded-lg border-2 border-border bg-card px-2 py-0.5 text-foreground shadow-brutal-sm">Home</span>
               {crumbs.map((crumb) => (
                 <span key={crumb} className="flex items-center gap-2">
                   <span className="text-foreground">/</span>
@@ -50,21 +49,11 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
           </div>
           <div className="min-w-0">
             <h1 className="break-all font-display text-xl uppercase tracking-[0.04em] text-foreground sm:text-2xl">{pageTitle}</h1>
-            <p className="max-w-full text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-sm">Real-time monitoring and device management.</p>
+            <p className="max-w-full text-xs font-semibold uppercase tracking-[0.06em] text-foreground sm:text-sm">Real-time monitoring and device management.</p>
           </div>
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
-          <Button
-            aria-label={brutalStyle === "lebih-ekstrim" ? "Mode aktif lebih ekstrim. Klik untuk pindah ke rapi brutal" : "Mode aktif rapi brutal. Klik untuk pindah ke lebih ekstrim"}
-            className="text-[10px] sm:text-xs"
-            onClick={toggleBrutalStyle}
-            size="sm"
-            variant="secondary"
-          >
-            <span className="sm:hidden">{brutalStyle === "lebih-ekstrim" ? "Ekstrim" : "Rapi"}</span>
-            <span className="hidden sm:inline">{brutalStyle === "lebih-ekstrim" ? "Mode: Lebih Ekstrim" : "Mode: Rapi Brutal"}</span>
-          </Button>
           <Button variant="outline" size="icon" aria-label="Notifications">
             <Bell className="h-4 w-4" />
           </Button>

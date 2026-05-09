@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/hooks/useRole";
-import { Search, Settings2 } from "lucide-react";
+import { MoreHorizontal, Plus, Search, Settings2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAsyncTask } from "@/hooks/useAsyncTask";
 import {
@@ -27,6 +27,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/retroui/Select";
+import { Table } from "@/components/retroui/Table";
 import { cn } from "@/lib/utils";
 import type {
   MikrotikAsyncActionResponse,
@@ -45,6 +47,7 @@ import type {
 type DetailTab = "interface" | "ppp-active" | "secret" | "profile";
 
 type InterfaceFilter = "all" | "ether" | "vlan" | "pppoe";
+type PppActiveFilterMode = "all" | "latest-uptime" | "ip";
 
 type PendingTask = {
   taskId: string;
@@ -74,6 +77,7 @@ const EMPTY_SECRET_FORM: MikrotikSecretUpsertPayload = {
 
 const EMPTY_PROFILE_FORM: MikrotikProfileUpsertPayload = {
   name: "",
+  disabled: false,
   local_address: "",
   remote_pool: "",
   rate_limit: "",
@@ -101,6 +105,26 @@ function getStatusVariant(status: MikrotikStatus) {
 function parsePercent(value: string) {
   const parsed = Number.parseFloat(value.replace("%", ""));
   return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 100));
+}
+
+function parseUptimeSeconds(value?: string) {
+  const uptime = (value ?? "").toLowerCase();
+  const parts = uptime.match(/(\d+)([wdhms])/g) ?? [];
+
+  return parts.reduce((total, part) => {
+    const unit = part.slice(-1);
+    const amount = Number.parseInt(part.slice(0, -1), 10);
+    if (Number.isNaN(amount)) {
+      return total;
+    }
+
+    if (unit === "w") return total + amount * 604800;
+    if (unit === "d") return total + amount * 86400;
+    if (unit === "h") return total + amount * 3600;
+    if (unit === "m") return total + amount * 60;
+    if (unit === "s") return total + amount;
+    return total;
+  }, 0);
 }
 
 function formatTrafficCompact(value?: number) {
@@ -213,6 +237,18 @@ function getInterfaceStatus(item: MikrotikInterfaceRow) {
   };
 }
 
+function getInterfaceNameChipClass(statusLabel: string) {
+  if (statusLabel === "Up") {
+    return "border-border bg-success text-success-foreground";
+  }
+
+  if (statusLabel === "Down") {
+    return "border-border bg-destructive text-destructive-foreground";
+  }
+
+  return "border-border bg-secondary text-secondary-foreground";
+}
+
 function formatInterfaceValue(value?: string | number | null) {
   if (value === null || value === undefined) {
     return "-";
@@ -285,6 +321,7 @@ function toProfilePayload(values: MikrotikProfileUpsertPayload) {
     remote_pool: toOptionalString(values.remote_pool),
     rate_limit: toOptionalString(values.rate_limit),
     dns_server: toOptionalString(values.dns_server),
+    disabled: values.disabled,
     only_one: values.only_one,
     change_tcp_mss: values.change_tcp_mss,
     comment: toOptionalString(values.comment),
@@ -299,6 +336,7 @@ function SecretForm({
   onSubmit,
   submitLabel,
   onCancel,
+  extraActions,
   isPending,
 }: {
   title: string;
@@ -308,6 +346,7 @@ function SecretForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   submitLabel: string;
   onCancel?: () => void;
+  extraActions?: ReactNode;
   isPending: boolean;
 }) {
   return (
@@ -319,30 +358,36 @@ function SecretForm({
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={onSubmit}>
           <Input placeholder="Name" required value={values.name} onChange={(event) => onChange({ ...values, name: event.target.value })} />
           <Input placeholder="Password" value={values.password ?? ""} onChange={(event) => onChange({ ...values, password: event.target.value })} />
-          <select
-            className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
-            value={values.profile ?? ""}
-            onChange={(event) => onChange({ ...values, profile: event.target.value })}
+          <Select
+            value={values.profile ?? undefined}
+            onValueChange={(value) => onChange({ ...values, profile: value })}
           >
-            <option value="">Select Profile</option>
-            {profileOptions.map((profile) => (
-              <option key={profile} value={profile}>
-                {profile}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
-            value={values.service ?? ""}
-            onChange={(event) => onChange({ ...values, service: event.target.value })}
+            <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+              <Select.Value placeholder="Select Profile" />
+            </Select.Trigger>
+            <Select.Content>
+              {profileOptions.map((profile) => (
+                <Select.Item key={profile} value={profile}>
+                  {profile}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
+          <Select
+            value={values.service ?? undefined}
+            onValueChange={(value) => onChange({ ...values, service: value })}
           >
-            <option value="">Select Service</option>
-            {PPP_SERVICE_OPTIONS.map((service) => (
-              <option key={service} value={service}>
-                {service}
-              </option>
-            ))}
-          </select>
+            <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+              <Select.Value placeholder="Select Service" />
+            </Select.Trigger>
+            <Select.Content>
+              {PPP_SERVICE_OPTIONS.map((service) => (
+                <Select.Item key={service} value={service}>
+                  {service}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
           <Input placeholder="Local Address" value={values.local_address ?? ""} onChange={(event) => onChange({ ...values, local_address: event.target.value })} />
           <Input placeholder="Remote Address" value={values.remote_address ?? ""} onChange={(event) => onChange({ ...values, remote_address: event.target.value })} />
           <Input placeholder="Comment" value={values.comment ?? ""} onChange={(event) => onChange({ ...values, comment: event.target.value })} />
@@ -353,6 +398,7 @@ function SecretForm({
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:col-span-2">
             <Button className="w-full sm:w-auto" disabled={isPending} type="submit">{submitLabel}</Button>
             {onCancel ? <Button className="w-full sm:w-auto" onClick={onCancel} type="button" variant="outline">Cancel</Button> : null}
+            {extraActions}
           </div>
         </form>
       </CardContent>
@@ -368,6 +414,7 @@ function ProfileForm({
   onSubmit,
   submitLabel,
   onCancel,
+  extraActions,
   isPending,
 }: {
   title: string;
@@ -377,6 +424,7 @@ function ProfileForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   submitLabel: string;
   onCancel?: () => void;
+  extraActions?: ReactNode;
   isPending: boolean;
 }) {
   return (
@@ -388,16 +436,19 @@ function ProfileForm({
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={onSubmit}>
           <Input placeholder="Name" required value={values.name} onChange={(event) => onChange({ ...values, name: event.target.value })} />
           <Input placeholder="Local Address" value={values.local_address ?? ""} onChange={(event) => onChange({ ...values, local_address: event.target.value })} />
-          <select
-            className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
-            value={values.remote_pool ?? ""}
-            onChange={(event) => onChange({ ...values, remote_pool: event.target.value })}
+          <Select
+            value={values.remote_pool ?? undefined}
+            onValueChange={(value) => onChange({ ...values, remote_pool: value })}
           >
-            <option value="">Select Remote Pool</option>
-            {remotePoolOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+            <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+              <Select.Value placeholder="Select Remote Pool" />
+            </Select.Trigger>
+            <Select.Content>
+              {remotePoolOptions.map((option) => (
+                <Select.Item key={option} value={option}>{option}</Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
           <Input placeholder="Rate Limit" value={values.rate_limit ?? ""} onChange={(event) => onChange({ ...values, rate_limit: event.target.value })} />
           <Input placeholder="DNS Server" value={values.dns_server ?? ""} onChange={(event) => onChange({ ...values, dns_server: event.target.value })} />
           <Input placeholder="Comment" value={values.comment ?? ""} onChange={(event) => onChange({ ...values, comment: event.target.value })} />
@@ -412,6 +463,7 @@ function ProfileForm({
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:col-span-2">
             <Button className="w-full sm:w-auto" disabled={isPending} type="submit">{submitLabel}</Button>
             {onCancel ? <Button className="w-full sm:w-auto" onClick={onCancel} type="button" variant="outline">Cancel</Button> : null}
+            {extraActions}
           </div>
         </form>
       </CardContent>
@@ -456,9 +508,9 @@ function OverlayPanel({
   }
 
   const overlayContent = (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-foreground/35 p-3 sm:p-6">
+    <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-foreground/35 p-3 sm:items-center sm:p-6">
       <button aria-label="Close overlay" className="absolute inset-0" onClick={onClose} type="button" />
-      <div aria-modal="true" className={cn("relative z-10 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border-2 border-border bg-card text-foreground shadow-brutal-lg", panelClassName)} role="dialog">
+      <div aria-modal="true" className={cn("relative z-10 box-border max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-[28px] border-2 border-border bg-card text-foreground shadow-brutal-lg sm:max-h-[90vh] sm:max-w-3xl", panelClassName)} role="dialog">
         <div className="flex items-start justify-between gap-4 border-b-2 border-border px-5 py-4 sm:px-6">
           <div>
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
@@ -487,6 +539,8 @@ export default function MikrotikDetail() {
   const { can } = useRole();
   const [activeTab, setActiveTab] = useState<DetailTab>("interface");
   const [tabSearchTerm, setTabSearchTerm] = useState("");
+  const [pppActiveFilterMode, setPppActiveFilterMode] = useState<PppActiveFilterMode>("all");
+  const [pppActiveIpFilter, setPppActiveIpFilter] = useState("");
   const [interfaceFilter, setInterfaceFilter] = useState<InterfaceFilter>("all");
   const [showSettings, setShowSettings] = useState(false);
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
@@ -497,6 +551,7 @@ export default function MikrotikDetail() {
   const [newProfile, setNewProfile] = useState<MikrotikProfileUpsertPayload>(EMPTY_PROFILE_FORM);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editingProfileForm, setEditingProfileForm] = useState<MikrotikProfileUpsertPayload>(EMPTY_PROFILE_FORM);
+  const [confirmProfileDelete, setConfirmProfileDelete] = useState(false);
   const [secretModalOpen, setSecretModalOpen] = useState<"none" | "create" | "edit">("none");
   const [profileModalOpen, setProfileModalOpen] = useState<"none" | "create" | "edit">("none");
   const [selectedInterfaceKey, setSelectedInterfaceKey] = useState<string | null>(null);
@@ -727,6 +782,37 @@ export default function MikrotikDetail() {
     setSecretModalOpen("edit");
   };
 
+  const closeSecretEditOverlay = () => {
+    setEditingSecretId(null);
+    setSecretModalOpen("none");
+  };
+
+  const openProfileEditOverlay = (profile: MikrotikProfileRow) => {
+    const profileId = profile[".id"] || profile.name;
+
+    setEditingProfileId(profileId);
+    setEditingProfileForm({
+      name: profile.name,
+      disabled: isTruthy(profile.disabled),
+      local_address: profile["local-address"] ?? "",
+      remote_pool: profile["remote-address"] ?? "",
+      rate_limit: profile["rate-limit"] ?? "",
+      dns_server: profile["dns-server"] ?? "",
+      only_one: isTruthy(profile["only-one"]),
+      change_tcp_mss: isTruthy(profile["change-tcp-mss"]),
+      comment: profile.comment ?? "",
+    });
+    setConfirmProfileDelete(false);
+    setProfileModalOpen("edit");
+  };
+
+  const closeProfileEditOverlay = () => {
+    setEditingProfileId(null);
+    setEditingProfileForm(EMPTY_PROFILE_FORM);
+    setConfirmProfileDelete(false);
+    setProfileModalOpen("none");
+  };
+
   useEffect(() => {
     if (!selectedInterfaceKey) {
       return;
@@ -809,7 +895,12 @@ export default function MikrotikDetail() {
 
   const deleteSecretMutation = useMutation({
     mutationFn: (secretId: string) => deleteMikrotikSecret(deviceId, secretId),
-    onSuccess: (response) => registerAsyncTask(response, ["mikrotik-secrets"]),
+    onSuccess: (response) => {
+      registerAsyncTask(response, ["mikrotik-secrets"]);
+      setEditingSecretId(null);
+      setEditingSecretForm(EMPTY_SECRET_FORM);
+      setSecretModalOpen("none");
+    },
   });
 
   const createProfileMutation = useMutation({
@@ -834,7 +925,10 @@ export default function MikrotikDetail() {
 
   const deleteProfileMutation = useMutation({
     mutationFn: (profileId: string) => deleteMikrotikProfile(deviceId, profileId),
-    onSuccess: (response) => registerAsyncTask(response, ["mikrotik-profiles"]),
+    onSuccess: (response) => {
+      registerAsyncTask(response, ["mikrotik-profiles"]);
+      closeProfileEditOverlay();
+    },
   });
 
   const pppInterfaceActionMutation = useMutation({
@@ -860,17 +954,31 @@ export default function MikrotikDetail() {
     [profileRows],
   );
   const normalizedTabSearchTerm = tabSearchTerm.trim().toLowerCase();
+  const normalizedPppActiveIpFilter = pppActiveIpFilter.trim().toLowerCase();
   const filteredPppRows = useMemo(
-    () => pppRows.filter((session) => matchesSearchTerm([
-      session.name,
-      session.service,
-      session["caller-id"],
-      session.address,
-      session.uptime,
-      session["session-id"],
-      session[".id"],
-    ], normalizedTabSearchTerm)),
-    [normalizedTabSearchTerm, pppRows],
+    () => {
+      const searched = pppRows.filter((session) => matchesSearchTerm([
+        session.name,
+        session.service,
+        session["caller-id"],
+        session.address,
+        session.uptime,
+        session["session-id"],
+        session[".id"],
+      ], normalizedTabSearchTerm));
+
+      const filteredByIp =
+        pppActiveFilterMode === "ip" && normalizedPppActiveIpFilter
+          ? searched.filter((session) => String(session.address ?? "").toLowerCase().includes(normalizedPppActiveIpFilter))
+          : searched;
+
+      if (pppActiveFilterMode === "latest-uptime") {
+        return [...filteredByIp].sort((a, b) => parseUptimeSeconds(a.uptime) - parseUptimeSeconds(b.uptime));
+      }
+
+      return filteredByIp;
+    },
+    [normalizedPppActiveIpFilter, normalizedTabSearchTerm, pppActiveFilterMode, pppRows],
   );
   const filteredSecretRows = useMemo(
     () => secretRows.filter((secret) => matchesSearchTerm([
@@ -985,31 +1093,31 @@ export default function MikrotikDetail() {
 
     return (
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/15 px-2.5 py-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Interface</span>
-            <span className="font-mono text-xs font-semibold text-foreground">{formatInterfaceValue(selectedInterface.name)}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className={cn(
+            "inline-flex items-center gap-2 rounded-full border-2 px-2.5 py-1",
+            getInterfaceNameChipClass(status.label)
+          )}>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">Interface</span>
+            <span className="font-mono text-xs font-semibold">{formatInterfaceValue(selectedInterface.name)}</span>
           </div>
-          <span className={cn("inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]", status.chipClassName)}>
-            {status.label}
-          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">TX</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">TX</p>
             <p className="mt-1 text-sm font-bold text-foreground">{traffic ? formatTrafficCompact(traffic.tx_mbps) : "—"}</p>
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">RX</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">RX</p>
             <p className="mt-1 text-sm font-bold text-foreground">{traffic ? formatTrafficCompact(traffic.rx_mbps) : "—"}</p>
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">TX PPS</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">TX PPS</p>
             <p className="mt-1 text-sm font-bold text-foreground">{traffic ? traffic.tx_pps.toLocaleString() : "—"}</p>
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">RX PPS</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">RX PPS</p>
             <p className="mt-1 text-sm font-bold text-foreground">{traffic ? traffic.rx_pps.toLocaleString() : "—"}</p>
           </div>
         </div>
@@ -1072,7 +1180,7 @@ export default function MikrotikDetail() {
         <div className="grid gap-2 sm:grid-cols-3">
           {detailRows.map(([label, value]) => (
             <div className="rounded-lg border border-border/60 bg-card px-3 py-2" key={label}>
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">{label}</span>
               <span className="mt-1 block break-all text-sm font-medium text-foreground">{value}</span>
             </div>
           ))}
@@ -1084,7 +1192,7 @@ export default function MikrotikDetail() {
   const renderInterfaceTab = () => {
     return (
       <div className="overflow-hidden rounded-[24px] border-2 border-border bg-card shadow-brutal">
-        <div className="border-b-2 border-border bg-card px-4 py-3 sm:px-5">
+        <div className="z-10 border-b border-border/80 bg-card/95 px-4 py-3 backdrop-blur lg:sticky lg:top-0 sm:px-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-base font-semibold text-foreground">Interface</h3>
@@ -1114,7 +1222,7 @@ export default function MikrotikDetail() {
           </div>
         </div>
 
-        <div className="space-y-2 bg-card/80 p-3 sm:p-4">
+        <div className="space-y-2 p-3 sm:p-4">
           {filteredInterfaces.length === 0 ? (
             <div className="rounded-3xl border-2 border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
               No interfaces found for the selected filter.
@@ -1129,17 +1237,19 @@ export default function MikrotikDetail() {
 
             return (
               <div key={interfaceSelectionKey}>
-                <div className="rounded-xl border border-border/80 px-3 py-2 sm:hidden">
+                <div className="rounded-lg border-2 border-border bg-card/95 px-3 py-2 shadow-brutal-sm sm:hidden">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-foreground">{item.name}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{formatInterfaceValue(item.type)} · {status.label}</p>
-                      {hasComment ? <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{commentValue}</p> : null}
+                      <span className={cn(
+                        "inline-flex max-w-[75%] truncate rounded-lg border-2 px-2 py-1 text-[12px] font-extrabold shadow-brutal-sm",
+                        getInterfaceNameChipClass(status.label)
+                      )}>{item.name}</span>
+                      <p className="mt-1 truncate text-[11px] text-foreground">Type | {formatInterfaceValue(item.type)}</p>
+                      {hasComment ? <p className="mt-0.5 truncate text-[10px] text-foreground">{commentValue}</p> : null}
                     </div>
-                    <span className={status.chipClassName}>{status.label}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="font-mono text-[10px] text-muted-foreground">MAC {getInterfaceMacAddress(item)}</span>
+                    <span className="font-mono text-[10px] text-foreground">MAC {getInterfaceMacAddress(item)}</span>
                     <Button
                       aria-haspopup="dialog"
                       className="h-7 px-2.5 text-[10px]"
@@ -1152,12 +1262,14 @@ export default function MikrotikDetail() {
                   </div>
                 </div>
 
-                <div className="hidden rounded-2xl border border-border/80 p-3 shadow-[0_12px_24px_-24px_rgba(15,23,42,0.24)] sm:block">
+                <div className="hidden rounded-lg border-2 border-border bg-card/95 p-3 shadow-brutal-sm sm:block">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-[14px] font-semibold text-foreground">{item.name}</h4>
-                        <span className={status.chipClassName}>{status.label}</span>
+                        <span className={cn(
+                          "inline-flex rounded-lg border-2 px-2 py-1 text-[12px] font-extrabold shadow-brutal-sm",
+                          getInterfaceNameChipClass(status.label)
+                        )}>{item.name}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {([
@@ -1165,13 +1277,13 @@ export default function MikrotikDetail() {
                           ["MAC", getInterfaceMacAddress(item)],
                           ["MTU", formatInterfaceValue(item.mtu)],
                         ] as const).map(([label, value]) => (
-                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground" key={label}>
-                            <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-foreground" key={label}>
+                            <span className="font-semibold uppercase tracking-[0.1em] text-foreground">{label}</span>
                             <span className="break-all font-medium text-foreground">{value}</span>
                           </div>
                         ))}
                         {hasComment ? (
-                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-foreground">
                             <span className="font-semibold uppercase tracking-[0.1em]">Note</span>
                             <span className="font-medium text-foreground">{commentValue}</span>
                           </div>
@@ -1207,16 +1319,38 @@ export default function MikrotikDetail() {
 
   const renderPppActiveTab = () => (
     <div className="overflow-hidden rounded-[24px] border-2 border-border bg-card shadow-brutal">
-      <div className="border-b-2 border-border bg-card px-4 py-3 sm:px-5">
+      <div className="z-10 border-b border-border/80 bg-card/95 px-4 py-3 backdrop-blur lg:sticky lg:top-0 sm:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-base font-semibold text-foreground">PPP Active</h3>
           </div>
-          <Badge variant="secondary">{filteredPppRows.length} / {pppRows.length}</Badge>
+          <span className="inline-flex rounded-lg border-2 border-border bg-accent/60 px-2 py-1 text-[11px] font-bold text-foreground shadow-brutal-sm">{filteredPppRows.length} / {pppRows.length}</span>
+        </div>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Select value={pppActiveFilterMode} onValueChange={(value) => setPppActiveFilterMode(value as PppActiveFilterMode)}>
+            <Select.Trigger className="h-9 w-full rounded-lg border-2 border-input bg-card px-3 text-xs font-bold uppercase shadow-brutal-sm sm:w-[220px]">
+              <Select.Value placeholder="Filter mode" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="all">Semua Session</Select.Item>
+              <Select.Item value="latest-uptime">Uptime Terbaru</Select.Item>
+              <Select.Item value="ip">Filter by IP</Select.Item>
+            </Select.Content>
+          </Select>
+
+          {pppActiveFilterMode === "ip" ? (
+            <Input
+              aria-label="Filter PPP by IP"
+              className="h-9 w-full text-xs sm:w-[260px]"
+              onChange={(event) => setPppActiveIpFilter(event.target.value)}
+              placeholder="Contoh: 10.10.10.2"
+              value={pppActiveIpFilter}
+            />
+          ) : null}
         </div>
       </div>
 
-      <div className="space-y-2 bg-card/80 p-3 sm:p-4">
+      <div className="space-y-2 p-3 sm:p-4">
         {filteredPppRows.length === 0 ? (
           <div className="rounded-3xl border-2 border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
             {normalizedTabSearchTerm ? activeTabSearchMeta["ppp-active"].emptyLabel : "No active PPP sessions found."}
@@ -1233,12 +1367,13 @@ export default function MikrotikDetail() {
 
           return (
             <div key={sessionId}>
-              <div className="rounded-xl border border-border/70 bg-card/95 px-3 py-2 sm:hidden">
+              <div className="rounded-lg border-2 border-border bg-card/95 px-3 py-2 shadow-brutal-sm sm:hidden">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-foreground">{session.name || "-"}</p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">{session.service || "PPP"} · {session.address || "-"}</p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">Caller {session["caller-id"] || "-"} · Uptime {session.uptime || "-"}</p>
+                    <span className="inline-flex max-w-[75%] truncate rounded-lg border-2 border-border bg-accent/60 px-2 py-1 text-[12px] font-extrabold text-foreground shadow-brutal-sm">{session.name || "-"}</span>
+                    <p className="mt-1 truncate text-[11px] text-foreground">Type | {session.service || "PPP"}</p>
+                    <p className="mt-1 truncate text-[11px] text-foreground">Caller {session["caller-id"] || "-"} · Uptime {session.uptime || "-"}</p>
+                    <p className="mt-1 truncate text-[11px] text-foreground">Remote IP {session.address || "-"}</p>
                   </div>
                   <Button
                     className="h-8 px-3 text-[11px]"
@@ -1251,24 +1386,16 @@ export default function MikrotikDetail() {
                 </div>
               </div>
 
-              <div className="hidden rounded-2xl border border-border/70 bg-card/95 px-3 py-2.5 shadow-[0_12px_24px_-24px_rgba(15,23,42,0.24)] sm:block">
+              <div className="hidden rounded-lg border-2 border-border bg-card/95 px-3 py-2.5 shadow-brutal-sm sm:block">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="inline-flex rounded-full border-2 border-border bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-foreground">
-                        {session.service || "PPP"}
-                      </span>
-                      <span className="inline-flex rounded-full border-2 border-border bg-success px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-success-foreground">
-                        Active
-                      </span>
-                    </div>
-
-                    <h4 className="break-all text-[14px] font-semibold leading-tight text-foreground">{session.name || "-"}</h4>
+                    <span className="inline-flex max-w-fit break-all rounded-lg border-2 border-border bg-accent/60 px-2 py-1 text-[12px] font-extrabold text-foreground shadow-brutal-sm">{session.name || "-"}</span>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground">Type | {session.service || "PPP"}</p>
 
                     <div className="flex flex-wrap gap-1.5">
                       {metaItems.map(([label, value]) => (
-                        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground" key={label}>
-                          <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+                        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-foreground" key={label}>
+                          <span className="font-semibold uppercase tracking-[0.1em] text-foreground">{label}</span>
                           <span className="break-all font-medium text-foreground">{value}</span>
                         </div>
                       ))}
@@ -1301,106 +1428,128 @@ export default function MikrotikDetail() {
           <CardTitle className="text-base sm:text-lg">Secret Inventory</CardTitle>
           {can("mikrotik_ppp_write") && (
           <Button
-            className="h-8 self-start px-3 text-[11px] sm:min-w-28"
+            aria-label="Add Secret"
+            className="h-8 w-8 self-start p-0"
             onClick={() => {
               setNewSecret(EMPTY_SECRET_FORM);
               setSecretModalOpen("create");
             }}
             type="button"
           >
-            Add Secret
+            <Plus className="h-4 w-4" />
           </Button>
           )}
         </CardHeader>
         <CardContent className="space-y-2">
           {filteredSecretRows.length === 0 ? <p className="text-sm text-muted-foreground">{normalizedTabSearchTerm ? activeTabSearchMeta.secret.emptyLabel : "No PPP secrets found."}</p> : null}
-          {filteredSecretRows.map((secret: MikrotikSecretRow) => {
-            const secretId = secret[".id"] || secret.name;
-            const metaItems = [
-              ["Profile", secret.profile || "-"],
-              ["Service", secret.service || "-"],
-              ["Local", secret["local-address"] || "-"],
-              ["Remote", secret["remote-address"] || "-"],
-            ] as const;
+          <div className="rounded-2xl border border-border/80">
+            <div className="max-h-[62vh] overflow-y-auto overflow-x-hidden lg:hidden">
+              <div className="divide-y divide-border/60">
+                {filteredSecretRows.map((secret: MikrotikSecretRow) => {
+                  const secretId = secret[".id"] || secret.name;
+                  const isDisabled = isTruthy(secret.disabled);
 
-            return (
-              <div key={secretId}>
-                <div className="rounded-xl border border-border/80 px-3 py-2 sm:hidden">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-foreground">{secret.name}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{secret.profile || "-"} · {secret.service || "-"}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{secret["remote-address"] || "-"}</p>
-                    </div>
-                    <Badge className="text-[10px]" variant={isTruthy(secret.disabled) ? "secondary" : "success"}>{isTruthy(secret.disabled) ? "Off" : "On"}</Badge>
-                  </div>
-                  <div className="mt-2 grid gap-2 min-[420px]:grid-cols-2">
-                    {can("mikrotik_ppp_write") && (
-                    <Button
-                      aria-haspopup="dialog"
-                      className="h-8 text-[11px]"
-                      onClick={() => openSecretEditOverlay(secret)}
-                      variant="outline"
-                    >
-                      Edit
-                    </Button>
-                    )}
-                    {can("mikrotik_ppp_write") && (
-                    <Button
-                      className="h-8 text-[11px]"
-                      disabled={deleteSecretMutation.isPending}
-                      onClick={() => void deleteSecretMutation.mutateAsync(secretId)}
-                      variant="destructive"
-                    >
-                      Delete
-                    </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="hidden rounded-2xl border border-border/80 p-3 sm:block">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <h4 className="truncate text-[15px] font-semibold text-foreground">{secret.name}</h4>
-                        <Badge variant={isTruthy(secret.disabled) ? "secondary" : "success"}>{isTruthy(secret.disabled) ? "Disabled" : "Enabled"}</Badge>
+                  return (
+                    <div className="space-y-2 px-3 py-2.5" key={secretId}>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={cn(
+                          "inline-flex max-w-[75%] break-all rounded-lg border-2 px-2 py-1 text-xs font-extrabold shadow-brutal-sm",
+                          isDisabled
+                            ? "border-border bg-destructive/15 text-destructive"
+                            : "border-border bg-success text-success-foreground"
+                        )}>
+                          {secret.name || "-"}
+                        </span>
+                        {can("mikrotik_ppp_write") ? (
+                          <Button
+                            aria-label="Open secret detail"
+                            className="h-7 w-7 p-0"
+                            onClick={() => openSecretEditOverlay(secret)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        ) : null}
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {metaItems.map(([label, value]) => (
-                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground" key={label}>
-                            <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
-                            <span className="break-all font-medium text-foreground">{value}</span>
-                          </div>
-                        ))}
+
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground">
+                        {(secret.service || "-")} | {(secret.profile || "-")}
+                      </div>
+
+                      <div className="grid gap-1.5 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="min-w-12 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground">Local</span>
+                          <span className="break-all text-foreground">{secret["local-address"] || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="min-w-12 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground">Remote</span>
+                          <span className="break-all text-foreground">{secret["remote-address"] || "-"}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex flex-row gap-2 sm:w-auto">
-                      {can("mikrotik_ppp_write") && (
-                      <Button
-                        aria-haspopup="dialog"
-                        className="h-8 w-full text-[12px] sm:w-24"
-                        onClick={() => openSecretEditOverlay(secret)}
-                        variant="outline"
-                      >
-                        Edit
-                      </Button>
-                      )}
-                      {can("mikrotik_ppp_write") && (
-                      <Button
-                        className="h-8 w-full text-[12px] sm:w-24"
-                        disabled={deleteSecretMutation.isPending}
-                        onClick={() => void deleteSecretMutation.mutateAsync(secretId)}
-                        variant="destructive"
-                      >
-                        Delete
-                      </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+
+            <div className="hidden max-h-[62vh] overflow-auto lg:block">
+              <Table className="min-w-[760px]">
+                <Table.Header className="sticky top-0 z-10 bg-accent/70 backdrop-blur">
+                  <Table.Row className="border-b-2 border-border bg-accent/70 hover:bg-accent/70">
+                    <Table.Head className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">Name</Table.Head>
+                    <Table.Head className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">Profile</Table.Head>
+                    <Table.Head className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">Service</Table.Head>
+                    <Table.Head className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">Local</Table.Head>
+                    <Table.Head className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">Remote</Table.Head>
+                    {can("mikrotik_ppp_write") ? <Table.Head className="text-right text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">Actions</Table.Head> : null}
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {filteredSecretRows.map((secret: MikrotikSecretRow) => {
+                    const secretId = secret[".id"] || secret.name;
+                    const isDisabled = isTruthy(secret.disabled);
+
+                    return (
+                      <Table.Row key={secretId}>
+                        <Table.Cell>
+                          <span className={cn(
+                            "inline-flex break-all rounded-lg border-2 px-2 py-1 text-xs font-extrabold shadow-brutal-sm sm:text-sm",
+                            isDisabled
+                              ? "border-border bg-destructive/15 text-destructive"
+                              : "border-border bg-success text-success-foreground"
+                          )}>
+                            {secret.name || "-"}
+                          </span>
+                        </Table.Cell>
+                        <Table.Cell className="break-all text-xs sm:text-sm">{secret.profile || "-"}</Table.Cell>
+                        <Table.Cell className="text-xs sm:text-sm">{secret.service || "-"}</Table.Cell>
+                        <Table.Cell className="break-all text-xs sm:text-sm">{secret["local-address"] || "-"}</Table.Cell>
+                        <Table.Cell className="break-all text-xs sm:text-sm">{secret["remote-address"] || "-"}</Table.Cell>
+                        {can("mikrotik_ppp_write") ? (
+                          <Table.Cell>
+                            <div className="flex justify-end">
+                              <Button
+                                aria-label="Open secret detail"
+                                className="h-8 w-8 p-0"
+                                onClick={() => openSecretEditOverlay(secret)}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </Table.Cell>
+                        ) : null}
+                      </Table.Row>
+                    );
+                  })}
+                </Table.Body>
+              </Table>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -1413,14 +1562,15 @@ export default function MikrotikDetail() {
           <CardTitle className="text-base sm:text-lg">Profile Inventory</CardTitle>
           {can("mikrotik_ppp_write") && (
           <Button
-            className="h-8 self-start px-3 text-[11px] sm:min-w-28"
+            aria-label="Add Profile"
+            className="h-8 w-8 self-start p-0"
             onClick={() => {
               setNewProfile(EMPTY_PROFILE_FORM);
               setProfileModalOpen("create");
             }}
             type="button"
           >
-            Add Profile
+            <Plus className="h-4 w-4" />
           </Button>
           )}
         </CardHeader>
@@ -1437,94 +1587,52 @@ export default function MikrotikDetail() {
 
             return (
               <div key={profileId}>
-                <div className="rounded-xl border border-border/80 px-3 py-2 sm:hidden">
+                <div className="rounded-lg border-2 border-border bg-card/95 px-3 py-2 shadow-brutal-sm sm:hidden">
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-foreground">{profile.name}</p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">Local {profile["local-address"] || "-"} · Pool {profile["remote-address"] || "-"}</p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">Rate {profile["rate-limit"] || "-"}</p>
+                    <span className="inline-flex max-w-full truncate rounded-lg border-2 border-border bg-accent/60 px-2 py-1 text-[13px] font-extrabold text-foreground shadow-brutal-sm">{profile.name}</span>
+                    <p className="mt-1 truncate text-[11px] text-foreground">Local {profile["local-address"] || "-"} · Pool {profile["remote-address"] || "-"}</p>
+                    <p className="mt-1 truncate text-[11px] text-foreground">Rate {profile["rate-limit"] || "-"}</p>
                   </div>
-<div className="mt-2 grid gap-2 min-[420px]:grid-cols-2">
-                    {can("mikrotik_ppp_write") && (
-                    <Button
-                      className="h-8 text-[11px]"
-                      onClick={() => {
-                        setEditingProfileId(profileId);
-                        setEditingProfileForm({
-                          name: profile.name,
-                          local_address: profile["local-address"] ?? "",
-                          remote_pool: profile["remote-address"] ?? "",
-                          rate_limit: profile["rate-limit"] ?? "",
-                          dns_server: profile["dns-server"] ?? "",
-                          only_one: isTruthy(profile["only-one"]),
-                          change_tcp_mss: isTruthy(profile["change-tcp-mss"]),
-                          comment: profile.comment ?? "",
-                        });
-                        setProfileModalOpen("edit");
-                      }}
-                      variant="outline"
-                    >
-                      Edit
-                    </Button>
-                    )}
-                    {can("mikrotik_ppp_write") && (
-                    <Button
-                      className="h-8 text-[11px]"
-                      disabled={deleteProfileMutation.isPending}
-                      onClick={() => void deleteProfileMutation.mutateAsync(profileId)}
-                      variant="destructive"
-                    >
-                      Delete
-                    </Button>
-                    )}
+                  <div className="mt-2 flex justify-end">
+                    {can("mikrotik_ppp_write") ? (
+                      <Button
+                        aria-label="Profile actions"
+                        className="h-8 w-8 p-0"
+                        onClick={() => openProfileEditOverlay(profile)}
+                        type="button"
+                        variant="outline"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="hidden rounded-2xl border border-border/80 p-3 sm:block">
+                <div className="hidden rounded-lg border-2 border-border bg-card/95 p-3 shadow-brutal-sm sm:block">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-1.5">
-                      <h4 className="truncate text-[15px] font-semibold text-foreground">{profile.name}</h4>
+                      <span className="inline-flex max-w-full truncate rounded-lg border-2 border-border bg-accent/60 px-2 py-1 text-[14px] font-extrabold text-foreground shadow-brutal-sm">{profile.name}</span>
                       <div className="flex flex-wrap gap-1.5">
                         {metaItems.map(([label, value]) => (
-                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-muted-foreground" key={label}>
-                            <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/20 px-2.5 py-1.5 text-[11px] text-foreground" key={label}>
+                            <span className="font-semibold uppercase tracking-[0.1em] text-foreground">{label}</span>
                             <span className="break-all font-medium text-foreground">{value}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="flex flex-row gap-2 sm:w-auto">
-                      {can("mikrotik_ppp_write") && (
-                      <Button
-                        className="h-8 w-full text-[12px] sm:w-24"
-                        onClick={() => {
-                          setEditingProfileId(profileId);
-                          setEditingProfileForm({
-                            name: profile.name,
-                            local_address: profile["local-address"] ?? "",
-                            remote_pool: profile["remote-address"] ?? "",
-                            rate_limit: profile["rate-limit"] ?? "",
-                            dns_server: profile["dns-server"] ?? "",
-                            only_one: isTruthy(profile["only-one"]),
-                            change_tcp_mss: isTruthy(profile["change-tcp-mss"]),
-                            comment: profile.comment ?? "",
-                          });
-                          setProfileModalOpen("edit");
-                        }}
-                        variant="outline"
-                      >
-                        Edit
-                      </Button>
-                      )}
-                      {can("mikrotik_ppp_write") && (
-                      <Button
-                        className="h-8 w-full text-[12px] sm:w-24"
-                        disabled={deleteProfileMutation.isPending}
-                        onClick={() => void deleteProfileMutation.mutateAsync(profileId)}
-                        variant="destructive"
-                      >
-                        Delete
-                      </Button>
-                      )}
+                    <div className="flex justify-end sm:w-auto">
+                      {can("mikrotik_ppp_write") ? (
+                        <Button
+                          aria-label="Profile actions"
+                          className="h-8 w-8 p-0"
+                          onClick={() => openProfileEditOverlay(profile)}
+                          type="button"
+                          variant="outline"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -1541,11 +1649,11 @@ export default function MikrotikDetail() {
       <Card className="border-2 border-border shadow-brutal">
         <CardContent className="space-y-2.5 p-2.5 sm:p-3">
           <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex w-max touch-pan-x gap-2 whitespace-nowrap pr-1">
+            <div className="flex min-w-max flex-nowrap gap-2 pr-1">
               {TAB_ITEMS.map((tab) => (
                 <button
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-full border-2 border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors",
+                    "inline-flex shrink-0 items-center gap-2 rounded-full border-2 border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors",
                     activeTab === tab.key
                       ? "bg-primary/25 text-foreground shadow-brutal-sm"
                       : "bg-card text-foreground hover:bg-muted/30"
@@ -1647,12 +1755,12 @@ export default function MikrotikDetail() {
 
           <div className="mt-1 overflow-x-auto">
             <div className="flex min-w-max items-center gap-2 text-[11px] sm:text-[12px]">
-              <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground">Uptime</span>
+              <span className="font-semibold uppercase tracking-[0.12em] text-foreground">Uptime</span>
               <span className="font-mono font-semibold text-foreground">{uptimeLabel}</span>
 
               <span aria-hidden="true" className="text-muted-foreground">·</span>
 
-              <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground">CPU</span>
+              <span className="font-semibold uppercase tracking-[0.12em] text-foreground">CPU</span>
               <span className="font-mono font-semibold text-foreground">{cpuLoadLabel}</span>
               <div className="h-1.5 w-14 rounded-full bg-muted/25">
                 <div className={cn("h-1.5 rounded-full transition-all", cpuMeterClassName)} style={{ width: `${cpuPercent}%` }} />
@@ -1660,7 +1768,7 @@ export default function MikrotikDetail() {
 
               <span aria-hidden="true" className="text-muted-foreground">·</span>
 
-              <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground">Memory</span>
+              <span className="font-semibold uppercase tracking-[0.12em] text-foreground">Memory</span>
               <span className="font-mono font-semibold text-foreground">{freeMemoryLabel}</span>
             </div>
           </div>
@@ -1779,19 +1887,13 @@ export default function MikrotikDetail() {
 
       <OverlayPanel
         description="Edit the selected PPP secret in a popup editor."
-        onClose={() => {
-          setEditingSecretId(null);
-          setSecretModalOpen("none");
-        }}
+        onClose={closeSecretEditOverlay}
         open={secretModalOpen === "edit" && Boolean(editingSecretId)}
         title="Edit PPP Secret"
       >
         <SecretForm
           isPending={updateSecretMutation.isPending}
-          onCancel={() => {
-            setEditingSecretId(null);
-            setSecretModalOpen("none");
-          }}
+          onCancel={closeSecretEditOverlay}
           onChange={setEditingSecretForm}
           profileOptions={profileRows.map((profile) => profile.name)}
           onSubmit={(event) => {
@@ -1804,6 +1906,33 @@ export default function MikrotikDetail() {
               payload: toSecretPayload(editingSecretForm),
             });
           }}
+          extraActions={editingSecretId ? (
+            <>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={updateSecretMutation.isPending || deleteSecretMutation.isPending}
+                onClick={() => {
+                  void updateSecretMutation.mutateAsync({
+                    secretId: editingSecretId,
+                    payload: { disabled: !editingSecretForm.disabled },
+                  });
+                }}
+                type="button"
+                variant="secondary"
+              >
+                {editingSecretForm.disabled ? "Enable" : "Disable"}
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={deleteSecretMutation.isPending || updateSecretMutation.isPending}
+                onClick={() => deleteSecretMutation.mutate(editingSecretId)}
+                type="button"
+                variant="destructive"
+              >
+                Delete
+              </Button>
+            </>
+          ) : undefined}
           submitLabel="Save Secret"
           title="Secret Editor"
           values={editingSecretForm}
@@ -1812,7 +1941,7 @@ export default function MikrotikDetail() {
 
       <OverlayPanel
         description="Create a new PPP profile in a focused modal instead of an inline form."
-        onClose={() => setProfileModalOpen("none")}
+        onClose={closeProfileEditOverlay}
         open={profileModalOpen === "create"}
         title="Add PPP Profile"
       >
@@ -1832,19 +1961,13 @@ export default function MikrotikDetail() {
 
       <OverlayPanel
         description="Edit the selected PPP profile in a popup editor."
-        onClose={() => {
-          setEditingProfileId(null);
-          setProfileModalOpen("none");
-        }}
+        onClose={closeProfileEditOverlay}
         open={profileModalOpen === "edit" && Boolean(editingProfileId)}
         title="Edit PPP Profile"
       >
         <ProfileForm
-          isPending={updateProfileMutation.isPending}
-          onCancel={() => {
-            setEditingProfileId(null);
-            setProfileModalOpen("none");
-          }}
+          isPending={updateProfileMutation.isPending || deleteProfileMutation.isPending}
+          onCancel={closeProfileEditOverlay}
           onChange={setEditingProfileForm}
           remotePoolOptions={remotePoolOptions}
           onSubmit={(event) => {
@@ -1860,6 +1983,49 @@ export default function MikrotikDetail() {
           submitLabel="Save Profile"
           title="Profile Editor"
           values={editingProfileForm}
+          extraActions={editingProfileId ? (
+            <>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={updateProfileMutation.isPending || deleteProfileMutation.isPending}
+                onClick={() => {
+                  void updateProfileMutation.mutateAsync({
+                    profileId: editingProfileId,
+                    payload: { disabled: !editingProfileForm.disabled },
+                  });
+                }}
+                type="button"
+                variant="secondary"
+              >
+                {editingProfileForm.disabled ? "Enable" : "Disable"}
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={updateProfileMutation.isPending || deleteProfileMutation.isPending}
+                onClick={() => {
+                  if (!confirmProfileDelete) {
+                    setConfirmProfileDelete(true);
+                    return;
+                  }
+                  deleteProfileMutation.mutate(editingProfileId);
+                }}
+                type="button"
+                variant="destructive"
+              >
+                {confirmProfileDelete ? "Confirm Delete" : "Delete"}
+              </Button>
+              {confirmProfileDelete ? (
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={() => setConfirmProfileDelete(false)}
+                  type="button"
+                  variant="outline"
+                >
+                  Cancel Delete
+                </Button>
+              ) : null}
+            </>
+          ) : undefined}
         />
       </OverlayPanel>
     </div>

@@ -244,9 +244,15 @@ func hiosoLoadRuntimeSettingsFresh() hiosoRuntimeSettings {
 }
 
 func (s hiosoRuntimeSettings) ToSNMPTarget() SNMPTarget {
+	host, port, err := hiosoResolveSNMPTarget(s.Host, s.Port)
+	if err != nil {
+		host = strings.TrimSpace(s.Host)
+		port = hiosoParseSNMPPort(s.Port)
+	}
+
 	return SNMPTarget{
-		Host:      strings.TrimSpace(s.Host),
-		Port:      hiosoParseSNMPPort(s.Port),
+		Host:      host,
+		Port:      port,
 		Community: strings.TrimSpace(s.Community),
 		Version:   hiosoParseSNMPVersion(s.Version),
 	}
@@ -255,7 +261,7 @@ func (s hiosoRuntimeSettings) ToSNMPTarget() SNMPTarget {
 func hiosoGuard(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method == http.MethodPost {
 		path := strings.TrimRight(r.URL.Path, "/")
-		if path == "/api/plugin/hioso/enable" || path == "/api/plugin/hioso/disable" {
+		if path == "/api/hioso/enable" || path == "/api/hioso/disable" {
 			return true
 		}
 	}
@@ -265,7 +271,7 @@ func hiosoGuard(w http.ResponseWriter, r *http.Request) bool {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
-			"error":   "Plugin Hioso tidak aktif. Aktifkan via POST /api/plugin/hioso/enable",
+			"error":   "Plugin Hioso tidak aktif. Aktifkan via POST /api/hioso/enable",
 			"data":    nil,
 		})
 		return false

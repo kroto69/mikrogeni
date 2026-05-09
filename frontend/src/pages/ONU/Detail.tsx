@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/retroui/Select";
 import { useAsyncTask } from "@/hooks/useAsyncTask";
 import {
   getAcsDeviceDetail,
@@ -190,7 +191,7 @@ function buildWifiFormFromProfile(profile?: WifiProfile, activeSsids: string[] =
 function InfoItem({ label, value, action, muted = false }: { label: string; value: ReactNode; action?: ReactNode; muted?: boolean }) {
   return (
     <div className="space-y-1.5 rounded-xl border-2 border-border bg-card/95 p-3 shadow-brutal-sm sm:p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-xs">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground sm:text-xs">{label}</p>
       <div className="flex items-center justify-between gap-3">
         <div className={cn("break-all text-[13px] font-medium text-foreground sm:text-sm", muted && "text-muted-foreground")}>{value}</div>
         {action}
@@ -494,19 +495,23 @@ export default function OnuDetail() {
               setRows(next);
             }}
           />
-          <select
-            className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
+          <Select
             value={row.type}
-            onChange={(event) => {
+            onValueChange={(value) => {
               const next = [...rows];
-              next[index] = { ...row, type: event.target.value };
+              next[index] = { ...row, type: value };
               setRows(next);
             }}
           >
-            <option value="xsd:string">String</option>
-            <option value="xsd:int">Integer</option>
-            <option value="xsd:boolean">Boolean</option>
-          </select>
+            <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+              <Select.Value placeholder="Select type" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="xsd:string">String</Select.Item>
+              <Select.Item value="xsd:int">Integer</Select.Item>
+              <Select.Item value="xsd:boolean">Boolean</Select.Item>
+            </Select.Content>
+          </Select>
           <Button
             className="w-full sm:w-auto"
             onClick={() => setRows(rows.filter((_, currentIndex) => currentIndex !== index))}
@@ -757,7 +762,7 @@ export default function OnuDetail() {
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge className="text-[9px] sm:text-[10px]" variant="success">Active</Badge>
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-[11px]">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground sm:text-[11px]">
                         {detail.parameter_profile_source || "ACS sync"}
                       </span>
                     </div>
@@ -802,7 +807,7 @@ export default function OnuDetail() {
                         {index === 1 ? <Thermometer className="h-3.5 w-3.5 text-foreground sm:h-4 sm:w-4" /> : null}
                         {index === 2 ? <Radio className="h-3.5 w-3.5 text-foreground sm:h-4 sm:w-4" /> : null}
                       </div>
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-[10px]">{label}</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-foreground sm:text-[10px]">{label}</p>
                       <div className="mt-1 flex flex-col items-start gap-1 md:flex-row md:items-center md:gap-2">
                         <p className={cn(
                           "text-[13px] font-semibold text-foreground sm:text-[15px] md:text-lg",
@@ -868,7 +873,7 @@ export default function OnuDetail() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="truncate text-sm font-semibold text-foreground">{profile.ssid}</p>
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">#{profile.index}</span>
+                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">#{profile.index}</span>
                               </div>
                               <p className="text-[11px] text-muted-foreground">
                                 {activeSsidList.includes(profile.ssid)
@@ -898,7 +903,7 @@ export default function OnuDetail() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-border bg-card px-3.5 py-2.5 shadow-brutal-sm">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Active SSIDs</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">Active SSIDs</p>
                     <div className="mt-1.5 flex flex-wrap gap-2">
                       {activeSsidList.length === 0 ? (
                         <span className="text-[13px] text-muted-foreground">No active SSID</span>
@@ -942,7 +947,7 @@ export default function OnuDetail() {
                   <>
                     <div className="hidden overflow-x-auto md:block">
                       <table className="min-w-full text-left text-sm">
-                        <thead className="bg-card/80 text-xs uppercase tracking-[0.15em] text-muted-foreground dark:bg-card/70">
+                        <thead className="bg-card/80 text-xs uppercase tracking-[0.15em] text-foreground dark:bg-card/70">
                           <tr>
                             {clientColumns.map((column) => (
                               <th className="px-4 py-3" key={column}>{column.replace(/_/g, " ")}</th>
@@ -969,7 +974,7 @@ export default function OnuDetail() {
                           <div className="grid gap-3 sm:grid-cols-2">
                             {clientColumns.map((column) => (
                               <div key={column}>
-                                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{column.replace(/_/g, " ")}</p>
+                                <p className="text-xs uppercase tracking-[0.14em] text-foreground">{column.replace(/_/g, " ")}</p>
                                 <p className="mt-1 break-all text-sm text-foreground">{typeof client === "string" ? normalizeClientValue(client) : normalizeClientValue(client[column])}</p>
                               </div>
                             ))}
@@ -1045,18 +1050,26 @@ export default function OnuDetail() {
       <OverlayPanel open={activeModal === "wifi"} title="Config WiFi" description="Select an existing SSID profile, adjust the name or password, then save." onClose={() => setActiveModal("none")}>
         <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void handleWifiSubmit(); }}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <select
-              className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm sm:col-span-2"
-              value={wifiForm.profileIndex}
-              onChange={(event) => handleWifiProfileChange(event.target.value)}
+            <Select
+              value={wifiForm.profileIndex || undefined}
+              onValueChange={(value) => handleWifiProfileChange(value)}
             >
-              {detail.wifi_profiles.length === 0 ? <option value="">No profile available</option> : null}
-              {detail.wifi_profiles.map((profile) => (
-                <option key={profile.index} value={profile.index}>
-                  {inferWifiBand(profile)} · {profile.ssid}
-                </option>
-              ))}
-            </select>
+              <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm sm:col-span-2">
+                <Select.Value placeholder="Select profile" />
+              </Select.Trigger>
+              <Select.Content>
+                {detail.wifi_profiles.length === 0 ? (
+                  <Select.Item value="__no_profile__" disabled>
+                    No profile available
+                  </Select.Item>
+                ) : null}
+                {detail.wifi_profiles.map((profile) => (
+                  <Select.Item key={profile.index} value={profile.index}>
+                    {inferWifiBand(profile)} · {profile.ssid}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
             <Input placeholder="SSID" required value={wifiForm.ssid} onChange={(event) => setWifiForm((current) => ({ ...current, ssid: event.target.value }))} />
             <div className="relative">
               <Input
@@ -1078,14 +1091,18 @@ export default function OnuDetail() {
             <div className="flex h-11 items-center rounded-lg border-2 border-input bg-card px-3 text-sm font-medium text-foreground shadow-brutal-sm">
               {wifiForm.band}
             </div>
-            <select
-              className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm"
+            <Select
               value={wifiForm.enabled ? "on" : "off"}
-              onChange={(event) => setWifiForm((current) => ({ ...current, enabled: event.target.value === "on" }))}
+              onValueChange={(value) => setWifiForm((current) => ({ ...current, enabled: value === "on" }))}
             >
-              <option value="on">Enable SSID</option>
-              <option value="off">Disable SSID</option>
-            </select>
+              <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                <Select.Value placeholder="Select state" />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="on">Enable SSID</Select.Item>
+                <Select.Item value="off">Disable SSID</Select.Item>
+              </Select.Content>
+            </Select>
           </div>
           <div className="rounded-2xl bg-card/80 px-4 py-3 text-xs text-muted-foreground dark:bg-card/70">
             <p>Current profile selection loads the existing SSID name and password so you only need to edit the fields that should change.</p>

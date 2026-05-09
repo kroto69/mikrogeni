@@ -71,6 +71,8 @@ npm run dev
 
 Frontend default: `http://localhost:5173` — otomatis proxy ke backend `:1997`.
 
+> Branding/logo frontend dikelola di `frontend/src/images/logo.png` (dipakai oleh Login dan Sidebar).
+
 ### 5. Login pertama (Bootstrap Admin)
 
 Sebelum jalan server, set di file `.env`:
@@ -204,20 +206,57 @@ mikrogeni/
 | `POST` | `/api/refresh` | Refresh access token |
 | `GET` | `/api/health` | Health check |
 
-### Hioso OLT Plugin
+### Hioso OLT
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| `GET` | `/api/plugin/hioso/status` | Status plugin (enabled/disabled + host) |
-| `POST` | `/api/plugin/hioso/enable` | Aktifkan plugin |
-| `POST` | `/api/plugin/hioso/disable` | Nonaktifkan plugin |
-| `GET` | `/api/plugin/hioso/health` | Health check OLT via SNMP |
-| `GET` | `/api/plugin/hioso/onu` | List semua ONU |
-| `GET` | `/api/plugin/hioso/onu?port=N` | List ONU per port |
-| `GET` | `/api/plugin/hioso/onu/{index}` | Detail 1 ONU |
-| `POST` | `/api/plugin/hioso/onu/{index}/rename` | Rename ONU |
-| `POST` | `/api/plugin/hioso/onu/{index}/reboot` | Reboot ONU |
-| `GET` | `/api/plugin/hioso/ports` | List port yang tersedia |
+| `GET` | `/api/hioso/status` | Status plugin (enabled/disabled + host) |
+| `POST` | `/api/hioso/enable` | Aktifkan plugin |
+| `POST` | `/api/hioso/disable` | Nonaktifkan plugin |
+| `GET` | `/api/hioso/devices` | List OLT Hioso yang tersimpan |
+| `POST` | `/api/hioso/devices` | Tambah OLT Hioso |
+| `GET` | `/api/hioso/devices/{device_id}` | Detail OLT |
+| `PATCH` | `/api/hioso/devices/{device_id}` | Update OLT |
+| `DELETE` | `/api/hioso/devices/{device_id}` | Hapus OLT |
+| `POST` | `/api/hioso/devices/{device_id}/test` | Test SNMP reachability + deteksi profil |
+| `GET` | `/api/hioso/devices/{device_id}/health` | Health check OLT via SNMP |
+| `GET` | `/api/hioso/devices/{device_id}/ports` | List port yang tersedia |
+| `GET` | `/api/hioso/devices/{device_id}/onu` | List ONU (default port=1, dukung `?force=true`) |
+| `GET` | `/api/hioso/devices/{device_id}/onu/{index}` | Detail 1 ONU |
+| `POST` | `/api/hioso/devices/{device_id}/onu/{index}/rename` | Rename ONU (SNMP prioritas, fallback Web API) |
+| `POST` | `/api/hioso/devices/{device_id}/onu/{index}/reboot` | Reboot ONU via Web API |
+
+### Analisis Backend Hioso (Mei 2026)
+
+Ringkasan flow backend berdasarkan implementasi saat ini:
+
+1. **Entrypoint & routing**
+   - Route Hioso diregistrasi di `cmd/server/main.go` pada prefix **`/api/hioso`**.
+   - Scheduler health berjalan periodik via `internal/scheduler/hioso_health_scheduler.go` dan memanggil `HiosoRunHealthCheck`.
+
+2. **Layer handler & settings runtime**
+   - Orkestrasi request ada di `internal/handlers/hioso_plugin.go`.
+   - `device_id` direzolusi ke konfigurasi OLT dari SQLite (`internal/db/hioso_db.go`).
+   - Konversi ke target SNMP sekarang melalui resolver (`hiosoResolveSNMPTarget`) agar format host `host:port`/URL tetap konsisten.
+
+3. **Layer SNMP + fallback web**
+   - Operasi SNMP utama ada di `internal/handlers/hioso_snmp.go` (walk, set, fallback OID, parsing ONU).
+   - Rename ONU: prioritas SNMP, fallback ke Web API (`internal/handlers/hioso_webapi.go`) jika SNMP gagal.
+   - Reboot ONU: lewat Web API OLT.
+
+4. **Catatan clean code**
+   - **Sudah baik**: pemisahan file handler/db/webapi jelas, contract endpoint konsisten, dan health scheduler terpisah.
+   - **Perlu perbaikan lanjut**: `hioso_snmp.go` masih cukup besar, sehingga refactor per domain (walk, parser, profile detect, fallback policy) disarankan agar lebih mudah dirawat.
+
+5. **Mitigasi RTO yang sudah diterapkan**
+   - SNMP walk/fallback pada jalur fetch utama sudah dibuat **context-aware** (bisa stop saat request timeout/cancel).
+   - Delay antar-step SNMP dibuat **lebih pendek** dan **cancellable**, mengurangi risiko request menggantung.
+
+Jika menemui kasus "SNMP ke OLT gagal/RTO", cek berurutan:
+- kredensial & versi SNMP (`community`, v1/v2c),
+- host/port OLT yang tersimpan,
+- reachability jaringan UDP/161,
+- hasil `POST /api/hioso/devices/{device_id}/test` dan `GET /api/hioso/devices/{device_id}/health`.
 
 ---
 

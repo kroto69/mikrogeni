@@ -374,9 +374,20 @@ func mapsValues(data map[string]string) []string {
 
 // hiosoSNMPWalk melakukan SNMP walk dan mengembalikan map index→value string.
 func hiosoSNMPWalk(target SNMPTarget, oid string) (map[string]string, error) {
+	return hiosoSNMPWalkWithContext(context.Background(), target, oid)
+}
+
+func hiosoSNMPWalkWithContext(ctx context.Context, target SNMPTarget, oid string) (map[string]string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	baseOID := strings.TrimSpace(oid)
 	if baseOID == "" {
 		return nil, errors.New("OID kosong")
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	client := hiosoNewSNMPClient(target, 5*time.Second)
@@ -384,9 +395,15 @@ func hiosoSNMPWalk(target SNMPTarget, oid string) (map[string]string, error) {
 		return nil, fmt.Errorf("gagal konek SNMP ke %s: %w", target.Host, err)
 	}
 	defer client.Conn.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = client.Conn.SetDeadline(deadline)
+	}
 
 	results := make(map[string]string)
 	walkHandler := func(pdu gosnmp.SnmpPDU) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		index := hiosoExtractIndex(pdu.Name, baseOID)
 		if index == "" {
 			trimmed := strings.TrimPrefix(strings.TrimPrefix(pdu.Name, "."), strings.TrimPrefix(baseOID, ".")+".")
@@ -404,10 +421,13 @@ func hiosoSNMPWalk(target SNMPTarget, oid string) (map[string]string, error) {
 	if walkErr != nil {
 		walkErr = client.Walk(baseOID, walkHandler)
 	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 
 	if len(results) == 0 {
 		scalarOID := hiosoEnsureScalarOID(baseOID)
-		if scalarOID != "" {
+		if scalarOID != "" && ctx.Err() == nil {
 			if packet, getErr := client.Get([]string{scalarOID}); getErr == nil && packet != nil && len(packet.Variables) > 0 {
 				for _, variable := range packet.Variables {
 					results["0"] = hiosoPDUToString(variable)
@@ -418,10 +438,33 @@ func hiosoSNMPWalk(target SNMPTarget, oid string) (map[string]string, error) {
 	}
 
 	if walkErr != nil && len(results) == 0 {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("SNMP walk gagal oid=%s: %w", baseOID, walkErr)
 	}
 
 	return results, nil
+}
+
+func hiosoSleepWithContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	if ctx == nil {
+		time.Sleep(delay)
+		return nil
+	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // hiosoSNMPSet melakukan SNMP SET OctetString ke OID target.
@@ -481,31 +524,31 @@ func FetchAllONU(ctx context.Context, target SNMPTarget) ([]HiosoONU, string, er
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		names, nameErr = hiosoSNMPWalk(target, profile.NameOID)
+		names, nameErr = hiosoSNMPWalkWithContext(ctx, target, profile.NameOID)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sns, _ = hiosoSNMPWalk(target, profile.SNOID)
+		sns, _ = hiosoSNMPWalkWithContext(ctx, target, profile.SNOID)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		statuses, _ = hiosoSNMPWalk(target, profile.StatOID)
+		statuses, _ = hiosoSNMPWalkWithContext(ctx, target, profile.StatOID)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		txValues, _ = hiosoSNMPWalk(target, profile.TxOID)
+		txValues, _ = hiosoSNMPWalkWithContext(ctx, target, profile.TxOID)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rxValues, _ = hiosoSNMPWalk(target, profile.RxOID)
+		rxValues, _ = hiosoSNMPWalkWithContext(ctx, target, profile.RxOID)
 	}()
 
 	wg.Wait()
@@ -528,7 +571,7 @@ func FetchAllONU(ctx context.Context, target SNMPTarget) ([]HiosoONU, string, er
 		if hiosoHasMeaningfulSNMPValues(sns) {
 			break
 		}
-		fallbackData, fallbackErr := hiosoSNMPWalk(target, oid)
+		fallbackData, fallbackErr := hiosoSNMPWalkWithContext(ctx, target, oid)
 		if fallbackErr != nil || len(fallbackData) == 0 {
 			continue
 		}
@@ -620,42 +663,50 @@ func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoON
 
 	statusFallbacks, txFallbacks, rxFallbacks := hiosoGetFallbackOIDs(profile)
 
-	names, nameErr := hiosoSNMPWalk(target, nameOID)
+	names, nameErr := hiosoSNMPWalkWithContext(ctx, target, nameOID)
 	if nameErr != nil {
 		return nil, profile.Name, fmt.Errorf("gagal baca nama ONU: %w", nameErr)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 200*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
 	var snFallbackPort []string
 	for _, fb := range hiosoSNFallbacks {
 		snFallbackPort = append(snFallbackPort, fb+portSuffix)
 	}
-	sns, _ := hiosoWalkWithFallback(target, snOID, snFallbackPort)
+	sns, _ := hiosoWalkWithFallbackCtx(ctx, target, snOID, snFallbackPort)
 
-	time.Sleep(500 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 200*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
 	statFallbackPort := make([]string, len(statusFallbacks))
 	for i, fb := range statusFallbacks {
 		statFallbackPort[i] = fb + portSuffix
 	}
-	statuses, _ := hiosoWalkWithFallback(target, statOID, statFallbackPort)
+	statuses, _ := hiosoWalkWithFallbackCtx(ctx, target, statOID, statFallbackPort)
 
-	time.Sleep(500 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 200*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
 	txFallbackPort := make([]string, len(txFallbacks))
 	for i, fb := range txFallbacks {
 		txFallbackPort[i] = fb + portSuffix
 	}
-	txValues, _ := hiosoWalkWithFallback(target, txOID, txFallbackPort)
+	txValues, _ := hiosoWalkWithFallbackCtx(ctx, target, txOID, txFallbackPort)
 
-	time.Sleep(500 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 200*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
 	rxFallbackPort := make([]string, len(rxFallbacks))
 	for i, fb := range rxFallbacks {
 		rxFallbackPort[i] = fb + portSuffix
 	}
-	rxValues, _ := hiosoWalkWithFallback(target, rxOID, rxFallbackPort)
+	rxValues, _ := hiosoWalkWithFallbackCtx(ctx, target, rxOID, rxFallbackPort)
 
 	if names == nil {
 		names = make(map[string]string)
@@ -668,7 +719,7 @@ func FetchONUByPort(ctx context.Context, target SNMPTarget, port int) ([]HiosoON
 		if hiosoHasMeaningfulSNMPValues(sns) {
 			break
 		}
-		fallbackData, fallbackErr := hiosoSNMPWalk(target, oid)
+		fallbackData, fallbackErr := hiosoSNMPWalkWithContext(ctx, target, oid)
 		if fallbackErr != nil || len(fallbackData) == 0 {
 			continue
 		}
@@ -892,19 +943,23 @@ func hiosoParentBranch(oid string) string {
 }
 
 func hiosoWalkWithFallback(target SNMPTarget, mainOID string, fallbacks []string) (map[string]string, error) {
+	return hiosoWalkWithFallbackCtx(context.Background(), target, mainOID, fallbacks)
+}
+
+func hiosoWalkWithFallbackCtx(ctx context.Context, target SNMPTarget, mainOID string, fallbacks []string) (map[string]string, error) {
 	if mainOID == "" && len(fallbacks) == 0 {
 		return nil, errors.New("OID kosong, tidak ada fallback")
 	}
 
 	if mainOID != "" {
-		result, err := hiosoSNMPWalk(target, mainOID)
+		result, err := hiosoSNMPWalkWithContext(ctx, target, mainOID)
 		if err == nil && len(result) > 0 {
 			return result, nil
 		}
 	}
 
 	for _, foid := range fallbacks {
-		result, err := hiosoSNMPWalk(target, foid)
+		result, err := hiosoSNMPWalkWithContext(ctx, target, foid)
 		if err == nil && len(result) > 0 {
 			return result, nil
 		}
@@ -1230,7 +1285,7 @@ func hiosoNewSNMPClientOptimized(target SNMPTarget) *gosnmp.GoSNMP {
 	}
 }
 
-func hiosoGetProfileOptimized(target SNMPTarget) (*hiosoOIDProfile, error) {
+func hiosoGetProfileOptimized(ctx context.Context, target SNMPTarget) (*hiosoOIDProfile, error) {
 	cacheKey := "optimized:" + target.Host + ":" + target.Community
 	if cached, ok := hiosoProfileCache.Load(cacheKey); ok {
 		entry := cached.(*hiosoProfileCacheEntry)
@@ -1242,7 +1297,7 @@ func hiosoGetProfileOptimized(target SNMPTarget) (*hiosoOIDProfile, error) {
 
 	hiosoC := hiosoFindProfileByName("HIOSO_C")
 	if hiosoC != nil {
-		values, err := hiosoSNMPWalk(target, hiosoC.NameOID)
+		values, err := hiosoSNMPWalkWithContext(ctx, target, hiosoC.NameOID)
 		if err == nil && len(values) > 0 {
 			hiosoProfileCache.Store(cacheKey, &hiosoProfileCacheEntry{
 				profile:   hiosoC,
@@ -1267,7 +1322,7 @@ func hiosoGetProfileOptimized(target SNMPTarget) (*hiosoOIDProfile, error) {
 }
 
 func fetchONUByPortInternal(ctx context.Context, target SNMPTarget, port int) ([]HiosoONU, string, error) {
-	profile, err := hiosoGetProfileOptimized(target)
+	profile, err := hiosoGetProfileOptimized(ctx, target)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1302,26 +1357,34 @@ func fetchONUByPortInternal(ctx context.Context, target SNMPTarget, port int) ([
 		rxFallbackPort[i] = fb + portSuffix
 	}
 
-	names, nameErr := hiosoSNMPWalk(target, nameOID)
+	names, nameErr := hiosoSNMPWalkWithContext(ctx, target, nameOID)
 	if nameErr != nil {
 		return nil, profile.Name, fmt.Errorf("gagal baca nama ONU: %w", nameErr)
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 150*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
-	sns, _ := hiosoWalkWithFallback(target, snOID, snFallbackPort)
+	sns, _ := hiosoWalkWithFallbackCtx(ctx, target, snOID, snFallbackPort)
 
-	time.Sleep(300 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 150*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
-	statuses, _ := hiosoWalkWithFallback(target, statOID, statFallbackPort)
+	statuses, _ := hiosoWalkWithFallbackCtx(ctx, target, statOID, statFallbackPort)
 
-	time.Sleep(300 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 150*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
-	txValues, _ := hiosoWalkWithFallback(target, txOID, txFallbackPort)
+	txValues, _ := hiosoWalkWithFallbackCtx(ctx, target, txOID, txFallbackPort)
 
-	time.Sleep(300 * time.Millisecond)
+	if err := hiosoSleepWithContext(ctx, 150*time.Millisecond); err != nil {
+		return nil, profile.Name, err
+	}
 
-	rxValues, _ := hiosoWalkWithFallback(target, rxOID, rxFallbackPort)
+	rxValues, _ := hiosoWalkWithFallbackCtx(ctx, target, rxOID, rxFallbackPort)
 
 	if names == nil {
 		names = make(map[string]string)
@@ -1334,7 +1397,7 @@ func fetchONUByPortInternal(ctx context.Context, target SNMPTarget, port int) ([
 		if hiosoHasMeaningfulSNMPValues(sns) {
 			break
 		}
-		fallbackData, fallbackErr := hiosoSNMPWalk(target, oid)
+		fallbackData, fallbackErr := hiosoSNMPWalkWithContext(ctx, target, oid)
 		if fallbackErr != nil || len(fallbackData) == 0 {
 			continue
 		}

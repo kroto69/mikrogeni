@@ -203,8 +203,8 @@ func main() {
 			r.Post("/jobs/overdue/run", handlers.RunOverdueCheckerNow)
 		})
 
-		// ── Plugin: Hioso OLT ────────────────────────────────────────────────
-		r.Route("/api/plugin/hioso", func(r chi.Router) {
+		// ── Hioso OLT ───────────────────────────────────────────────────────
+		r.Route("/api/hioso", func(r chi.Router) {
 			// Plugin control (enable/disable tanpa restart)
 			r.Get("/status", handlers.HiosoStatusHandler)
 			r.Post("/enable", handlers.HiosoEnableHandler)

@@ -3,7 +3,7 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "neo-panel inline-flex items-center rounded-md border-2 border-border px-2.5 py-1 font-body text-[11px] font-extrabold uppercase tracking-[0.14em] shadow-brutal-sm",
+  "neo-panel inline-flex items-center rounded-lg border-2 border-border px-2.5 py-1 font-body text-[11px] font-extrabold uppercase tracking-[0.14em] shadow-brutal-sm",
   {
     variants: {
       variant: {
@@ -12,6 +12,11 @@ const badgeVariants = cva(
         warning: "bg-warning text-warning-foreground",
         destructive: "bg-destructive text-destructive-foreground",
         secondary: "bg-secondary text-secondary-foreground",
+        online: "bg-success text-success-foreground",
+        offline: "bg-destructive text-destructive-foreground",
+        critical: "bg-destructive text-destructive-foreground",
+        disabled: "bg-muted text-muted-foreground",
+        provisioning: "bg-accent text-accent-foreground",
       },
     },
     defaultVariants: {

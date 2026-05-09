@@ -92,6 +92,7 @@ export interface MikrotikSecretRow {
 export interface MikrotikProfileRow {
   ".id": string;
   name: string;
+  disabled?: string | boolean;
   "local-address"?: string;
   "remote-address"?: string;
   "rate-limit"?: string;
@@ -114,6 +115,7 @@ export interface MikrotikSecretUpsertPayload {
 
 export interface MikrotikProfileUpsertPayload {
   name: string;
+  disabled?: boolean;
   local_address?: string;
   remote_pool?: string;
   rate_limit?: string;

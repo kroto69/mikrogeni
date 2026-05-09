@@ -47,6 +47,10 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        complementary: {
+          DEFAULT: "hsl(var(--complementary))",
+          foreground: "hsl(var(--complementary-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

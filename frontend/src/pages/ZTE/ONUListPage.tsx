@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { StatusBadge as NmsStatusBadge } from '@/components/nms/status-badge'
+import { Select } from '@/components/retroui/Select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import type { NmsStatus } from '@/lib/status-tone'
 import { getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo } from '@/lib/zteApi'
-import { ZTEModal } from './_components/ZTEModal'
 import { ZTEONUDetailModal } from './_components/ZTEONUDetailModal'
 import { ZTESkeleton } from './_components/ZTESkeleton'
 import { ZTEEmptyState } from './_components/ZTEEmptyState'
@@ -73,10 +75,10 @@ function StatCard({ value, label, color, onClick }: StatCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`neo-panel border-2 border-border shadow-brutal-sm text-center px-2 py-2 transition-all hover:-translate-y-[1px] hover:shadow-brutal ${color}`}
+      className={`neo-panel rounded-none border-2 border-border bg-card text-center px-2 py-2 shadow-brutal-sm transition-all hover:-translate-y-[1px] hover:shadow-brutal ${color}`}
     >
       <p className="font-heading text-xl font-extrabold leading-none sm:text-2xl">{value}</p>
-      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground sm:text-[11px]">{label}</p>
+      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-current/80 sm:text-[11px]">{label}</p>
     </button>
   )
 }
@@ -111,35 +113,40 @@ function FilterToolbar({
       <div className="w-full lg:w-auto">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Pilih Board &amp; Pon</p>
         <div className="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto">
-          <select
+          <Select
             value={String(board)}
-            onChange={(e) => {
-              onBoardChange(Number(e.target.value))
+            onValueChange={(value) => {
+              onBoardChange(Number(value))
               onPonChange(null)
             }}
-            className="h-10 w-full rounded-lg border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36"
           >
-            {boardOptions.map((item) => (
-              <option key={item} value={item}>
-                BOARD {item}
-              </option>
-            ))}
-          </select>
+            <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
+              <Select.Value placeholder="BOARD" />
+            </Select.Trigger>
+            <Select.Content>
+              {boardOptions.map((item) => (
+                <Select.Item key={item} value={String(item)}>
+                  BOARD {item}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
 
-          <select
-            value={pon != null ? String(pon) : ''}
-            onChange={(e) => onPonChange(e.target.value ? Number(e.target.value) : null)}
-            className="h-10 w-full rounded-lg border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36"
+          <Select
+            value={pon != null ? String(pon) : undefined}
+            onValueChange={(value) => onPonChange(value ? Number(value) : null)}
           >
-            <option value="" disabled>
-              Pilih PON
-            </option>
-            {ponList.map((item) => (
-              <option key={`${item.board}-${item.pon}`} value={item.pon}>
-                PON {item.pon}{item.description ? ` — ${item.description}` : ''}
-              </option>
-            ))}
-          </select>
+            <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
+              <Select.Value placeholder="Pilih PON" />
+            </Select.Trigger>
+            <Select.Content>
+              {ponList.map((item) => (
+                <Select.Item key={`${item.board}-${item.pon}`} value={String(item.pon)}>
+                  PON {item.pon}{item.description ? ` — ${item.description}` : ''}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
 
           <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
             LOAD
@@ -168,7 +175,7 @@ type SectionHeaderProps = {
 
 function SectionHeader({ autoRefresh }: SectionHeaderProps) {
   return (
-    <div className="flex items-end justify-between">
+    <div className="flex flex-wrap items-end justify-between gap-2">
       <h2 className="font-heading text-base font-extrabold uppercase tracking-tight">LIVE ONU LIST</h2>
       <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
         REFRESH: {autoRefresh ? '5s' : 'OFF'}
@@ -181,25 +188,19 @@ type StatusBadgeProps = {
   status: DashboardRow['status']
 }
 
-function StatusBadge({ status }: StatusBadgeProps) {
-  const config =
-    status === 'ONLINE'
-      ? { bg: 'bg-success', text: 'text-success-foreground', border: 'border-border', label: 'ONLINE' }
-      : status === 'LOS'
-        ? { bg: 'bg-destructive', text: 'text-destructive-foreground', border: 'border-border', label: 'LOS' }
-        : status === 'RANGING'
-          ? { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-400', label: 'RANGING' }
-          : status === 'DYING_GASP'
-            ? { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-400', label: 'DYING GASP' }
-            : status === 'POWER_OFF'
-              ? { bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-400', label: 'POWER OFF' }
-              : { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border', label: 'OFFLINE' }
+function mapZteStatusToNms(status: DashboardRow['status']): { status: NmsStatus; label: string } {
+  if (status === 'ONLINE') return { status: 'online', label: 'ONLINE' }
+  if (status === 'LOS') return { status: 'critical', label: 'LOS' }
+  if (status === 'RANGING') return { status: 'provisioning', label: 'RANGING' }
+  if (status === 'DYING_GASP') return { status: 'warning', label: 'DYING GASP' }
+  if (status === 'POWER_OFF') return { status: 'down', label: 'POWER OFF' }
+  return { status: 'offline', label: 'OFFLINE' }
+}
 
-  return (
-    <span className={`inline-flex items-center rounded-md border-2 px-2 py-[2px] text-[8px] font-extrabold uppercase tracking-wider shadow-brutal-sm ${config.bg} ${config.text} ${config.border}`}>
-      {config.label}
-    </span>
-  )
+function StatusBadge({ status }: StatusBadgeProps) {
+  const tone = mapZteStatusToNms(status)
+
+  return <NmsStatusBadge status={tone.status} label={tone.label} size="sm" />
 }
 
 type DataTableProps = {
@@ -209,14 +210,14 @@ type DataTableProps = {
 
 function DataTable({ rows, onViewDetail }: DataTableProps) {
   return (
-    <div className="neo-panel border-2 border-border bg-card shadow-brutal-sm rounded-lg overflow-hidden">
-      <div className="space-y-2 p-2.5 sm:p-3 md:hidden">
+    <div className="neo-panel rounded-none border-2 border-border bg-card shadow-brutal-sm overflow-hidden">
+      <div className="space-y-2 p-2.5 sm:p-3 lg:hidden">
         {rows.map((row) => (
           <button
             key={`${row.id}-${row.sn}`}
             type="button"
             onClick={() => onViewDetail(row)}
-            className="w-full rounded-xl border-2 border-border bg-card px-3 py-3 text-left shadow-brutal-sm transition-all hover:-translate-y-[1px] hover:shadow-brutal"
+            className="w-full rounded-none border-2 border-border bg-card px-3 py-3 text-left shadow-brutal-sm transition-all hover:-translate-y-[1px] hover:shadow-brutal"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -227,11 +228,11 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg border border-border/70 bg-muted/20 px-2 py-1.5">
+              <div className="rounded-none border-2 border-border bg-muted/20 px-2 py-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Serial</p>
                 <p className="mt-0.5 break-all font-semibold text-foreground">{row.sn}</p>
               </div>
-              <div className="rounded-lg border border-border/70 bg-muted/20 px-2 py-1.5 text-right">
+              <div className="rounded-none border-2 border-border bg-muted/20 px-2 py-1.5 text-right">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX</p>
                 <p className="mt-0.5 font-extrabold text-foreground">{row.rx === 'NONE' ? 'NONE' : `${row.rx} dBm`}</p>
               </div>
@@ -240,7 +241,7 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
         ))}
       </div>
 
-      <div className="hidden max-h-[60vh] overflow-y-auto overflow-x-auto md:block">
+      <div className="hidden max-h-[60vh] overflow-y-auto overflow-x-auto lg:block">
         <table className="min-w-full text-left text-sm">
           <thead className="sticky top-0 z-10 border-b-2 border-border bg-muted">
             <tr>
@@ -266,7 +267,7 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
                 <td className="px-3 py-2.5 text-center">
                   <button
                     onClick={(e) => { e.stopPropagation(); onViewDetail(row) }}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border-2 border-input bg-card text-[10px] font-bold shadow-brutal-sm hover:bg-accent"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-none border-2 border-input bg-card text-[10px] font-bold shadow-brutal-sm hover:bg-accent"
                   >
                     ...
                   </button>
@@ -402,10 +403,10 @@ export default function ONUListPage() {
 
         {hasLoaded && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <StatCard value={stats.total} label="TOTAL" color="bg-orange-100" onClick={() => setSearchQuery('')} />
-            <StatCard value={stats.online} label="ONLINE" color="bg-cyan-100" onClick={() => setSearchQuery('ONLINE')} />
-            <StatCard value={stats.los} label="LOS" color="bg-red-100" onClick={() => setSearchQuery('LOS')} />
-            <StatCard value={stats.offline} label="OFF" color="bg-gray-100" onClick={() => setSearchQuery('OFF')} />
+            <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
+            <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
+            <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
+            <StatCard value={stats.offline} label="OFF" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
           </div>
         )}
 

@@ -28,7 +28,7 @@ function AuthBoundary({ children, guestOnly = false }: { children: ReactNode; gu
   if (isLoading) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
-          <div className="neo-panel rounded-2xl border border-border bg-card px-6 py-4 text-sm text-muted-foreground">
+          <div className="neo-panel rounded-lg border-2 border-border bg-card px-6 py-4 text-sm text-muted-foreground">
             Preparing your workspace...
           </div>
         </div>
@@ -51,7 +51,7 @@ function AppRoutes() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-          <div className="neo-panel rounded-2xl border border-border bg-card px-6 py-4 text-sm text-muted-foreground">
+          <div className="neo-panel rounded-lg border-2 border-border bg-card px-6 py-4 text-sm text-muted-foreground">
             Loading interface...
           </div>
         </div>
