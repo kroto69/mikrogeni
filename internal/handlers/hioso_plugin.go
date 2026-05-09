@@ -386,13 +386,18 @@ func HiosoFetchAllHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	port := 1
-	if parsed, parseErr := strconv.Atoi(strings.TrimSpace(chi.URLParam(r, "port"))); parseErr == nil && parsed > 0 {
+	portRaw := strings.TrimSpace(r.URL.Query().Get("port"))
+	if portRaw == "" {
+		// Backward compatibility if route-based port is ever introduced.
+		portRaw = strings.TrimSpace(chi.URLParam(r, "port"))
+	}
+	if parsed, parseErr := strconv.Atoi(portRaw); parseErr == nil && parsed > 0 {
 		port = parsed
 	}
 
 	force := r.URL.Query().Get("force") == "true"
 
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
 	onus, _, err := FetchONUByPortCached(ctx, target, port, force)
