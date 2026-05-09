@@ -418,8 +418,8 @@ func HiosoDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	index := strings.TrimSpace(chi.URLParam(r, "index"))
-	if index == "" {
+	onuRef := strings.TrimSpace(chi.URLParam(r, "index"))
+	if onuRef == "" {
 		hiosoError(w, http.StatusBadRequest, "index ONU wajib diisi")
 		return
 	}
@@ -435,10 +435,52 @@ func HiosoDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	portRaw := strings.TrimSpace(r.URL.Query().Get("port"))
+	if portRaw != "" {
+		port, err := strconv.Atoi(portRaw)
+		if err != nil || port <= 0 {
+			hiosoError(w, http.StatusBadRequest, "port tidak valid")
+			return
+		}
+
+		force := r.URL.Query().Get("force") == "true"
+		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+		defer cancel()
+
+		onus, _, err := FetchONUByPortCached(ctx, target, port, force)
+		if ctx.Err() != nil {
+			hiosoError(w, http.StatusGatewayTimeout, "request timeout")
+			return
+		}
+		if err != nil {
+			hiosoError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+
+		for _, onu := range onus {
+			if strings.TrimSpace(onu.Index) == onuRef {
+				hiosoJSON(w, onu)
+				return
+			}
+		}
+
+		if onuID, parseErr := strconv.Atoi(onuRef); parseErr == nil {
+			for _, onu := range onus {
+				if onu.ONUID == onuID {
+					hiosoJSON(w, onu)
+					return
+				}
+			}
+		}
+
+		hiosoError(w, http.StatusNotFound, fmt.Sprintf("ONU %s tidak ditemukan di port %d", onuRef, port))
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 
-	onu, err := FetchONUByIndex(ctx, target, index)
+	onu, err := FetchONUByIndex(ctx, target, onuRef)
 	if ctx.Err() != nil {
 		hiosoError(w, http.StatusGatewayTimeout, "request timeout")
 		return
