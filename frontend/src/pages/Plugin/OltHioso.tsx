@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/retroui/Select";
+import { Loader } from "@/components/retroui/Loader";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
   createHiosoDevice,
@@ -137,6 +138,7 @@ export default function OltHiosoPage() {
   const [zteForm, setZteForm] = useState<ZteFormState>(EMPTY_ZTE_FORM);
   const [zteTesting, setZteTesting] = useState(false);
   const [zteTestResult, setZteTestResult] = useState<{ ok: boolean; latency: number } | null>(null);
+  const [isRefreshOverlayOpen, setIsRefreshOverlayOpen] = useState(false);
 
   const resetOltModalState = () => {
     setEditingDevice(null);
@@ -268,6 +270,7 @@ export default function OltHiosoPage() {
     mutationFn: (id: string) => deleteHiosoDevice(id),
     onSuccess: async () => {
       showToast({ title: "Device deleted", description: "OLT device was removed.", variant: "success" });
+      closeDeviceModal();
       if (selectedDeviceId !== null) {
         const remaining = (devicesQuery.data ?? []).filter((d) => d.id !== selectedDeviceId);
         setSelectedDeviceId(remaining.length > 0 ? remaining[0].id : null);
@@ -321,6 +324,7 @@ export default function OltHiosoPage() {
     mutationFn: (id: string) => deleteZTEConnection(id),
     onSuccess: async () => {
       showToast({ title: "ZTE OLT dihapus", variant: "success" });
+      closeDeviceModal();
       await queryClient.invalidateQueries({ queryKey: ["zte-connections"] });
     },
     onError: (error) => {
@@ -361,6 +365,7 @@ export default function OltHiosoPage() {
   };
 
   const handleZteTest = async () => {
+    setIsRefreshOverlayOpen(true);
     setZteTesting(true);
     setZteTestResult(null);
     try {
@@ -373,6 +378,37 @@ export default function OltHiosoPage() {
       showToast({ title: "Gagal terhubung", variant: "error" });
     } finally {
       setZteTesting(false);
+      setIsRefreshOverlayOpen(false);
+    }
+  };
+
+  const handleRefreshAll = async () => {
+    if (!selectedDeviceId) {
+      return;
+    }
+
+    setIsRefreshOverlayOpen(true);
+    try {
+      await Promise.allSettled([
+        devicesQuery.refetch(),
+        healthQuery.refetch(),
+        onusQuery.refetch(),
+      ]);
+    } finally {
+      setIsRefreshOverlayOpen(false);
+    }
+  };
+
+  const handleDeviceTest = async () => {
+    if (!selectedDeviceId) {
+      return;
+    }
+
+    setIsRefreshOverlayOpen(true);
+    try {
+      await testDeviceMutation.mutateAsync(selectedDeviceId);
+    } finally {
+      setIsRefreshOverlayOpen(false);
     }
   };
 
@@ -457,6 +493,15 @@ export default function OltHiosoPage() {
 
   return (
     <div className="route-shell-page route-shell-plugin-hioso space-y-5">
+      {isRefreshOverlayOpen ? (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-foreground/35 backdrop-blur-sm">
+          <div className="neo-panel flex min-w-[220px] flex-col items-center gap-3 border-2 border-border bg-card px-5 py-4 shadow-brutal-lg">
+            <Loader count={4} size="lg" variant="default" />
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Refreshing OLT Data...</p>
+          </div>
+        </div>
+      ) : null}
+
       <section className="route-shell-panel relative overflow-hidden rounded-[26px] border-2 border-border bg-primary/20 px-4 py-5 shadow-[12px_12px_0_0_hsl(var(--border))] sm:px-6 sm:py-6">
         <div className="pointer-events-none absolute -right-5 top-4 h-20 w-20 rotate-12 border-2 border-border bg-primary/90" />
         <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
@@ -470,10 +515,9 @@ export default function OltHiosoPage() {
                 <>
                   <Button
                     className="w-full sm:w-auto"
+                    disabled={isRefreshOverlayOpen}
                     onClick={() => {
-                      void devicesQuery.refetch();
-                      void healthQuery.refetch();
-                      void onusQuery.refetch();
+                      void handleRefreshAll();
                     }}
                     type="button"
                     variant="outline"
@@ -482,8 +526,10 @@ export default function OltHiosoPage() {
                   </Button>
                   <Button
                     className="w-full sm:w-auto"
-                    disabled={testDeviceMutation.isPending}
-                    onClick={() => testDeviceMutation.mutate(selectedDeviceId!)}
+                    disabled={testDeviceMutation.isPending || isRefreshOverlayOpen}
+                    onClick={() => {
+                      void handleDeviceTest();
+                    }}
                     type="button"
                     variant="outline"
                   >
@@ -500,11 +546,6 @@ export default function OltHiosoPage() {
                     </Button>
                   ) : null}
                 </>
-              ) : null}
-              {canManageOlt ? (
-                <Button className="w-full sm:w-auto" onClick={openCreateDeviceModal} type="button">
-                  + Add OLT
-                </Button>
               ) : null}
             </div>
           )}
@@ -531,7 +572,7 @@ export default function OltHiosoPage() {
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
             <p>Belum ada OLT HIOSO terdaftar.</p>
-            <p>Gunakan <span className="font-semibold text-foreground">+ Add OLT</span> untuk menambahkan OLT HIOSO.</p>
+            <p>Tambahkan OLT dari menu Sidebar untuk mulai monitoring.</p>
           </CardContent>
         </Card>
       ) : null}
@@ -894,7 +935,34 @@ export default function OltHiosoPage() {
           ) : null}
         </div>
 
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
+          {deviceModalMode === "edit" ? (
+            <Button
+              disabled={
+                isDeviceSubmitting
+                || createZteMutation.isPending
+                || updateZteMutation.isPending
+                || deleteDeviceMutation.isPending
+                || deleteZteMutation.isPending
+              }
+              onClick={() => {
+                if (createOltType === "zte" && editingZte) {
+                  deleteZteMutation.mutate(editingZte.id);
+                  return;
+                }
+
+                if (editingDevice) {
+                  deleteDeviceMutation.mutate(editingDevice.id);
+                }
+              }}
+              type="button"
+              variant="destructive"
+            >
+              {createOltType === "zte" ? "Delete ZTE OLT" : "Delete Device"}
+            </Button>
+          ) : <div />}
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button onClick={closeDeviceModal} type="button" variant="outline">Cancel</Button>
           <Button disabled={isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending || (createOltType === "zte" && !zteForm.baseUrl.trim())} onClick={handleDeviceSubmit} type="button">
             {(isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending)
@@ -907,6 +975,7 @@ export default function OltHiosoPage() {
                   ? "Create ZTE OLT"
                   : "Create HIOSO OLT"}
           </Button>
+          </div>
         </div>
       </PluginOverlay>
     </div>
