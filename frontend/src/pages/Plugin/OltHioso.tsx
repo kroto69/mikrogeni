@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -152,11 +152,6 @@ export default function OltHiosoPage() {
   const devicesQuery = useQuery({
     queryKey: ["hioso-devices"],
     queryFn: getHiosoDevices,
-  });
-
-  const zteConnectionsQuery = useQuery({
-    queryKey: ["zte-connections"],
-    queryFn: getZTEConnections,
   });
 
   const selectedDevice = (devicesQuery.data ?? []).find((d) => d.id === selectedDeviceId) ?? null;
@@ -431,8 +426,6 @@ export default function OltHiosoPage() {
   const healthDetail = healthQuery.data?.detail || (healthOnline ? "OLT reachable" : "Health status unavailable");
 
   const devices = devicesQuery.data ?? [];
-  const zteConnections = zteConnectionsQuery.data ?? [];
-
   useEffect(() => {
     const fromQuery = searchParams.get("device");
     if (fromQuery && devices.some((device) => device.id === fromQuery)) {
@@ -469,7 +462,7 @@ export default function OltHiosoPage() {
         <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
         <PageSectionHeader
           badge={<Badge>Manage</Badge>}
-          description={selectedDevice ? `HIOSO OLT · ${selectedDevice.host}` : "Kelola OLT HIOSO dan ZTE dari satu halaman."}
+          description={selectedDevice ? `HIOSO OLT · ${selectedDevice.host}` : "Kelola OLT HIOSO dari halaman ini."}
           title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">MANAGE OLT</h2>}
           actions={(
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -479,7 +472,6 @@ export default function OltHiosoPage() {
                     className="w-full sm:w-auto"
                     onClick={() => {
                       void devicesQuery.refetch();
-                      void zteConnectionsQuery.refetch();
                       void healthQuery.refetch();
                       void onusQuery.refetch();
                     }}
@@ -539,57 +531,10 @@ export default function OltHiosoPage() {
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
             <p>Belum ada OLT HIOSO terdaftar.</p>
-            <p>Gunakan <span className="font-semibold text-foreground">+ Add OLT</span> untuk menambahkan HIOSO atau ZTE.</p>
+            <p>Gunakan <span className="font-semibold text-foreground">+ Add OLT</span> untuk menambahkan OLT HIOSO.</p>
           </CardContent>
         </Card>
       ) : null}
-
-      <Card className="overflow-hidden border-2 shadow-brutal">
-        <CardContent className="space-y-3 p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-black uppercase tracking-[0.08em] text-foreground">ZTE OLT Connections</p>
-            <Badge variant="secondary">{zteConnections.length} total</Badge>
-          </div>
-          {zteConnections.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Belum ada ZTE OLT terdaftar.</p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {zteConnections.map((conn: ZTEConnection) => (
-                <div className="rounded-lg border-2 border-border bg-card px-3 py-2 text-sm text-foreground shadow-brutal-sm" key={conn.id}>
-                  <Link
-                    className="block transition hover:-translate-x-[1px] hover:-translate-y-[1px]"
-                    to={`/zte/${conn.olt_id}`}
-                  >
-                    <div className="truncate font-semibold">{conn.olt_id || conn.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">{conn.base_url}</div>
-                  </Link>
-                  {canManageOlt ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button size="sm" type="button" variant="outline" onClick={() => openEditZteModal(conn)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        disabled={deleteZteMutation.isPending}
-                        onClick={() => {
-                          if (!window.confirm(`Delete ZTE OLT ${conn.name || conn.olt_id}?`)) {
-                            return;
-                          }
-                          deleteZteMutation.mutate(conn.id);
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {devicesQuery.isError ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
@@ -604,41 +549,69 @@ export default function OltHiosoPage() {
               <div className="h-3 w-5 rotate-6 border-2 border-border bg-primary" />
               <div className="h-3 w-10 -rotate-3 border-2 border-border bg-accent" />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Input placeholder="Search index, name, serial, port, profile" value={onuSearch} onChange={(event) => setOnuSearch(event.target.value)} />
-              <div className="flex flex-wrap items-center gap-2">
-                {(["all", "online", "offline"] as const).map((filter) => (
-                  <button
-                    className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${onuFilter === filter ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
-                    key={filter}
-                    onClick={() => setOnuFilter(filter)}
-                    type="button"
-                  >
-                    {filter === "all" ? "All" : filter}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {ports.map((p) => (
-                  <button
-                    className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
-                    key={p}
-                    onClick={() => setPortFilter(p)}
-                    type="button"
-                  >
-                    P{p}
-                  </button>
-                ))}
-              </div>
-              <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Total: {totalCount}</div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Online: {onlineCount}</div>
-              <div className="rounded-2xl border-2 border-border bg-card/90 px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">Down: {downCount}</div>
-            </div>
+            <div className="space-y-3">
+              <Input
+                className="h-10"
+                placeholder="Search index, name, serial, port, profile"
+                value={onuSearch}
+                onChange={(event) => setOnuSearch(event.target.value)}
+              />
 
-            <div className="rounded-2xl border-2 border-border bg-muted/10 px-4 py-3 text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">
-              {healthDetail}
+              <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">Status Filter</p>
+                <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex min-w-max items-center gap-2">
+                    {(["all", "online", "offline"] as const).map((filter) => {
+                      const count = filter === "all" ? totalCount : filter === "online" ? onlineCount : downCount;
+                      return (
+                      <button
+                        className={`shrink-0 rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${onuFilter === filter ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+                        key={filter}
+                        onClick={() => setOnuFilter(filter)}
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <span>{filter === "all" ? "All" : filter}</span>
+                          <span
+                            className={`inline-flex min-w-6 items-center justify-center rounded-md border-2 px-1.5 py-0.5 text-[10px] font-black leading-none ${onuFilter === filter ? "border-primary-foreground/40 bg-primary-foreground/20 text-primary-foreground" : "border-border/50 bg-card/80 text-foreground"}`}
+                          >
+                            {count}
+                          </span>
+                        </span>
+                      </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">Port Filter</p>
+                <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex min-w-max items-center gap-2">
+                    {ports.map((p) => (
+                      <button
+                        className={`shrink-0 rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+                        key={p}
+                        onClick={() => setPortFilter(p)}
+                        type="button"
+                      >
+                        P{p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border-2 border-border bg-card/90 px-4 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.06em]">
+                  <span className={`rounded-md border-2 px-2 py-1 ${healthOnline ? "border-success/40 bg-success/20 text-success" : "border-destructive/40 bg-destructive/15 text-destructive"}`}>
+                    {healthOnline ? "OLT Online" : "OLT Down"}
+                  </span>
+                  <span className="text-muted-foreground">Status Device</span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-foreground break-words">{healthDetail}</p>
+              </div>
             </div>
 
             {onusQuery.isError ? (
