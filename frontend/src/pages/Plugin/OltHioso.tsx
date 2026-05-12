@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/retroui/Select";
-import { Loader } from "@/components/retroui/Loader";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
   createHiosoDevice,
@@ -27,6 +26,8 @@ import { addZTEConnection, deleteZTEConnection, getZTEConnections, healthCheckZT
 import type { ZTEConnection } from "@/types/zte";
 import { showToast } from "@/lib/toast";
 import { useRole } from "@/hooks/useRole";
+import { MoreHorizontal } from "lucide-react";
+import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 
 type DeviceFormState = {
   name: string;
@@ -123,6 +124,7 @@ export default function OltHiosoPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { can } = useRole();
+  const { runWithGlobalLoader, isGlobalLoading } = useGlobalLoaderOverlay();
   const canManageOlt = can("zte_connections_crud");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [createOltType, setCreateOltType] = useState<OltType>("hioso");
@@ -130,7 +132,7 @@ export default function OltHiosoPage() {
   const [onuSearch, setOnuSearch] = useState("");
   const [portFilter, setPortFilter] = useState<number>(1);
   const [detailOnuIndex, setDetailOnuIndex] = useState<string | null>(null);
-  const [editOnu, setEditOnu] = useState<{ index: string; name: string } | null>(null);
+  const [onuDraftName, setOnuDraftName] = useState("");
   const [deviceModalMode, setDeviceModalMode] = useState<"closed" | "create" | "edit">("closed");
   const [deviceForm, setDeviceForm] = useState<DeviceFormState>(EMPTY_DEVICE_FORM);
   const [editingDevice, setEditingDevice] = useState<HiosoOLTDevice | null>(null);
@@ -138,7 +140,6 @@ export default function OltHiosoPage() {
   const [zteForm, setZteForm] = useState<ZteFormState>(EMPTY_ZTE_FORM);
   const [zteTesting, setZteTesting] = useState(false);
   const [zteTestResult, setZteTestResult] = useState<{ ok: boolean; latency: number } | null>(null);
-  const [isRefreshOverlayOpen, setIsRefreshOverlayOpen] = useState(false);
 
   const resetOltModalState = () => {
     setEditingDevice(null);
@@ -189,7 +190,6 @@ export default function OltHiosoPage() {
     mutationFn: ({ index, name }: { index: string; name: string }) => renameHiosoOnu(deviceId!, index, name),
     onSuccess: async () => {
       showToast({ title: "ONU name updated", description: "The ONU name was saved successfully.", variant: "success" });
-      setEditOnu(null);
       await queryClient.invalidateQueries({ queryKey: ["hioso-onus", deviceId] });
       await queryClient.invalidateQueries({ queryKey: ["hioso-onu-detail", deviceId] });
     },
@@ -364,22 +364,32 @@ export default function OltHiosoPage() {
     resetOltModalState();
   };
 
+  const openOnuDetailOverlay = (onu: HiosoOnuRow) => {
+    setDetailOnuIndex(onu.index);
+    setOnuDraftName(onu.name || "");
+  };
+
+  const closeOnuDetailOverlay = () => {
+    setDetailOnuIndex(null);
+    setOnuDraftName("");
+  };
+
   const handleZteTest = async () => {
-    setIsRefreshOverlayOpen(true);
-    setZteTesting(true);
-    setZteTestResult(null);
-    try {
-      const res = (deviceModalMode === "edit" && editingZte && zteForm.baseUrl.trim() === editingZte.base_url)
-        ? await healthCheckZTE(editingZte.id)
-        : await testZTEConnection(zteForm.baseUrl.trim());
-      setZteTestResult({ ok: res.status === "ok", latency: res.latency_ms });
-    } catch {
+    await runWithGlobalLoader(async () => {
+      setZteTesting(true);
       setZteTestResult(null);
-      showToast({ title: "Gagal terhubung", variant: "error" });
-    } finally {
-      setZteTesting(false);
-      setIsRefreshOverlayOpen(false);
-    }
+      try {
+        const res = (deviceModalMode === "edit" && editingZte && zteForm.baseUrl.trim() === editingZte.base_url)
+          ? await healthCheckZTE(editingZte.id)
+          : await testZTEConnection(zteForm.baseUrl.trim());
+        setZteTestResult({ ok: res.status === "ok", latency: res.latency_ms });
+      } catch {
+        setZteTestResult(null);
+        showToast({ title: "Gagal terhubung", variant: "error" });
+      } finally {
+        setZteTesting(false);
+      }
+    }, "Refreshing OLT Data...");
   };
 
   const handleRefreshAll = async () => {
@@ -387,15 +397,25 @@ export default function OltHiosoPage() {
       return;
     }
 
-    setIsRefreshOverlayOpen(true);
     try {
-      await Promise.allSettled([
-        devicesQuery.refetch(),
-        healthQuery.refetch(),
-        onusQuery.refetch(),
-      ]);
-    } finally {
-      setIsRefreshOverlayOpen(false);
+      await runWithGlobalLoader(async () => {
+        const [devicesResult, healthResult, onusResult] = await Promise.all([
+          devicesQuery.refetch(),
+          healthQuery.refetch(),
+          onusQuery.refetch(),
+        ]);
+
+        const firstError = devicesResult.error ?? healthResult.error ?? onusResult.error;
+        if (firstError) {
+          throw firstError;
+        }
+      }, "Refreshing OLT Data...");
+    } catch (refreshError) {
+      showToast({
+        title: "Refresh OLT gagal",
+        description: getApiErrorMessage(refreshError),
+        variant: "error",
+      });
     }
   };
 
@@ -404,12 +424,9 @@ export default function OltHiosoPage() {
       return;
     }
 
-    setIsRefreshOverlayOpen(true);
-    try {
+    await runWithGlobalLoader(async () => {
       await testDeviceMutation.mutateAsync(selectedDeviceId);
-    } finally {
-      setIsRefreshOverlayOpen(false);
-    }
+    }, "Refreshing OLT Data...");
   };
 
   const handleDeviceSubmit = () => {
@@ -493,15 +510,6 @@ export default function OltHiosoPage() {
 
   return (
     <div className="route-shell-page route-shell-plugin-hioso space-y-5">
-      {isRefreshOverlayOpen ? (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-foreground/35 backdrop-blur-sm">
-          <div className="neo-panel flex min-w-[220px] flex-col items-center gap-3 border-2 border-border bg-card px-5 py-4 shadow-brutal-lg">
-            <Loader count={4} size="lg" variant="default" />
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Refreshing OLT Data...</p>
-          </div>
-        </div>
-      ) : null}
-
       <section className="route-shell-panel relative overflow-hidden rounded-[26px] border-2 border-border bg-primary/20 px-4 py-5 shadow-[12px_12px_0_0_hsl(var(--border))] sm:px-6 sm:py-6">
         <div className="pointer-events-none absolute -right-5 top-4 h-20 w-20 rotate-12 border-2 border-border bg-primary/90" />
         <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
@@ -515,7 +523,7 @@ export default function OltHiosoPage() {
                 <>
                   <Button
                     className="w-full sm:w-auto"
-                    disabled={isRefreshOverlayOpen}
+                    disabled={isGlobalLoading}
                     onClick={() => {
                       void handleRefreshAll();
                     }}
@@ -526,7 +534,7 @@ export default function OltHiosoPage() {
                   </Button>
                   <Button
                     className="w-full sm:w-auto"
-                    disabled={testDeviceMutation.isPending || isRefreshOverlayOpen}
+                    disabled={testDeviceMutation.isPending || isGlobalLoading}
                     onClick={() => {
                       void handleDeviceTest();
                     }}
@@ -680,17 +688,16 @@ export default function OltHiosoPage() {
                     <p className="break-all">Profile: {onu.profile || "-"}</p>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <Button onClick={() => setDetailOnuIndex(onu.index)} size="sm" type="button" variant="outline">Detail</Button>
-                    <Button onClick={() => setEditOnu({ index: onu.index, name: onu.name || "" })} size="sm" type="button" variant="outline">Edit</Button>
+                  <div className="mt-3 flex justify-end">
                     <Button
-                      disabled={rebootOnuMutation.isPending}
-                      onClick={() => rebootOnuMutation.mutate(onu.index)}
+                      aria-label="ONU actions"
+                      className="h-8 w-8 p-0"
+                      onClick={() => openOnuDetailOverlay(onu)}
                       size="sm"
                       type="button"
                       variant="outline"
                     >
-                      Reboot
+                      <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -730,17 +737,16 @@ export default function OltHiosoPage() {
                       <td className="px-4 py-3 text-muted-foreground">Tx {onu.tx_power ?? "-"} / Rx {onu.rx_power ?? "-"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{onu.profile || "-"}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button onClick={() => setDetailOnuIndex(onu.index)} size="sm" type="button" variant="outline">Detail</Button>
-                          <Button onClick={() => setEditOnu({ index: onu.index, name: onu.name || "" })} size="sm" type="button" variant="outline">Edit</Button>
+                        <div className="flex justify-end">
                           <Button
-                            disabled={rebootOnuMutation.isPending}
-                            onClick={() => rebootOnuMutation.mutate(onu.index)}
+                            aria-label="ONU actions"
+                            className="h-8 w-8 p-0"
+                            onClick={() => openOnuDetailOverlay(onu)}
                             size="sm"
                             type="button"
                             variant="outline"
                           >
-                            Reboot
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </div>
                       </td>
@@ -778,36 +784,70 @@ export default function OltHiosoPage() {
         </div>
       ) : null}
 
-      <PluginOverlay open={Boolean(detailOnuIndex)} title="ONU Detail" onClose={() => setDetailOnuIndex(null)}>
-        <div className="space-y-3 text-sm text-muted-foreground">
-          <div><span className="font-semibold text-foreground">Index:</span> {onuDetailQuery.data?.index || "-"}</div>
-          <div><span className="font-semibold text-foreground">Web ID:</span> {onuDetailQuery.data?.web_id || "-"}</div>
-          <div><span className="font-semibold text-foreground">Port:</span> {onuDetailQuery.data?.port ?? "-"}</div>
-          <div><span className="font-semibold text-foreground">ONU ID:</span> {onuDetailQuery.data?.onu_id ?? "-"}</div>
-          <div><span className="font-semibold text-foreground">Name:</span> {onuDetailQuery.data?.name || "-"}</div>
-          <div><span className="font-semibold text-foreground">Serial:</span> {onuDetailQuery.data?.sn || "-"}</div>
-          <div><span className="font-semibold text-foreground">Status:</span> {onuDetailQuery.data?.status || "-"}</div>
-          <div><span className="font-semibold text-foreground">TX Power:</span> {onuDetailQuery.data?.tx_power ?? "-"}</div>
-          <div><span className="font-semibold text-foreground">RX Power:</span> {onuDetailQuery.data?.rx_power ?? "-"}</div>
-          <div><span className="font-semibold text-foreground">Profile:</span> {onuDetailQuery.data?.profile || "-"}</div>
-        </div>
-      </PluginOverlay>
-
-      <PluginOverlay open={Boolean(editOnu)} title="Edit ONU Name" onClose={() => setEditOnu(null)}>
+      <PluginOverlay open={Boolean(detailOnuIndex)} title="ONU Detail" onClose={closeOnuDetailOverlay}>
         <form
           className="space-y-4"
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
-            if (!editOnu) {
+            if (!detailOnuIndex) {
               return;
             }
-            renameOnuMutation.mutate({ index: editOnu.index, name: editOnu.name });
+            renameOnuMutation.mutate({ index: detailOnuIndex, name: onuDraftName });
           }}
         >
-          <Input value={editOnu?.name || ""} onChange={(event) => setEditOnu((current) => current ? { ...current, name: event.target.value } : current)} />
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setEditOnu(null)} type="button" variant="outline">Cancel</Button>
-            <Button disabled={renameOnuMutation.isPending} type="submit">Save</Button>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <div><span className="font-semibold text-foreground">Index:</span> {onuDetailQuery.data?.index || "-"}</div>
+            <div><span className="font-semibold text-foreground">Web ID:</span> {onuDetailQuery.data?.web_id || "-"}</div>
+            <div><span className="font-semibold text-foreground">Port:</span> {onuDetailQuery.data?.port ?? "-"}</div>
+            <div><span className="font-semibold text-foreground">ONU ID:</span> {onuDetailQuery.data?.onu_id ?? "-"}</div>
+            <div><span className="font-semibold text-foreground">Serial:</span> {onuDetailQuery.data?.sn || "-"}</div>
+            <div><span className="font-semibold text-foreground">Status:</span> {onuDetailQuery.data?.status || "-"}</div>
+            <div><span className="font-semibold text-foreground">TX Power:</span> {onuDetailQuery.data?.tx_power ?? "-"}</div>
+            <div><span className="font-semibold text-foreground">RX Power:</span> {onuDetailQuery.data?.rx_power ?? "-"}</div>
+            <div><span className="font-semibold text-foreground">Profile:</span> {onuDetailQuery.data?.profile || "-"}</div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-[0.08em] text-foreground" htmlFor="onu-name-input">ONU Name</label>
+            <Input id="onu-name-input" value={onuDraftName} onChange={(event) => setOnuDraftName(event.target.value)} />
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                disabled={onuDetailQuery.isFetching || rebootOnuMutation.isPending || renameOnuMutation.isPending}
+                onClick={() => {
+                  void runWithGlobalLoader(async () => {
+                    const result = await onuDetailQuery.refetch();
+                    if (result.error) {
+                      throw result.error;
+                    }
+                  }, "Refreshing ONU Detail...").catch((refreshError) => {
+                    showToast({
+                      title: "Refresh ONU gagal",
+                      description: getApiErrorMessage(refreshError),
+                      variant: "error",
+                    });
+                  });
+                }}
+                type="button"
+                variant="outline"
+              >
+                Refresh
+              </Button>
+              <Button
+                disabled={!detailOnuIndex || rebootOnuMutation.isPending || renameOnuMutation.isPending}
+                onClick={() => detailOnuIndex ? rebootOnuMutation.mutate(detailOnuIndex) : undefined}
+                type="button"
+                variant="secondary"
+              >
+                Reboot
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button onClick={closeOnuDetailOverlay} type="button" variant="outline">Cancel</Button>
+              <Button disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending} type="submit">Save</Button>
+            </div>
           </div>
         </form>
       </PluginOverlay>

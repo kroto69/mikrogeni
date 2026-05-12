@@ -5,7 +5,10 @@ import { StatusBadge as NmsStatusBadge } from '@/components/nms/status-badge'
 import { Select } from '@/components/retroui/Select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useGlobalLoaderOverlay } from '@/hooks/useGlobalLoaderOverlay'
+import { getApiErrorMessage } from '@/lib/api'
 import type { NmsStatus } from '@/lib/status-tone'
+import { showToast } from '@/lib/toast'
 import { getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo } from '@/lib/zteApi'
 import { ZTEONUDetailModal } from './_components/ZTEONUDetailModal'
 import { ZTESkeleton } from './_components/ZTESkeleton'
@@ -303,6 +306,7 @@ function mapToDashboardRows(items: ZTEONUListItem[]): DashboardRow[] {
 }
 
 export default function ONUListPage() {
+  const { runWithGlobalLoader } = useGlobalLoaderOverlay()
   const { connId } = useParams<{ connId: string }>()
   const [board, setBoard] = useState(1)
   const [pon, setPon] = useState<number | null>(null)
@@ -349,11 +353,41 @@ export default function ONUListPage() {
   }
 
   const handleRefresh = () => {
-    if (hasLoaded) refetch()
+    if (!hasLoaded) return
+
+    void runWithGlobalLoader(async () => {
+      const result = await refetch()
+      if (result.error) {
+        throw result.error
+      }
+    }, 'Refreshing ONU Data...').catch((refreshError) => {
+      showToast({
+        title: 'Refresh gagal',
+        description: getApiErrorMessage(refreshError),
+        variant: 'error',
+      })
+    })
   }
 
   const handleSync = () => {
     setTick((v) => v + 1)
+
+    if (!hasLoaded) {
+      return
+    }
+
+    void runWithGlobalLoader(async () => {
+      const result = await refetch()
+      if (result.error) {
+        throw result.error
+      }
+    }, 'Refreshing ONU Data...').catch((refreshError) => {
+      showToast({
+        title: 'Refresh gagal',
+        description: getApiErrorMessage(refreshError),
+        variant: 'error',
+      })
+    })
   }
 
   const allRows = useMemo(() => mapToDashboardRows(onuList ?? []), [onuList])

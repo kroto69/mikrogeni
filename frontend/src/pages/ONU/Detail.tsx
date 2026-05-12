@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/retroui/Select";
 import { useAsyncTask } from "@/hooks/useAsyncTask";
+import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 import {
   getAcsDeviceDetail,
   getApiErrorMessage,
@@ -275,6 +276,7 @@ export default function OnuDetail() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { runWithGlobalLoader, isGlobalLoading } = useGlobalLoaderOverlay();
   const [activeModal, setActiveModal] = useState<OnuModal>("none");
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [showPppoePassword, setShowPppoePassword] = useState(false);
@@ -534,8 +536,23 @@ export default function OnuDetail() {
   );
 
   const handleRefreshDetail = () => {
+    const refreshDetailWithLoader = () => {
+      void runWithGlobalLoader(async () => {
+        const result = await detailQuery.refetch();
+        if (result.error) {
+          throw result.error;
+        }
+      }, "Refreshing ONU Detail...").catch((refreshError) => {
+        showToast({
+          title: "Refresh detail failed",
+          description: getApiErrorMessage(refreshError),
+          variant: "error",
+        });
+      });
+    };
+
     setShowMoreActions(false);
-    void detailQuery.refetch();
+    refreshDetailWithLoader();
   };
 
   const renderMoreActionButtons = () => (
@@ -594,7 +611,13 @@ export default function OnuDetail() {
           <CardDescription>{getApiErrorMessage(detailQuery.error)}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={() => void detailQuery.refetch()} type="button" variant="outline">
+          <Button
+            onClick={() => {
+              handleRefreshDetail();
+            }}
+            type="button"
+            variant="outline"
+          >
             <RefreshCcw className="mr-2 h-4 w-4" />
             Retry
           </Button>
@@ -725,7 +748,7 @@ export default function OnuDetail() {
                   </button>
                   <button
                     className="flex flex-col items-center gap-1 rounded-lg border-2 border-border bg-card px-1.5 py-2.5 text-[10px] font-semibold text-foreground shadow-brutal-sm disabled:opacity-50"
-                    disabled={isActionPending}
+                    disabled={isActionPending || isGlobalLoading}
                     onClick={() => {
                       setShowMoreActions(false);
                       handleRefreshDetail();
@@ -780,7 +803,7 @@ export default function OnuDetail() {
                     {isIncomplete ? <ActionButton disabled={isActionPending} icon={<RefreshCcw className="h-4 w-4" />} label="Summon Device" onClick={() => void summonDeviceMutation.mutateAsync()} /> : null}
                     <ActionButton disabled={isActionPending} icon={<Power className="h-4 w-4" />} label="Reboot" onClick={() => setActiveModal("reboot")} tone="danger" />
                     <ActionButton disabled={isActionPending} icon={<Wifi className="h-4 w-4" />} label="Config WiFi" onClick={openWifiModal} />
-                    <ActionButton disabled={isActionPending || detailQuery.isFetching} icon={<RefreshCcw className="h-4 w-4" />} label="Refresh detail" onClick={handleRefreshDetail} />
+                    <ActionButton disabled={isActionPending || detailQuery.isFetching || isGlobalLoading} icon={<RefreshCcw className="h-4 w-4" />} label="Refresh detail" onClick={handleRefreshDetail} />
                     <div className="relative">
                     <Button disabled={isActionPending} onClick={() => setShowMoreActions((current) => !current)} type="button" variant="outline">
                       <MoreHorizontal className="h-4 w-4" />

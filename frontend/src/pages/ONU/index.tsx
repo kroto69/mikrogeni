@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageSectionHeader } from "@/components/page/section-header";
@@ -270,6 +271,7 @@ function mapAcsDeviceToOnuDevice(device: AcsDeviceListItem): OnuDevice {
 export default function OnuIndex() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { runWithGlobalLoader, isGlobalLoading } = useGlobalLoaderOverlay();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("lastInformAt");
@@ -453,24 +455,41 @@ export default function OnuIndex() {
   });
 
   const handleManualRefresh = async () => {
-    try {
-      const result = await refetch();
+    await runWithGlobalLoader(async () => {
+      try {
+        const result = await refetch();
+        if (result.error) {
+          throw result.error;
+        }
+
+        showToast({
+          title: "Inventory refreshed",
+          description: "ONU discovery data was refreshed manually.",
+          variant: "success",
+        });
+      } catch (refetchError) {
+        showToast({
+          title: "Refresh failed",
+          description: getApiErrorMessage(refetchError),
+          variant: "error",
+        });
+      }
+    }, "Refreshing ONU Inventory...");
+  };
+
+  const refreshDetailOverlay = () => {
+    void runWithGlobalLoader(async () => {
+      const result = await detailQuery.refetch();
       if (result.error) {
         throw result.error;
       }
-
+    }, "Refreshing ONU Detail...").catch((refreshError) => {
       showToast({
-        title: "Inventory refreshed",
-        description: "ONU discovery data was refreshed manually.",
-        variant: "success",
-      });
-    } catch (refetchError) {
-      showToast({
-        title: "Refresh failed",
-        description: getApiErrorMessage(refetchError),
+        title: "Refresh detail failed",
+        description: getApiErrorMessage(refreshError),
         variant: "error",
       });
-    }
+    });
   };
 
   const isInventoryActionPending = isFetching || summonSelectedMutation.isPending;
@@ -612,7 +631,7 @@ export default function OnuIndex() {
               />
             </div>
 <div className="grid grid-cols-2 gap-2">
-              <Button className="h-10 text-[12px] font-semibold" disabled={isInventoryActionPending} onClick={() => void handleManualRefresh()} type="button" variant="outline">
+              <Button className="h-10 text-[12px] font-semibold" disabled={isInventoryActionPending || isGlobalLoading} onClick={() => void handleManualRefresh()} type="button" variant="outline">
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 {isFetching ? "Refreshing..." : "Refresh"}
               </Button>
@@ -873,7 +892,14 @@ export default function OnuIndex() {
           <Card>
             <CardContent className="space-y-3 p-4">
               <p className="text-sm text-destructive">{getApiErrorMessage(detailQuery.error)}</p>
-              <Button onClick={() => void detailQuery.refetch()} size="sm" type="button" variant="outline">
+              <Button
+                onClick={() => {
+                  refreshDetailOverlay();
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 Retry
               </Button>
@@ -892,7 +918,7 @@ export default function OnuIndex() {
               navigate(`/onu/${detailDeviceId}`);
             }}
             onRefresh={() => {
-              void detailQuery.refetch();
+              refreshDetailOverlay();
             }}
             status={getOnuStatus(detailQuery.data.last_inform_at)}
           />
