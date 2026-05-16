@@ -121,7 +121,7 @@ mikrogeni/
 ├── cmd/server/          # Entry point aplikasi
 ├── internal/
 │   ├── handlers/        # HTTP handlers (ACS, MikroTik, Hioso OLT, Telegram, dll)
-│   ├── services/        # Business logic (GenieACS, MikroTik, SNMP)
+│   ├── services/        # Business logic (GenieACS, MikroTik)
 │   ├── db/              # SQLite database layer
 │   ├── models/          # Data models
 │   └── acsresolver/     # ACS vendor/model registry & resolver
@@ -137,7 +137,7 @@ mikrogeni/
 ├── Dockerfile
 ├── nginx.conf
 ├── Makefile
-├── hioso_oid            # Referensi OID Hioso (3 profil + fallback)
+├── hioso_api.md         # Dokumentasi endpoint Hioso OLT
 └── .env.example
 ```
 
@@ -164,7 +164,7 @@ mikrogeni/
 | `TELEGRAM_CHAT_IDS` | — | Chat ID Telegram (comma-separated) |
 | `HIOSO_ENABLED` | `true` | Aktifkan Hioso OLT plugin |
 
-> Konfigurasi detail Hioso OLT (host, SNMP community, web credentials) dikelola via Settings page atau API, bukan env var. Env var `OLT_*` masih tersedia sebagai fallback legacy.
+> Konfigurasi OLT Hioso (host, port, credentials, firmware type) dikelola via API `/api/hioso/devices` dan disimpan di SQLite.
 
 ### Frontend (`frontend/.env`)
 
@@ -210,53 +210,41 @@ mikrogeni/
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| `GET` | `/api/hioso/status` | Status plugin (enabled/disabled + host) |
+| `GET` | `/api/hioso/status` | Status plugin (enabled/disabled) |
 | `POST` | `/api/hioso/enable` | Aktifkan plugin |
 | `POST` | `/api/hioso/disable` | Nonaktifkan plugin |
-| `GET` | `/api/hioso/devices` | List OLT Hioso yang tersimpan |
-| `POST` | `/api/hioso/devices` | Tambah OLT Hioso |
-| `GET` | `/api/hioso/devices/{device_id}` | Detail OLT |
-| `PATCH` | `/api/hioso/devices/{device_id}` | Update OLT |
-| `DELETE` | `/api/hioso/devices/{device_id}` | Hapus OLT |
-| `POST` | `/api/hioso/devices/{device_id}/test` | Test SNMP reachability + deteksi profil |
-| `GET` | `/api/hioso/devices/{device_id}/health` | Health check OLT via SNMP |
-| `GET` | `/api/hioso/devices/{device_id}/ports` | List port yang tersedia |
-| `GET` | `/api/hioso/devices/{device_id}/onu` | List ONU (default port=1, dukung `?force=true`) |
-| `GET` | `/api/hioso/devices/{device_id}/onu/{index}` | Detail 1 ONU |
-| `POST` | `/api/hioso/devices/{device_id}/onu/{index}/rename` | Rename ONU (SNMP prioritas, fallback Web API) |
-| `POST` | `/api/hioso/devices/{device_id}/onu/{index}/reboot` | Reboot ONU via Web API |
+| `GET` | `/api/hioso/devices` | List OLT yang tersimpan |
+| `POST` | `/api/hioso/devices` | Tambah OLT (pilih firmware_type: 0=HA7304VX, 1=Other) |
+| `DELETE` | `/api/hioso/devices/{id}` | Hapus OLT |
+| `POST` | `/api/hioso/devices/{id}/test` | Test koneksi + re-detect firmware |
+| `GET` | `/api/hioso/devices/{id}/health` | System info OLT |
+| `GET` | `/api/hioso/devices/{id}/onu?port=N` | List ONU per port |
+| `GET` | `/api/hioso/devices/{id}/onu/detail?port=N&id=X` | Detail 1 ONU |
+| `POST` | `/api/hioso/devices/{id}/onu/rename?port=N&id=X` | Rename ONU |
+| `POST` | `/api/hioso/devices/{id}/onu/reboot?port=N&id=X` | Reboot ONU |
 
-### Analisis Backend Hioso (Mei 2026)
+### Arsitektur Backend Hioso
 
-Ringkasan flow backend berdasarkan implementasi saat ini:
+Komunikasi ke OLT menggunakan **Web API** (HTTP), bukan SNMP. Support 2 firmware family:
 
-1. **Entrypoint & routing**
-   - Route Hioso diregistrasi di `cmd/server/main.go` pada prefix **`/api/hioso`**.
-   - Scheduler health berjalan periodik via `internal/scheduler/hioso_health_scheduler.go` dan memanggil `HiosoRunHealthCheck`.
+| Firmware | Driver | Transport | OLT Model |
+|---|---|---|---|
+| `swcgi_xml` | `hioso_swcgi.go` | POST /sw.cgi (XML response) | HA7304VX |
+| `legacy_html` | `hioso_legacy.go` | GET *.asp + POST /goform/* | V2.x (GoAhead-Webs) |
 
-2. **Layer handler & settings runtime**
-   - Orkestrasi request ada di `internal/handlers/hioso_plugin.go`.
-   - `device_id` direzolusi ke konfigurasi OLT dari SQLite (`internal/db/hioso_db.go`).
-   - Konversi ke target SNMP sekarang melalui resolver (`hiosoResolveSNMPTarget`) agar format host `host:port`/URL tetap konsisten.
+Flow:
+1. User tambah OLT → pilih firmware type → simpan ke SQLite
+2. Setiap request ONU → buat driver sesuai firmware → login → fetch/mutate → response
+3. Rename/Reboot → via Web API OLT langsung
 
-3. **Layer SNMP + fallback web**
-   - Operasi SNMP utama ada di `internal/handlers/hioso_snmp.go` (walk, set, fallback OID, parsing ONU).
-   - Rename ONU: prioritas SNMP, fallback ke Web API (`internal/handlers/hioso_webapi.go`) jika SNMP gagal.
-   - Reboot ONU: lewat Web API OLT.
+File terkait:
+- `internal/handlers/hioso_handler.go` — HTTP handlers + state plugin
+- `internal/handlers/hioso_driver.go` — Interface driver + auto-detect + DTO
+- `internal/handlers/hioso_swcgi.go` — Driver HA7304VX
+- `internal/handlers/hioso_legacy.go` — Driver legacy
+- `internal/db/hioso_db.go` — Tabel devices SQLite
 
-4. **Catatan clean code**
-   - **Sudah baik**: pemisahan file handler/db/webapi jelas, contract endpoint konsisten, dan health scheduler terpisah.
-   - **Perlu perbaikan lanjut**: `hioso_snmp.go` masih cukup besar, sehingga refactor per domain (walk, parser, profile detect, fallback policy) disarankan agar lebih mudah dirawat.
-
-5. **Mitigasi RTO yang sudah diterapkan**
-   - SNMP walk/fallback pada jalur fetch utama sudah dibuat **context-aware** (bisa stop saat request timeout/cancel).
-   - Delay antar-step SNMP dibuat **lebih pendek** dan **cancellable**, mengurangi risiko request menggantung.
-
-Jika menemui kasus "SNMP ke OLT gagal/RTO", cek berurutan:
-- kredensial & versi SNMP (`community`, v1/v2c),
-- host/port OLT yang tersimpan,
-- reachability jaringan UDP/161,
-- hasil `POST /api/hioso/devices/{device_id}/test` dan `GET /api/hioso/devices/{device_id}/health`.
+> Dokumentasi endpoint detail: lihat [`hioso_api.md`](./hioso_api.md).
 
 ---
 
@@ -295,8 +283,8 @@ Perintah:
 
 - `.env` dipakai untuk konfigurasi aplikasi, **bukan** untuk data per-device MikroTik.
 - Data MikroTik per-device disimpan di SQLite dan dikelola via `/api/mikrotik/*`.
-- Data Hioso OLT profiles disimpan di SQLite via `/api/acs/settings/hioso-olts` (CRUD + activate).
-- Jika behavior endpoint berubah, update `API.md` agar integrasi tetap sinkron.
+- Data Hioso OLT disimpan di SQLite via `/api/hioso/devices` (CRUD).
+- Jika behavior endpoint berubah, update `hioso_api.md` agar integrasi tetap sinkron.
 - Parameter registry ACS dibaca dari `internal/acsresolver/registry.yaml` — tambah vendor/model baru dari registry, bukan hardcode.
 - Auto-learn ACS menyimpan hasil resolve ke SQLite (`acs_learned_profiles`) untuk caching.
-- Hioso OLT plugin mendukung 3 profil OID (HIOSO_GPON, HIOSO_B, HIOSO_C) dengan auto-detect via scoring. Detail lihat `hioso_oid`.
+- Hioso OLT plugin mendukung 2 firmware family (HA7304VX via `sw.cgi`, Legacy via `*.asp`/`goform`) dengan pilihan manual saat add device.

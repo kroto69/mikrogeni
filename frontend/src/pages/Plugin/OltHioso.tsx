@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/retroui/Select";
+import { Loader } from "@/components/retroui/Loader";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
   createHiosoDevice,
@@ -18,9 +20,9 @@ import {
   rebootHiosoOnu,
   renameHiosoOnu,
   testHiosoDevice,
-  updateHiosoDevice,
   type HiosoOLTDevice,
   type HiosoOnuRow,
+  type HiosoOnuDetail,
 } from "@/lib/api";
 import { addZTEConnection, deleteZTEConnection, getZTEConnections, healthCheckZTE, testZTEConnection, updateZTEConnection } from "@/lib/zteApi";
 import type { ZTEConnection } from "@/types/zte";
@@ -29,14 +31,20 @@ import { useRole } from "@/hooks/useRole";
 import { MoreHorizontal } from "lucide-react";
 import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 
+// Parse ONU index "1/3:1" atau "0/3:1" → { port: 3, id: 1 }
+function parseOnuIndex(index: string): { port: number; id: number } {
+  const match = index.match(/\d+\/(\d+):(\d+)/);
+  if (match) {
+    return { port: Number(match[1]), id: Number(match[2]) };
+  }
+  return { port: 1, id: 1 };
+}
+
 type DeviceFormState = {
   name: string;
   host: string;
   port: string;
-  snmp_version: string;
-  snmp_community: string;
-  web_host: string;
-  web_port: string;
+  firmware_type: string;
   username: string;
   password: string;
 };
@@ -51,11 +59,8 @@ type ZteFormState = {
 const EMPTY_DEVICE_FORM: DeviceFormState = {
   name: "",
   host: "",
-  port: "161",
-  snmp_version: "2c",
-  snmp_community: "public",
-  web_host: "",
-  web_port: "80",
+  port: "80",
+  firmware_type: "0",
   username: "admin",
   password: "",
 };
@@ -72,11 +77,8 @@ function buildDeviceForm(device?: HiosoOLTDevice): DeviceFormState {
   return {
     name: device.name ?? "",
     host: device.host ?? "",
-    port: String(device.port ?? 161),
-    snmp_version: device.snmp_version ?? "2c",
-    snmp_community: device.snmp_community ?? "",
-    web_host: device.web_host ?? "",
-    web_port: String(device.web_port ?? 80),
+    port: String(device.port ?? 80),
+    firmware_type: device.firmware_type === "legacy_html" ? "1" : "0",
     username: device.username ?? "",
     password: "",
   };
@@ -87,8 +89,12 @@ function PluginOverlay({ open, title, description, onClose, children }: { open: 
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-foreground/35 p-3 sm:p-6">
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-foreground/35 p-3 sm:p-6">
       <button aria-label="Close overlay" className="absolute inset-0" onClick={onClose} type="button" />
       <div className="relative z-10 my-auto box-border max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-[28px] border-2 border-border bg-card shadow-brutal-lg sm:max-h-[90vh] sm:max-w-2xl">
         <div className="flex items-center justify-between gap-3 border-b-2 border-border px-5 py-4">
@@ -100,7 +106,8 @@ function PluginOverlay({ open, title, description, onClose, children }: { open: 
         </div>
         <div className="px-5 py-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -162,7 +169,7 @@ export default function OltHiosoPage() {
 
   const healthQuery = useQuery({
     queryKey: ["hioso-health", deviceId],
-    queryFn: () => getHiosoPluginHealth(deviceId),
+    queryFn: () => getHiosoPluginHealth(deviceId!),
     enabled: Boolean(deviceId),
   });
 
@@ -172,22 +179,23 @@ export default function OltHiosoPage() {
     queryKey: ["hioso-onus", deviceId, portFilter],
     queryFn: () => getHiosoOnus(deviceId!, portFilter),
     enabled: Boolean(deviceId),
+    placeholderData: [],
   });
-
-  useEffect(() => {
-    if (!ports.includes(portFilter)) {
-      setPortFilter(ports[0]);
-    }
-  }, [portFilter]);
 
   const onuDetailQuery = useQuery({
     queryKey: ["hioso-onu-detail", deviceId, detailOnuIndex],
-    queryFn: () => getHiosoOnuDetail(deviceId!, detailOnuIndex!),
+    queryFn: () => {
+      const { port, id } = parseOnuIndex(detailOnuIndex!);
+      return getHiosoOnuDetail(deviceId!, port, id);
+    },
     enabled: Boolean(deviceId) && Boolean(detailOnuIndex),
   });
 
   const renameOnuMutation = useMutation({
-    mutationFn: ({ index, name }: { index: string; name: string }) => renameHiosoOnu(deviceId!, index, name),
+    mutationFn: ({ index, name }: { index: string; name: string }) => {
+      const { port, id } = parseOnuIndex(index);
+      return renameHiosoOnu(deviceId!, port, id, name);
+    },
     onSuccess: async () => {
       showToast({ title: "ONU name updated", description: "The ONU name was saved successfully.", variant: "success" });
       await queryClient.invalidateQueries({ queryKey: ["hioso-onus", deviceId] });
@@ -199,7 +207,10 @@ export default function OltHiosoPage() {
   });
 
   const rebootOnuMutation = useMutation({
-    mutationFn: (index: string) => rebootHiosoOnu(deviceId!, index),
+    mutationFn: (index: string) => {
+      const { port, id } = parseOnuIndex(index);
+      return rebootHiosoOnu(deviceId!, port, id);
+    },
     onSuccess: () => {
       showToast({ title: "ONU reboot queued", description: "Reboot command was sent to the ONU.", variant: "success" });
     },
@@ -213,16 +224,13 @@ export default function OltHiosoPage() {
       const payload = {
         name: values.name.trim(),
         host: values.host.trim(),
-        port: Number(values.port || "161"),
-        snmp_version: values.snmp_version || "2c",
-        snmp_community: values.snmp_community.trim(),
-        web_host: values.web_host.trim(),
-        web_port: Number(values.web_port || "80"),
+        port: Number(values.port || "80"),
+        firmware_type: Number(values.firmware_type || "0"),
         username: values.username.trim(),
         password: values.password,
       };
-      if (!payload.name || !payload.host || !payload.snmp_community) {
-        throw new Error("Name, host, and SNMP community are required.");
+      if (!payload.name || !payload.host || !payload.username) {
+        throw new Error("Name, host, and username are required.");
       }
       return createHiosoDevice(payload);
     },
@@ -240,21 +248,16 @@ export default function OltHiosoPage() {
   });
 
   const updateDeviceMutation = useMutation({
-    mutationFn: ({ deviceId: id, values }: { deviceId: string; values: DeviceFormState }) => {
-      const payload: Record<string, string | number> = {
+    mutationFn: async ({ deviceId: id, values }: { deviceId: string; values: DeviceFormState }) => {
+      await deleteHiosoDevice(id);
+      return createHiosoDevice({
         name: values.name.trim(),
         host: values.host.trim(),
-        port: Number(values.port || "161"),
-        snmp_version: values.snmp_version || "2c",
-        snmp_community: values.snmp_community.trim(),
-        web_host: values.web_host.trim(),
-        web_port: Number(values.web_port || "80"),
+        port: Number(values.port || "80"),
+        firmware_type: Number(values.firmware_type || "0"),
         username: values.username.trim(),
-      };
-      if (values.password.trim()) {
-        payload.password = values.password;
-      }
-      return updateHiosoDevice(id, payload);
+        password: values.password,
+      });
     },
     onSuccess: async () => {
       showToast({ title: "Device updated", description: "Device settings were saved.", variant: "success" });
@@ -467,7 +470,7 @@ export default function OltHiosoPage() {
           return true;
         }
 
-        const haystack = [onu.index, onu.name, onu.sn, onu.profile, String(onu.port ?? ""), String(onu.onu_id ?? "")].filter(Boolean).join(" ").toLowerCase();
+        const haystack = [onu.index, onu.name, onu.sn, onu.profile].filter(Boolean).join(" ").toLowerCase();
         return haystack.includes(term);
       });
   }, [onuFilter, onuSearch, onusQuery.data]);
@@ -475,8 +478,8 @@ export default function OltHiosoPage() {
   const onlineCount = (onusQuery.data ?? []).filter((onu) => isOnuOnline(onu.status)).length;
   const totalCount = onusQuery.data?.length ?? 0;
   const downCount = Math.max(totalCount - onlineCount, 0);
-  const healthOnline = Boolean(healthQuery.data?.online);
-  const healthDetail = healthQuery.data?.detail || (healthOnline ? "OLT reachable" : "Health status unavailable");
+  const healthOnline = Boolean(healthQuery.data?.model);
+  const healthDetail = healthQuery.data?.model ? `${healthQuery.data.model} - ${healthQuery.data.firmware ?? ""} (${healthQuery.data.total_onu ?? 0} ONU)` : "Health status unavailable";
 
   const devices = devicesQuery.data ?? [];
   useEffect(() => {
@@ -532,17 +535,6 @@ export default function OltHiosoPage() {
                   >
                     Refresh
                   </Button>
-                  <Button
-                    className="w-full sm:w-auto"
-                    disabled={testDeviceMutation.isPending || isGlobalLoading}
-                    onClick={() => {
-                      void handleDeviceTest();
-                    }}
-                    type="button"
-                    variant="outline"
-                  >
-                    Test
-                  </Button>
                   {canManageOlt ? (
                     <Button
                       className="w-full sm:w-auto"
@@ -554,6 +546,16 @@ export default function OltHiosoPage() {
                     </Button>
                   ) : null}
                 </>
+              ) : null}
+              {canManageOlt ? (
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={openCreateDeviceModal}
+                  type="button"
+                  variant="secondary"
+                >
+                  Add OLT
+                </Button>
               ) : null}
             </div>
           )}
@@ -567,7 +569,7 @@ export default function OltHiosoPage() {
             <button
               className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${selectedDeviceId === device.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
               key={device.id}
-              onClick={() => setSelectedDeviceId(device.id)}
+              onClick={() => { setSelectedDeviceId(device.id); setPortFilter(1); setDetailOnuIndex(null); }}
               type="button"
             >
               {device.name || device.host}
@@ -580,7 +582,7 @@ export default function OltHiosoPage() {
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
             <p>Belum ada OLT HIOSO terdaftar.</p>
-            <p>Tambahkan OLT dari menu Sidebar untuk mulai monitoring.</p>
+            <p>Klik tombol <span className="font-semibold text-foreground">Add OLT</span> untuk mulai monitoring.</p>
           </CardContent>
         </Card>
       ) : null}
@@ -676,7 +678,7 @@ export default function OltHiosoPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-black uppercase tracking-[0.04em] text-foreground">{onu.name || "ONU"}</p>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        IDX {onu.index} · P{onu.port ?? "-"}
+                        IDX {onu.index}
                       </p>
                     </div>
                     <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
@@ -703,9 +705,9 @@ export default function OltHiosoPage() {
                 </div>
               ))}
 
-              {filteredOnus.length === 0 ? (
-                <div className="rounded-2xl border-2 border-border bg-card px-4 py-8 text-center text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))]">
-                  {onusQuery.isLoading ? "Loading ONU data..." : "No ONU matched current filter."}
+              {(onusQuery.isFetching || filteredOnus.length === 0) ? (
+                <div className="rounded-2xl border-2 border-border bg-card px-4 py-8 text-center text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))] flex flex-col items-center gap-3">
+                  {onusQuery.isFetching ? <><Loader size="sm" /><span>Loading ONU data...</span></> : "No ONU matched current filter."}
                 </div>
               ) : null}
             </div>
@@ -715,12 +717,10 @@ export default function OltHiosoPage() {
                 <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3">Index</th>
-                    <th className="px-4 py-3">Port</th>
                     <th className="px-4 py-3">Name</th>
                     <th className="px-4 py-3">Serial</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Signals</th>
-                    <th className="px-4 py-3">Profile</th>
+                    <th className="px-4 py-3">RX Power</th>
                     <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
@@ -728,14 +728,12 @@ export default function OltHiosoPage() {
                   {filteredOnus.map((onu: HiosoOnuRow) => (
                     <tr className="border-t-2 border-border/80" key={onu.index}>
                       <td className="px-4 py-3 font-semibold text-foreground">{onu.index}</td>
-                      <td className="px-4 py-3 text-foreground">{onu.port ?? "-"}</td>
                       <td className="px-4 py-3 text-foreground">{onu.name || "-"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{onu.sn || "-"}</td>
                       <td className="px-4 py-3">
                         <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">Tx {onu.tx_power ?? "-"} / Rx {onu.rx_power ?? "-"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{onu.profile || "-"}</td>
+                      <td className="px-4 py-3 font-bold text-foreground">{onu.rx_power ?? "-"} dBm</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end">
                           <Button
@@ -752,10 +750,10 @@ export default function OltHiosoPage() {
                       </td>
                     </tr>
                   ))}
-                  {filteredOnus.length === 0 ? (
+                  {(onusQuery.isFetching || filteredOnus.length === 0) ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground" colSpan={8}>
-                        {onusQuery.isLoading ? "Loading ONU data..." : "No ONU matched current filter."}
+                      <td className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground" colSpan={6}>
+                        {onusQuery.isFetching ? <div className="flex items-center justify-center gap-3"><Loader size="sm" /><span>Loading ONU data...</span></div> : "No ONU matched current filter."}
                       </td>
                     </tr>
                   ) : null}
@@ -764,24 +762,6 @@ export default function OltHiosoPage() {
             </div>
           </CardContent>
         </Card>
-      ) : null}
-
-      {selectedDeviceId && selectedDevice && canManageOlt ? (
-        <div className="flex justify-end">
-          <Button
-            disabled={deleteDeviceMutation.isPending}
-            onClick={() => {
-              if (!window.confirm(`Delete device ${selectedDevice.name || selectedDevice.host}? This cannot be undone.`)) {
-                return;
-              }
-              deleteDeviceMutation.mutate(selectedDeviceId);
-            }}
-            type="button"
-            variant="outline"
-          >
-            Delete Device
-          </Button>
-        </div>
       ) : null}
 
       <PluginOverlay open={Boolean(detailOnuIndex)} title="ONU Detail" onClose={closeOnuDetailOverlay}>
@@ -795,16 +775,17 @@ export default function OltHiosoPage() {
             renameOnuMutation.mutate({ index: detailOnuIndex, name: onuDraftName });
           }}
         >
-          <div className="space-y-3 text-sm text-muted-foreground">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <div><span className="font-semibold text-foreground">Index:</span> {onuDetailQuery.data?.index || "-"}</div>
             <div><span className="font-semibold text-foreground">Web ID:</span> {onuDetailQuery.data?.web_id || "-"}</div>
-            <div><span className="font-semibold text-foreground">Port:</span> {onuDetailQuery.data?.port ?? "-"}</div>
-            <div><span className="font-semibold text-foreground">ONU ID:</span> {onuDetailQuery.data?.onu_id ?? "-"}</div>
+            <div><span className="font-semibold text-foreground">Firmware:</span> {onuDetailQuery.data?.firmware || "-"}</div>
+            <div><span className="font-semibold text-foreground">Chip:</span> {onuDetailQuery.data?.chip_id || "-"}</div>
             <div><span className="font-semibold text-foreground">Serial:</span> {onuDetailQuery.data?.sn || "-"}</div>
             <div><span className="font-semibold text-foreground">Status:</span> {onuDetailQuery.data?.status || "-"}</div>
-            <div><span className="font-semibold text-foreground">TX Power:</span> {onuDetailQuery.data?.tx_power ?? "-"}</div>
-            <div><span className="font-semibold text-foreground">RX Power:</span> {onuDetailQuery.data?.rx_power ?? "-"}</div>
-            <div><span className="font-semibold text-foreground">Profile:</span> {onuDetailQuery.data?.profile || "-"}</div>
+            <div><span className="font-semibold text-foreground">TX Power:</span> {onuDetailQuery.data?.tx_power ?? "-"} dBm</div>
+            <div><span className="font-semibold text-foreground">RX Power:</span> {onuDetailQuery.data?.rx_power ?? "-"} dBm</div>
+            <div><span className="font-semibold text-foreground">Temperature:</span> {onuDetailQuery.data?.temperature ?? "-"} °C</div>
+            <div><span className="font-semibold text-foreground">Registered:</span> {onuDetailQuery.data?.registered_at || "-"}</div>
           </div>
 
           <div className="space-y-2">
@@ -905,38 +886,22 @@ export default function OltHiosoPage() {
             <Input id="device-port" value={deviceForm.port} onChange={(event) => setDeviceForm((current) => ({ ...current, port: event.target.value }))} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-snmp-version">Version</label>
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-firmware-type">Firmware Type</label>
             <Select
-              value={deviceForm.snmp_version}
-              onValueChange={(value) => setDeviceForm((current) => ({ ...current, snmp_version: value }))}
+              value={deviceForm.firmware_type}
+              onValueChange={(value) => setDeviceForm((current) => ({ ...current, firmware_type: value }))}
             >
               <Select.Trigger
-                id="device-snmp-version"
+                id="device-firmware-type"
                 className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <Select.Value placeholder="Select version" />
+                <Select.Value placeholder="Select type" />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="1">v1</Select.Item>
-                <Select.Item value="2c">v2c</Select.Item>
+                <Select.Item value="0">HA7304VX</Select.Item>
+                <Select.Item value="1">Other (Legacy)</Select.Item>
               </Select.Content>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-snmp-community">Community</label>
-            <Input id="device-snmp-community" value={deviceForm.snmp_community} onChange={(event) => setDeviceForm((current) => ({ ...current, snmp_community: event.target.value }))} />
-          </div>
-
-          <div className="space-y-2 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">WebUI</p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-web-host">Host / IP</label>
-            <Input id="device-web-host" value={deviceForm.web_host} onChange={(event) => setDeviceForm((current) => ({ ...current, web_host: event.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-web-port">Port</label>
-            <Input id="device-web-port" value={deviceForm.web_port} onChange={(event) => setDeviceForm((current) => ({ ...current, web_port: event.target.value }))} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-username">Username</label>
@@ -975,47 +940,49 @@ export default function OltHiosoPage() {
           ) : null}
         </div>
 
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
+        <div className="mt-6 flex flex-col gap-3">
           {deviceModalMode === "edit" ? (
-            <Button
-              disabled={
-                isDeviceSubmitting
-                || createZteMutation.isPending
-                || updateZteMutation.isPending
-                || deleteDeviceMutation.isPending
-                || deleteZteMutation.isPending
-              }
-              onClick={() => {
-                if (createOltType === "zte" && editingZte) {
-                  deleteZteMutation.mutate(editingZte.id);
-                  return;
-                }
+            <div className="flex gap-2">
+              <Button
+                disabled={testDeviceMutation.isPending || isGlobalLoading}
+                onClick={() => void handleDeviceTest()}
+                type="button"
+                variant="outline"
+                className="flex-1"
+              >
+                {testDeviceMutation.isPending ? "Testing..." : "Test Connection"}
+              </Button>
+              <Button
+                disabled={deleteDeviceMutation.isPending || deleteZteMutation.isPending || isGlobalLoading}
+                onClick={() => {
+                  if (createOltType === "zte" && editingZte) {
+                    if (!window.confirm(`Delete ZTE OLT ${editingZte.name}?`)) return;
+                    deleteZteMutation.mutate(editingZte.id);
+                    return;
+                  }
+                  if (editingDevice) {
+                    if (!window.confirm(`Delete device ${editingDevice.name || editingDevice.host}?`)) return;
+                    deleteDeviceMutation.mutate(editingDevice.id);
+                  }
+                }}
+                type="button"
+                variant="outline"
+                className="flex-1 text-red-600 hover:bg-red-50"
+              >
+                Delete
+              </Button>
+            </div>
+          ) : null}
 
-                if (editingDevice) {
-                  deleteDeviceMutation.mutate(editingDevice.id);
-                }
-              }}
-              type="button"
-              variant="destructive"
-            >
-              {createOltType === "zte" ? "Delete ZTE OLT" : "Delete Device"}
-            </Button>
-          ) : <div />}
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button onClick={closeDeviceModal} type="button" variant="outline">Cancel</Button>
-          <Button disabled={isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending || (createOltType === "zte" && !zteForm.baseUrl.trim())} onClick={handleDeviceSubmit} type="button">
+          <Button disabled={isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending || (createOltType === "zte" && !zteForm.baseUrl.trim())} onClick={handleDeviceSubmit} type="button" className="w-full">
             {(isDeviceSubmitting || createZteMutation.isPending || updateZteMutation.isPending)
               ? "Saving..."
               : deviceModalMode === "edit"
-                ? createOltType === "zte"
-                  ? "Update ZTE OLT"
-                  : "Save Changes"
+                ? "Save Changes"
                 : createOltType === "zte"
                   ? "Create ZTE OLT"
                   : "Create HIOSO OLT"}
           </Button>
-          </div>
         </div>
       </PluginOverlay>
     </div>

@@ -17,24 +17,24 @@ import (
 func ListZTEConnections(w http.ResponseWriter, r *http.Request) {
 	connections, err := db.ListZTEConnections()
 	if err != nil {
-		hiosoError(w, http.StatusInternalServerError, "Gagal mengambil data koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal mengambil data koneksi ZTE")
 		return
 	}
 	if connections == nil {
 		connections = make([]models.ZTEConnection, 0)
 	}
-	hiosoJSON(w, connections)
+	pluginJSON(w, connections)
 }
 
 func CreateZTEConnection(w http.ResponseWriter, r *http.Request) {
 	var req models.ZTEConnectionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		hiosoError(w, http.StatusBadRequest, "Body request tidak valid")
+		pluginError(w, http.StatusBadRequest, "Body request tidak valid")
 		return
 	}
 
 	if strings.TrimSpace(req.BaseURL) == "" {
-		hiosoError(w, http.StatusBadRequest, "Base URL wajib diisi")
+		pluginError(w, http.StatusBadRequest, "Base URL wajib diisi")
 		return
 	}
 
@@ -119,87 +119,87 @@ func CreateZTEConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(created) == 0 {
-		hiosoError(w, http.StatusInternalServerError, "Gagal menyimpan koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal menyimpan koneksi ZTE")
 		return
 	}
 
-	hiosoJSON(w, created)
+	pluginJSON(w, created)
 }
 
 func singleCreate(w http.ResponseWriter, req models.ZTEConnectionRequest) {
 	conn, err := db.CreateZTEConnection(req)
 	if err != nil {
-		hiosoError(w, http.StatusInternalServerError, "Gagal menyimpan koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal menyimpan koneksi ZTE")
 		return
 	}
-	hiosoJSON(w, conn)
+	pluginJSON(w, conn)
 }
 
 func DeleteZTEConnection(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if strings.TrimSpace(id) == "" {
-		hiosoError(w, http.StatusBadRequest, "ID koneksi tidak valid")
+		pluginError(w, http.StatusBadRequest, "ID koneksi tidak valid")
 		return
 	}
 
 	existing, err := db.GetZTEConnectionByID(id)
 	if err != nil {
-		hiosoError(w, http.StatusInternalServerError, "Gagal mencari koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal mencari koneksi ZTE")
 		return
 	}
 	if existing == nil {
-		hiosoError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan")
+		pluginError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan")
 		return
 	}
 
 	if err := db.DeleteZTEConnection(id); err != nil {
-		hiosoError(w, http.StatusInternalServerError, "Gagal menghapus koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal menghapus koneksi ZTE")
 		return
 	}
 
-	hiosoJSON(w, map[string]string{"message": "Koneksi ZTE berhasil dihapus"})
+	pluginJSON(w, map[string]string{"message": "Koneksi ZTE berhasil dihapus"})
 }
 
 func UpdateZTEConnection(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if strings.TrimSpace(id) == "" {
-		hiosoError(w, http.StatusBadRequest, "ID koneksi tidak valid")
+		pluginError(w, http.StatusBadRequest, "ID koneksi tidak valid")
 		return
 	}
 
 	var req models.ZTEConnectionUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		hiosoError(w, http.StatusBadRequest, "Body request tidak valid")
+		pluginError(w, http.StatusBadRequest, "Body request tidak valid")
 		return
 	}
 
 	conn, err := db.UpdateZTEConnection(id, req)
 	if err != nil {
 		if err.Error() == "not found" {
-			hiosoError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan")
+			pluginError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan")
 			return
 		}
-		hiosoError(w, http.StatusInternalServerError, "Gagal mengupdate koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal mengupdate koneksi ZTE")
 		return
 	}
 
-	hiosoJSON(w, conn)
+	pluginJSON(w, conn)
 }
 
 func HealthCheckZTE(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if strings.TrimSpace(id) == "" {
-		hiosoError(w, http.StatusBadRequest, "ID koneksi tidak valid")
+		pluginError(w, http.StatusBadRequest, "ID koneksi tidak valid")
 		return
 	}
 
 	conn, err := db.GetZTEConnectionByID(id)
 	if err != nil {
-		hiosoError(w, http.StatusInternalServerError, "Gagal mencari koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal mencari koneksi ZTE")
 		return
 	}
 	if conn == nil {
-		hiosoError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan")
+		pluginError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan")
 		return
 	}
 
@@ -209,7 +209,7 @@ func HealthCheckZTE(w http.ResponseWriter, r *http.Request) {
 	targetURL := strings.TrimRight(conn.BaseURL, "/") + "/api/v1/olts"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
-		hiosoJSON(w, map[string]interface{}{
+		pluginJSON(w, map[string]interface{}{
 			"status":     "error",
 			"latency_ms": 0,
 		})
@@ -224,7 +224,7 @@ func HealthCheckZTE(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			resp.Body.Close()
 		}
-		hiosoJSON(w, map[string]interface{}{
+		pluginJSON(w, map[string]interface{}{
 			"status":     "offline",
 			"latency_ms": latency,
 		})
@@ -232,7 +232,7 @@ func HealthCheckZTE(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	hiosoJSON(w, map[string]interface{}{
+	pluginJSON(w, map[string]interface{}{
 		"status":     "ok",
 		"latency_ms": latency,
 	})
@@ -243,7 +243,7 @@ func TestZTEConnection(w http.ResponseWriter, r *http.Request) {
 		BaseURL string `json:"base_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		hiosoError(w, http.StatusBadRequest, "Body tidak valid")
+		pluginError(w, http.StatusBadRequest, "Body tidak valid")
 		return
 	}
 
@@ -253,7 +253,7 @@ func TestZTEConnection(w http.ResponseWriter, r *http.Request) {
 	targetURL := strings.TrimRight(req.BaseURL, "/") + "/api/v1/olts"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
-		hiosoJSON(w, map[string]interface{}{"status": "error", "latency_ms": 0})
+		pluginJSON(w, map[string]interface{}{"status": "error", "latency_ms": 0})
 		return
 	}
 
@@ -265,10 +265,10 @@ func TestZTEConnection(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			resp.Body.Close()
 		}
-		hiosoJSON(w, map[string]interface{}{"status": "offline", "latency_ms": latency})
+		pluginJSON(w, map[string]interface{}{"status": "offline", "latency_ms": latency})
 		return
 	}
 	defer resp.Body.Close()
 
-	hiosoJSON(w, map[string]interface{}{"status": "ok", "latency_ms": latency})
+	pluginJSON(w, map[string]interface{}{"status": "ok", "latency_ms": latency})
 }

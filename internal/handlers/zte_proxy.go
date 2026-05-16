@@ -17,29 +17,29 @@ import (
 func ForwardZTEProxy(w http.ResponseWriter, r *http.Request) {
 	connId := chi.URLParam(r, "connId")
 	if strings.TrimSpace(connId) == "" {
-		hiosoError(w, http.StatusBadRequest, "OLT ID tidak valid")
+		pluginError(w, http.StatusBadRequest, "OLT ID tidak valid")
 		return
 	}
 
 	conn, err := db.GetZTEConnectionByOltID(connId)
 	if err != nil {
-		hiosoError(w, http.StatusInternalServerError, "Gagal mencari koneksi ZTE")
+		pluginError(w, http.StatusInternalServerError, "Gagal mencari koneksi ZTE")
 		return
 	}
 	if conn == nil {
-		hiosoError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan untuk OLT ID: "+connId)
+		pluginError(w, http.StatusNotFound, "Koneksi ZTE tidak ditemukan untuk OLT ID: "+connId)
 		return
 	}
 
 	wildcard := chi.URLParam(r, "*")
 	if wildcard == "" {
-		hiosoError(w, http.StatusBadRequest, "Path proxy tidak valid")
+		pluginError(w, http.StatusBadRequest, "Path proxy tidak valid")
 		return
 	}
 
 	targetPath := mapProxyPath(wildcard, connId)
 	if targetPath == "" {
-		hiosoError(w, http.StatusBadRequest, "Path proxy tidak valid: "+wildcard)
+		pluginError(w, http.StatusBadRequest, "Path proxy tidak valid: "+wildcard)
 		return
 	}
 
@@ -51,7 +51,7 @@ func ForwardZTEProxy(w http.ResponseWriter, r *http.Request) {
 	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, targetURL, r.Body)
 	if err != nil {
 		log.Printf("ZTE proxy error: oltId=%s url=%s err=%v", connId, targetURL, err)
-		hiosoError(w, http.StatusInternalServerError, "Gagal membuat request proxy")
+		pluginError(w, http.StatusInternalServerError, "Gagal membuat request proxy")
 		return
 	}
 
@@ -63,7 +63,7 @@ func ForwardZTEProxy(w http.ResponseWriter, r *http.Request) {
 	resp, err := http.DefaultClient.Do(proxyReq)
 	if err != nil {
 		log.Printf("ZTE proxy error: oltId=%s url=%s err=%v", connId, targetURL, err)
-		hiosoError(w, http.StatusBadGateway, fmt.Sprintf("gagal terhubung ke zzte: %v", err))
+		pluginError(w, http.StatusBadGateway, fmt.Sprintf("gagal terhubung ke zzte: %v", err))
 		return
 	}
 	defer resp.Body.Close()

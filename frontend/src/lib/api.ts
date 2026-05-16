@@ -86,19 +86,24 @@ export type UpdateAcsUserPayload = {
 
 export type HiosoPluginStatus = {
   enabled?: boolean;
-  host?: string;
 };
 
 export type HiosoPluginHealth = {
-  online?: boolean;
-  detail?: string;
+  model?: string;
+  firmware?: string;
+  mac?: string;
+  ip?: string;
+  uptime?: string;
+  cpu?: string;
+  memory?: string;
+  serial_number?: string;
+  total_onu?: number;
+  online_onu?: number;
 };
 
 export type HiosoOnuRow = {
   index: string;
   web_id?: string;
-  port?: number;
-  onu_id?: number;
   name?: string;
   sn?: string;
   status?: string;
@@ -107,21 +112,36 @@ export type HiosoOnuRow = {
   profile?: string;
 };
 
+export type HiosoOnuDetail = {
+  index: string;
+  web_id?: string;
+  name?: string;
+  sn?: string;
+  status?: string;
+  tx_power?: number;
+  rx_power?: number;
+  profile?: string;
+  firmware?: string;
+  temperature?: number;
+  distance?: number;
+  uptime?: number;
+  registered_at?: string;
+  last_online_at?: string;
+  chip_id?: string;
+  ports?: string;
+  voltage?: number;
+  bias_current?: number;
+};
+
 export type HiosoOLTDevice = {
   id: string;
   name: string;
   host: string;
   port: number;
-  snmp_version: string;
-  snmp_community: string;
-  web_host: string;
-  web_port: number;
   username: string;
   password?: string;
-  profile?: string;
+  firmware_type: string;
   status?: string;
-  last_error?: string;
-  last_health_at?: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -318,19 +338,21 @@ export async function getHiosoPluginStatus() {
   return unwrapApiEnvelope(data);
 }
 
-export async function getHiosoPluginHealth(deviceId?: string) {
-  const path = deviceId
-    ? `/hioso/devices/${encodeURIComponent(deviceId)}/health`
-    : "/hioso/health";
-  const { data } = await api.get<ApiEnvelope<HiosoPluginHealth> | HiosoPluginHealth>(path);
+export async function enableHiosoPlugin() {
+  const { data } = await api.post<ApiEnvelope<HiosoPluginStatus>>("/hioso/enable");
   return unwrapApiEnvelope(data);
 }
 
-export async function getHiosoPorts(deviceId: string) {
-  const { data } = await api.get<ApiEnvelope<number[]> | number[]>(
-    `/hioso/devices/${encodeURIComponent(deviceId)}/ports`,
+export async function disableHiosoPlugin() {
+  const { data } = await api.post<ApiEnvelope<HiosoPluginStatus>>("/hioso/disable");
+  return unwrapApiEnvelope(data);
+}
+
+export async function getHiosoPluginHealth(deviceId: string) {
+  const { data } = await api.get<ApiEnvelope<HiosoPluginHealth> | HiosoPluginHealth>(
+    `/hioso/devices/${encodeURIComponent(deviceId)}/health`,
   );
-  return unwrapApiEnvelope(data) ?? [];
+  return unwrapApiEnvelope(data);
 }
 
 export async function getHiosoOnus(deviceId: string, port?: number) {
@@ -342,24 +364,28 @@ export async function getHiosoOnus(deviceId: string, port?: number) {
   return unwrapApiEnvelope(data) ?? [];
 }
 
-export async function getHiosoOnuDetail(deviceId: string, onuIndex: string) {
-  const { data } = await api.get<ApiEnvelope<HiosoOnuRow> | HiosoOnuRow>(
-    `/hioso/devices/${encodeURIComponent(deviceId)}/onu/${encodeURIComponent(onuIndex)}`,
+export async function getHiosoOnuDetail(deviceId: string, port: number, onuId: number) {
+  const { data } = await api.get<ApiEnvelope<HiosoOnuDetail> | HiosoOnuDetail>(
+    `/hioso/devices/${encodeURIComponent(deviceId)}/onu/detail`,
+    { params: { port, id: onuId } },
   );
   return unwrapApiEnvelope(data);
 }
 
-export async function renameHiosoOnu(deviceId: string, onuIndex: string, name: string) {
+export async function renameHiosoOnu(deviceId: string, port: number, onuId: number, name: string) {
   const { data } = await api.post<ApiEnvelope<{ method?: string }> | { method?: string }>(
-    `/hioso/devices/${encodeURIComponent(deviceId)}/onu/${encodeURIComponent(onuIndex)}/rename`,
+    `/hioso/devices/${encodeURIComponent(deviceId)}/onu/rename`,
     { name },
+    { params: { port, id: onuId } },
   );
   return unwrapApiEnvelope(data);
 }
 
-export async function rebootHiosoOnu(deviceId: string, onuIndex: string) {
+export async function rebootHiosoOnu(deviceId: string, port: number, onuId: number) {
   const { data } = await api.post<ApiEnvelope<{ rebooted?: boolean }> | { rebooted?: boolean }>(
-    `/hioso/devices/${encodeURIComponent(deviceId)}/onu/${encodeURIComponent(onuIndex)}/reboot`,
+    `/hioso/devices/${encodeURIComponent(deviceId)}/onu/reboot`,
+    {},
+    { params: { port, id: onuId } },
   );
   return unwrapApiEnvelope(data);
 }
@@ -370,50 +396,21 @@ export async function getHiosoDevices() {
     return unwrapApiEnvelope(data) ?? [];
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      console.warn("[Hioso] GET /hioso/devices returned 404, falling back to empty list.");
       return [];
     }
     throw error;
   }
 }
 
-export async function getHiosoDevice(deviceId: string) {
-  const { data } = await api.get<ApiEnvelope<HiosoOLTDevice> | HiosoOLTDevice>(
-    `/hioso/devices/${encodeURIComponent(deviceId)}`,
-  );
-  return unwrapApiEnvelope(data);
-}
-
 export async function createHiosoDevice(payload: {
   name: string;
   host: string;
   port?: number;
-  snmp_version?: string;
-  snmp_community: string;
-  web_host?: string;
-  web_port?: number;
-  username?: string;
-  password?: string;
-}) {
-  const { data } = await api.post<ApiEnvelope<HiosoOLTDevice> | HiosoOLTDevice>("/hioso/devices", payload);
-  return unwrapApiEnvelope(data);
-}
-
-export async function updateHiosoDevice(deviceId: string, payload: Partial<{
-  name: string;
-  host: string;
-  port: number;
-  snmp_version: string;
-  snmp_community: string;
-  web_host: string;
-  web_port: number;
   username: string;
   password: string;
-}>) {
-  const { data } = await api.patch<ApiEnvelope<HiosoOLTDevice> | HiosoOLTDevice>(
-    `/hioso/devices/${encodeURIComponent(deviceId)}`,
-    payload,
-  );
+  firmware_type: number;
+}) {
+  const { data } = await api.post<ApiEnvelope<HiosoOLTDevice> | HiosoOLTDevice>("/hioso/devices", payload);
   return unwrapApiEnvelope(data);
 }
 
@@ -425,7 +422,7 @@ export async function deleteHiosoDevice(deviceId: string) {
 }
 
 export async function testHiosoDevice(deviceId: string) {
-  const { data } = await api.post<ApiEnvelope<HiosoPluginHealth> | HiosoPluginHealth>(
+  const { data } = await api.post<ApiEnvelope<{ firmware_type?: string; status?: string }>>(
     `/hioso/devices/${encodeURIComponent(deviceId)}/test`,
   );
   return unwrapApiEnvelope(data);

@@ -59,15 +59,6 @@ func main() {
 	handlers.StartTelegramBotFromEnv()
 	handlers.StartACSAutoRefreshFromEnv()
 	scheduler.StartACSOfflineSummonScheduler()
-	scheduler.StartHiosoHealthScheduler(func(deviceID, host string, port uint16, community, version string) {
-		target := handlers.SNMPTarget{
-			Host:      host,
-			Port:      port,
-			Community: community,
-			Version:   handlers.HiosoParseSNMPVersion(version),
-		}
-		handlers.HiosoRunHealthCheck(deviceID, target)
-	})
 	handlers.StartBillingSchedulersFromEnv()
 
 	// Buat router chi
@@ -106,11 +97,6 @@ func main() {
 			r.Route("/settings", func(r chi.Router) {
 				r.Use(middleware.RequireRole("admin"))
 				r.Get("/", handlers.GetSettings)
-				r.Get("/hioso-olts", handlers.GetHiosoOLTProfiles)
-				r.Post("/hioso-olts", handlers.CreateHiosoOLTProfile)
-				r.Patch("/hioso-olts/{id}", handlers.UpdateHiosoOLTProfile)
-				r.Delete("/hioso-olts/{id}", handlers.DeleteHiosoOLTProfile)
-				r.Post("/hioso-olts/{id}/activate", handlers.ActivateHiosoOLTProfile)
 				r.Get("/acs-learned-profiles", handlers.GetACSLearnedProfiles)
 				r.Post("/acs-learned-profiles", handlers.UpsertACSLearnedProfile)
 				r.Delete("/acs-learned-profiles", handlers.DeleteACSLearnedProfile)
@@ -205,26 +191,18 @@ func main() {
 
 		// ── Hioso OLT ───────────────────────────────────────────────────────
 		r.Route("/api/hioso", func(r chi.Router) {
-			// Plugin control (enable/disable tanpa restart)
 			r.Get("/status", handlers.HiosoStatusHandler)
 			r.Post("/enable", handlers.HiosoEnableHandler)
 			r.Post("/disable", handlers.HiosoDisableHandler)
-
-			// OLT device CRUD
 			r.Get("/devices", handlers.HiosoListDevicesHandler)
 			r.Post("/devices", handlers.HiosoCreateDeviceHandler)
-			r.Get("/devices/{device_id}", handlers.HiosoGetDeviceHandler)
-			r.Patch("/devices/{device_id}", handlers.HiosoUpdateDeviceHandler)
-			r.Delete("/devices/{device_id}", handlers.HiosoDeleteDeviceHandler)
-			r.Post("/devices/{device_id}/test", handlers.HiosoTestDeviceHandler)
-
-			// Per-device ONU data & actions
-			r.Get("/devices/{device_id}/onu", handlers.HiosoFetchAllHandler)
-			r.Get("/devices/{device_id}/onu/{index}", handlers.HiosoDetailHandler)
-			r.Post("/devices/{device_id}/onu/{index}/rename", handlers.HiosoRenameHandler)
-			r.Post("/devices/{device_id}/onu/{index}/reboot", handlers.HiosoRebootHandler)
-			r.Get("/devices/{device_id}/health", handlers.HiosoHealthHandler)
-			r.Get("/devices/{device_id}/ports", handlers.HiosoPortsHandler)
+			r.Delete("/devices/{id}", handlers.HiosoDeleteDeviceHandler)
+			r.Post("/devices/{id}/test", handlers.HiosoTestDeviceHandler)
+			r.Get("/devices/{id}/health", handlers.HiosoHealthHandler)
+			r.Get("/devices/{id}/onu", handlers.HiosoFetchAllHandler)
+			r.Get("/devices/{id}/onu/detail", handlers.HiosoDetailHandler)
+			r.Post("/devices/{id}/onu/rename", handlers.HiosoRenameHandler)
+			r.Post("/devices/{id}/onu/reboot", handlers.HiosoRebootHandler)
 		})
 
 // ZTE Plugin routes

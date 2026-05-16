@@ -91,15 +91,13 @@ func createTables() error {
 		return err
 	}
 
-	if err := createHiosoOLTDeviceTables(); err != nil {
-		return err
-	}
-
 	if err := createZTEConnectionTables(); err != nil {
 		return err
 	}
 
-	MigrateHiosoProfilesIfNeeded()
+	if err := createHiosoDeviceTables(); err != nil {
+		return err
+	}
 
 	return nil
 }
