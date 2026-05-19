@@ -1104,11 +1104,11 @@ export default function OnuDetail() {
                 onChange={(event) => setWifiForm((current) => ({ ...current, password: event.target.value }))}
               />
               <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-foreground/60 hover:text-foreground"
                 onClick={() => setShowWifiPassword((current) => !current)}
                 type="button"
               >
-                {showWifiPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showWifiPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
             <div className="flex h-11 items-center rounded-lg border-2 border-input bg-card px-3 text-sm font-medium text-foreground shadow-brutal-sm">

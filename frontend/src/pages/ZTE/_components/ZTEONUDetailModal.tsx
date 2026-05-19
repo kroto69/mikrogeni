@@ -30,9 +30,9 @@ function formatDate(dateStr: string): string {
 }
 
 function rxPowerClass(rx: number): string {
-  if (rx > -25) return 'text-success font-extrabold'
-  if (rx >= -27) return 'text-warning font-extrabold'
-  return 'text-destructive font-extrabold'
+  if (rx > -25) return 'bg-success/20 text-foreground font-extrabold px-2 py-0.5 rounded'
+  if (rx >= -27) return 'bg-warning/20 text-foreground font-extrabold px-2 py-0.5 rounded'
+  return 'bg-destructive/20 text-destructive font-extrabold px-2 py-0.5 rounded'
 }
 
 function mapDetailStatusTone(statusCode: number, status: string): { status: NmsStatus; label: string } {
