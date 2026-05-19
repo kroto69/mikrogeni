@@ -143,7 +143,7 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <Button
               onClick={() => fetchDetail(true)}
-              className="h-10 flex-1 sm:flex-none"
+              className="h-11 w-full sm:h-10 sm:w-auto"
               size="sm"
               variant="outline"
             >
@@ -152,7 +152,7 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
             <Button
               onClick={handleReboot}
               disabled={rebooting}
-              className="h-10 flex-1 sm:flex-none"
+              className="h-11 w-full sm:h-10 sm:w-auto"
               size="sm"
               variant="destructive"
             >

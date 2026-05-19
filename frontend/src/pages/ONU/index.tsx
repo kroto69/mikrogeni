@@ -716,7 +716,7 @@ export default function OnuIndex() {
                                 ? "text-warning"
                                 : tone.label === "provisioning"
                                   ? "text-accent"
-                                  : "text-success",
+                                  : "text-emerald-700",
                           )}
                         >
                           {device.rxDbm}
@@ -820,7 +820,7 @@ export default function OnuIndex() {
                                           ? "text-warning"
                                           : tone.label === "provisioning"
                                             ? "text-accent"
-                                            : "text-success",
+                                            : "text-emerald-700",
                                   )}
                                 >
                                   {device.rxDbm === null ? "-" : `${device.rxDbm} dBm`}

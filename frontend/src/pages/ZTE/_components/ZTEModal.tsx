@@ -30,11 +30,11 @@ export function ZTEModal({ isOpen, onClose, title, children }: ZTEModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/50 px-3 py-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/50 p-3 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="neo-panel box-border max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-none border-2 border-border bg-card p-4 text-card-foreground shadow-brutal sm:max-h-[90dvh] sm:max-w-2xl sm:p-6"
+        className="neo-panel box-border my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-none border-2 border-border bg-card p-4 text-card-foreground shadow-brutal sm:max-h-[90dvh] sm:max-w-lg sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between border-b-2 border-border pb-3">

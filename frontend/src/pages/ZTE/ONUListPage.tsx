@@ -249,7 +249,7 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
           <thead className="sticky top-0 z-10 border-b-2 border-border bg-muted">
             <tr>
               <th className="w-12 px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">ID</th>
-              <th className="px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">NAMA</th>
+              <th className="max-w-[10rem] px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">NAMA</th>
               <th className="hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground sm:table-cell">SN</th>
               <th className="w-20 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">STATUS</th>
               <th className="w-24 px-3 py-3 text-right text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX (DBM)</th>
@@ -260,9 +260,9 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
             {rows.map((row) => (
               <tr key={`${row.id}-${row.sn}`} className="cursor-pointer border-b border-border/60 transition-colors hover:bg-muted/30" onClick={() => onViewDetail(row)}>
                 <td className="px-3 py-2.5 font-bold">{row.id}</td>
-                <td className="px-3 py-2.5">
-                  <span className="block max-w-[18rem] truncate font-bold uppercase">{row.nama}</span>
-                  <span className="block text-xs text-muted-foreground sm:hidden">{row.sn}</span>
+                <td className="max-w-[10rem] px-3 py-2.5">
+                  <span className="block truncate font-bold uppercase">{row.nama}</span>
+                  <span className="block truncate text-xs text-muted-foreground sm:hidden">{row.sn}</span>
                 </td>
                 <td className="hidden px-3 py-2.5 font-mono text-xs text-muted-foreground sm:table-cell">{row.sn}</td>
                 <td className="px-3 py-2.5 text-center"><StatusBadge status={row.status} /></td>
@@ -349,7 +349,10 @@ export default function ONUListPage() {
   const handleLoad = () => {
     if (pon != null) {
       setHasLoaded(true)
-      refetch()
+      void runWithGlobalLoader(async () => {
+        const result = await refetch()
+        if (result.error) throw result.error
+      }, 'Loading ONU Data...')
     }
   }
 
