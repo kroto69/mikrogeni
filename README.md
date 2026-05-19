@@ -297,18 +297,7 @@ git clone https://github.com/kroto69/zzte.git
 cd zzte
 ```
 
-Ikuti instruksi di [README zzte](https://github.com/kroto69/zzte) untuk setup dan menjalankan container. Secara umum:
-
-```bash
-# Edit konfigurasi OLT (IP, community, dll)
-cp .env.example .env
-nano .env
-
-# Jalankan
-docker compose up -d
-```
-
-zzte akan expose API di port tertentu (misal `http://localhost:3000` atau `http://olt-monitor:8081`).
+Ikuti instruksi di [README zzte](https://github.com/kroto69/zzte) untuk setup dan menjalankan container.
 
 ### 2. Tambahkan Koneksi di Mikrogeni
 
@@ -329,11 +318,54 @@ Setelah ditambahkan, ZTE OLT akan muncul di:
 - **Dashboard** → OLT Summary card
 - Fitur: monitoring ONU, status online/LOS/offline, RX power
 
+### 4. Troubleshooting: Koneksi antar Container
+
+Agar mikrogeni-backend bisa berkomunikasi dengan zzte, keduanya harus berada di **Docker network yang sama**.
+
+**Opsi A: Shared network (recommended)**
+
+Buat network shared:
+
+```bash
+docker network create mikrogeni-net
+```
+
+Tambahkan di `docker-compose.yml` mikrogeni:
+
+```yaml
+services:
+  backend:
+    networks:
+      - mikrogeni-net
+
+networks:
+  mikrogeni-net:
+    external: true
+```
+
+Tambahkan juga di `docker-compose.yml` zzte:
+
+```yaml
+services:
+  zzte:
+    networks:
+      - mikrogeni-net
+
+networks:
+  mikrogeni-net:
+    external: true
+```
+
+Lalu gunakan container name sebagai hostname di Base URL: `http://zzte:3000`
+
+**Opsi B: Network host**
+
+Jika keduanya pakai `network_mode: host`, mereka otomatis bisa saling akses via `localhost` atau `127.0.0.1`.
+
 ### Catatan
 
 - Setiap ZTE OLT butuh **satu instance zzte** yang berjalan dan terhubung ke OLT tersebut via SNMP.
 - Mikrogeni hanya menyimpan URL endpoint zzte — tidak berkomunikasi langsung ke OLT.
-- Pastikan container mikrogeni-backend bisa reach URL zzte (gunakan `network_mode: host` atau pastikan routing antar container benar).
 - Jika menggunakan Docker, pastikan zzte dan mikrogeni-backend berada di network yang sama atau keduanya pakai `network_mode: host`.
 
 ---
