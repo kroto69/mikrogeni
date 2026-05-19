@@ -710,13 +710,11 @@ export default function OnuIndex() {
                         <span
                           className={cn(
                             "font-semibold",
-                            tone.label === "critical" || tone.label === "offline"
-                              ? "text-destructive"
-                              : tone.label === "warning"
-                                ? "text-warning"
-                                : tone.label === "provisioning"
-                                  ? "text-accent"
-                                  : "text-foreground font-extrabold",
+                            device.rxDbm !== null && device.rxDbm < -30
+                              ? "text-destructive font-extrabold"
+                              : device.rxDbm !== null && device.rxDbm < -27
+                                ? "text-orange-600 font-extrabold"
+                                : "text-foreground font-extrabold",
                           )}
                         >
                           {device.rxDbm}
@@ -814,13 +812,11 @@ export default function OnuIndex() {
                                     "text-[11px] font-semibold",
                                     device.rxDbm === null
                                       ? "text-muted-foreground"
-                                      : tone.label === "critical" || tone.label === "offline"
-                                        ? "text-destructive"
-                                        : tone.label === "warning"
-                                          ? "text-warning"
-                                          : tone.label === "provisioning"
-                                            ? "text-accent"
-                                            : "text-foreground font-extrabold",
+                                      : device.rxDbm < -30
+                                        ? "text-destructive font-extrabold"
+                                        : device.rxDbm < -27
+                                          ? "text-orange-600 font-extrabold"
+                                          : "text-foreground font-extrabold",
                                   )}
                                 >
                                   {device.rxDbm === null ? "-" : `${device.rxDbm} dBm`}
