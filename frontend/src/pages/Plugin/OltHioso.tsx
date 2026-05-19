@@ -28,7 +28,7 @@ import { addZTEConnection, deleteZTEConnection, getZTEConnections, healthCheckZT
 import type { ZTEConnection } from "@/types/zte";
 import { showToast } from "@/lib/toast";
 import { useRole } from "@/hooks/useRole";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, X } from "lucide-react";
 import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 
 // Parse ONU index "1/3:1" atau "0/3:1" → { port: 3, id: 1 }
@@ -102,7 +102,9 @@ function PluginOverlay({ open, title, description, onClose, children }: { open: 
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
             {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
           </div>
-          <Button onClick={onClose} type="button" variant="outline">Close</Button>
+          <button onClick={onClose} type="button" className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
         </div>
         <div className="px-5 py-5">{children}</div>
       </div>
@@ -847,7 +849,6 @@ export default function OltHiosoPage() {
               </Button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button onClick={closeOnuDetailOverlay} type="button" variant="outline">Cancel</Button>
               <Button disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending} type="submit">Save</Button>
             </div>
           </div>
