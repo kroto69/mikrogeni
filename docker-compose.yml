@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: genieacs-backend
+    container_name: mikrogeni-backend
     restart: unless-stopped
     network_mode: host
     working_dir: /data
@@ -16,7 +16,7 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: genieacs-backend-nginx
+    container_name: mikrogeni-nginx
     restart: unless-stopped
     network_mode: host
     volumes:
