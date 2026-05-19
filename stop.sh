@@ -1,3 +1,2 @@
 #!/bin/bash
-docker compose down
-echo "[mikrogeni] All services stopped."
+docker stop mikrogeni-nginx 2>/dev/null && echo "[mikrogeni] Nginx stopped." || echo "[mikrogeni] Nginx not running."

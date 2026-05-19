@@ -13,104 +13,108 @@ Backend API (Go) untuk manajemen CPE GenieACS, MikroTik, dan Hioso OLT + Fronten
 | Go | 1.21+ |
 | Node.js | 18+ |
 | npm | 9+ |
-| Docker (opsional) | Docker Compose v2+ |
+| Docker | Docker Compose v2+ |
 | GCC / build-essential | Dibutuhkan CGO (SQLite) |
 
 ---
 
-## Cara Clone & Run
+## Quick Start (Production)
 
-### 1. Clone repository
+### 1. Clone & Setup
 
 ```bash
 git clone git@github.com:kroto69/mikrogeni.git
 cd mikrogeni
-```
-
-### 2. Setup environment
-
-```bash
-# Copy file .env untuk backend
 cp .env.example .env
-
-# Edit JWT_SECRET — WAJIB diisi sebelum jalan
-# Edit variabel lain sesuai kebutuhan
-nano .env   # atau gunakan editor apapun
+nano .env   # Edit JWT_SECRET, BOOTSTRAP_ADMIN_USERNAME/PASSWORD
 ```
 
-### 3. Jalankan Backend (Go)
+### 2. Jalankan Backend (Docker)
 
 ```bash
-# Download dependencies
-go mod download
-
-# Jalankan dalam mode development
-go run ./cmd/server
-
-# ATAU build lalu run
-make build
-make run
+docker compose up -d --build
 ```
 
-Server backend default: `http://localhost:1997`
+Ini menjalankan:
+- **mikrogeni-backend** — Go API server di port `1997` (network host)
+- **mikrogeni-nginx** — Nginx reverse proxy + serve frontend static files
 
-### 4. Jalankan Frontend (React + Vite)
+### 3. Build & Deploy Frontend
+
+```bash
+bash start.sh
+```
+
+Script ini:
+1. `npm install` — install dependencies frontend
+2. `npm run build` — build production bundle ke `frontend/dist/`
+3. Restart container `mikrogeni-nginx` untuk serve file terbaru
+
+### 4. Akses
+
+```
+http://<IP-SERVER>:8888
+```
+
+> Port dikonfigurasi di `nginx.conf` (`listen 8888`). Ubah sesuai kebutuhan.
+
+### 5. Stop Frontend (Nginx)
+
+```bash
+bash stop.sh
+```
+
+Hanya stop nginx container. Backend tetap jalan.
+
+### 6. Stop Semua
+
+```bash
+docker compose down
+```
+
+Tambah `-v` untuk hapus volume database (reset data):
+
+```bash
+docker compose down -v
+```
+
+---
+
+## Development Mode
+
+### Backend
+
+```bash
+go run ./cmd/server
+```
+
+Server backend: `http://localhost:1997`
+
+### Frontend
 
 ```bash
 cd frontend
-
-# Copy file .env untuk frontend
 cp .env.example .env
-
-# Install dependencies
 npm install
-
-# Jalankan dev server
 npm run dev
 ```
 
-Frontend default: `http://localhost:5173` — otomatis proxy ke backend `:1997`.
+Frontend dev: `http://localhost:5173` — otomatis proxy `/api/*` ke backend `:1997`.
 
-> Branding/logo frontend dikelola di `frontend/src/images/logo.png` (dipakai oleh Login dan Sidebar).
+---
 
-### 5. Login pertama (Bootstrap Admin)
+## Login Pertama (Bootstrap Admin)
 
-Sebelum jalan server, set di file `.env`:
+Set di `.env` sebelum pertama kali start backend:
 
 ```bash
 BOOTSTRAP_ADMIN_USERNAME=admin
 BOOTSTRAP_ADMIN_PASSWORD=<password-kuat-min-8-karakter>
 ```
 
-Lalu login via frontend, atau via curl:
+User admin otomatis dibuat saat backend start dengan database kosong. Setelah itu, kelola user via Settings di dashboard.
 
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:1997/api/login" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"<bootstrap_username>","password":"<bootstrap_password>"}' | jq -r '.access_token')
-```
-
----
-
-## Menjalankan dengan Docker
-
-```bash
-# Build & jalankan semua (backend + nginx)
-docker compose up -d --build
-```
-
-Flow default:
-- Nginx expose port `80`
-- Request `http://<host>/api/...` diteruskan ke backend Go di container `backend:1997`
-- File SQLite disimpan di volume `backend_data`
-
-Cek health:
-
-```bash
-curl http://localhost/api/health
-```
-
-> **Catatan**: Docker setup saat ini hanya menjalankan backend + nginx reverse proxy. Untuk menjalankan frontend di Docker, perlu ditambahkan service terpisah di `docker-compose.yml`.
+> **Penting**: Jika database sudah ada (volume persist), bootstrap tidak akan overwrite. Untuk reset, hapus volume: `docker compose down -v && docker compose up -d --build`.
 
 ---
 
@@ -133,13 +137,37 @@ mikrogeni/
 │   │   └── lib/         # API client & utilitas
 │   ├── .env.example
 │   └── package.json
-├── docker-compose.yml
-├── Dockerfile
-├── nginx.conf
+├── start.sh             # Build frontend + restart nginx
+├── stop.sh              # Stop nginx container
+├── docker-compose.yml   # Backend + Nginx containers
+├── Dockerfile           # Backend Go build
+├── nginx.conf           # Nginx config (serve frontend + proxy API)
 ├── Makefile
 ├── hioso_api.md         # Dokumentasi endpoint Hioso OLT
 └── .env.example
 ```
+
+---
+
+## Scripts
+
+| Script | Fungsi |
+|---|---|
+| `start.sh` | Build frontend production (`npm run build`) lalu restart nginx container agar serve file terbaru |
+| `stop.sh` | Stop nginx container saja (backend tetap jalan) |
+
+---
+
+## Docker Compose Services
+
+| Container | Image | Fungsi |
+|---|---|---|
+| `mikrogeni-backend` | Custom (Go) | API server, port 1997, network host |
+| `mikrogeni-nginx` | nginx:1.27-alpine | Serve `frontend/dist` + proxy `/api/` ke backend, network host |
+
+Volume:
+- `backend_data` → `/data` di container backend (SQLite database)
+- `./frontend/dist` → `/usr/share/nginx/html` di nginx (read-only mount)
 
 ---
 
@@ -164,7 +192,7 @@ mikrogeni/
 | `TELEGRAM_CHAT_IDS` | — | Chat ID Telegram (comma-separated) |
 | `HIOSO_ENABLED` | `true` | Aktifkan Hioso OLT plugin |
 
-> Konfigurasi OLT Hioso (host, port, credentials, firmware type) dikelola via API `/api/hioso/devices` dan disimpan di SQLite.
+> GenieACS dan Billing bisa di-enable/disable via Settings dashboard (tanpa restart).
 
 ### Frontend (`frontend/.env`)
 
@@ -177,7 +205,29 @@ mikrogeni/
 
 ---
 
+## Fitur Dashboard
+
+- **Operations Dashboard** — summary ONU, MikroTik, PPPoE, OLT
+- **MikroTik** — manage devices, PPP secrets/profiles, kick sessions, interface monitoring
+- **ACS/ONU** — GenieACS device list, reboot, WiFi/WAN/Security config
+- **Hioso OLT** — manage OLT (HA7304VX + Legacy), ONU list per port, rename, reboot
+- **ZTE OLT** — proxy ke zzte container, ONU monitoring per board/PON
+- **Billing** — service plans, customers, invoices, payments (enable/disable via Settings)
+- **Activity Logs** — history semua aksi user (reboot, rename, kick, edit, login, dll)
+- **Settings** — user management, GenieACS config, enable/disable fitur, ZTE connections
+- **Telegram Bot** — notifikasi dan query device via Telegram
+
+---
+
 ## Endpoint Utama
+
+### Auth
+
+| Method | Endpoint | Deskripsi |
+|---|---|---|
+| `POST` | `/api/login` | Login, dapat access + refresh token |
+| `POST` | `/api/refresh` | Refresh access token |
+| `GET` | `/api/health` | Health check |
 
 ### ACS Devices
 
@@ -185,6 +235,7 @@ mikrogeni/
 |---|---|---|
 | `GET` | `/api/acs/devices` | List semua CPE |
 | `GET` | `/api/acs/devices/:id` | Detail 1 CPE |
+| `POST` | `/api/acs/devices/:id/reboot` | Reboot CPE |
 | `GET` | `/api/acs/tasks/:id` | Status async task |
 
 ### MikroTik
@@ -197,52 +248,37 @@ mikrogeni/
 | `DELETE` | `/api/mikrotik/devices/:id` | Hapus device |
 | `GET` | `/api/mikrotik/devices/:id/ppp/secrets` | PPP secrets |
 | `POST` | `/api/mikrotik/devices/:id/ppp/secrets` | Buat PPP secret |
-
-### Auth
-
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `POST` | `/api/login` | Login, dapat access + refresh token |
-| `POST` | `/api/refresh` | Refresh access token |
-| `GET` | `/api/health` | Health check |
+| `GET` | `/api/mikrotik/devices/:id/ppp/active` | PPP active sessions |
+| `DELETE` | `/api/mikrotik/devices/:id/ppp/active/:sid` | Kick session |
 
 ### Hioso OLT
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| `GET` | `/api/hioso/status` | Status plugin (enabled/disabled) |
-| `POST` | `/api/hioso/enable` | Aktifkan plugin |
-| `POST` | `/api/hioso/disable` | Nonaktifkan plugin |
 | `GET` | `/api/hioso/devices` | List OLT yang tersimpan |
-| `POST` | `/api/hioso/devices` | Tambah OLT (pilih firmware_type: 0=HA7304VX, 1=Other) |
+| `POST` | `/api/hioso/devices` | Tambah OLT (firmware_type: 0=HA7304VX, 1=Legacy) |
 | `DELETE` | `/api/hioso/devices/{id}` | Hapus OLT |
-| `POST` | `/api/hioso/devices/{id}/test` | Test koneksi + re-detect firmware |
 | `GET` | `/api/hioso/devices/{id}/health` | System info OLT |
 | `GET` | `/api/hioso/devices/{id}/onu?port=N` | List ONU per port |
-| `GET` | `/api/hioso/devices/{id}/onu/detail?port=N&id=X` | Detail 1 ONU |
 | `POST` | `/api/hioso/devices/{id}/onu/rename?port=N&id=X` | Rename ONU |
 | `POST` | `/api/hioso/devices/{id}/onu/reboot?port=N&id=X` | Reboot ONU |
 
-### Arsitektur Backend Hioso
+### Activity Logs
+
+| Method | Endpoint | Deskripsi |
+|---|---|---|
+| `GET` | `/api/activity-logs?limit=50&offset=0` | List activity logs (max 50 tersimpan) |
+
+---
+
+## Arsitektur Backend Hioso
 
 Komunikasi ke OLT menggunakan **Web API** (HTTP), bukan SNMP. Support 2 firmware family:
 
 | Firmware | Driver | Transport | OLT Model |
 |---|---|---|---|
 | `swcgi_xml` | `hioso_swcgi.go` | POST /sw.cgi (XML response) | HA7304VX |
-| `legacy_html` | `hioso_legacy.go` | GET *.asp + POST /goform/* | V2.x (GoAhead-Webs) |
-
-Flow:
-1. User tambah OLT → pilih firmware type → simpan ke SQLite
-2. Setiap request ONU → buat driver sesuai firmware → login → fetch/mutate → response
-3. Rename/Reboot → via Web API OLT langsung
-
-File terkait:
-- `internal/handlers/hioso_handler.go` — HTTP handlers + state plugin
-- `internal/handlers/hioso_driver.go` — Interface driver + auto-detect + DTO
-- `internal/handlers/hioso_swcgi.go` — Driver HA7304VX
-- `internal/handlers/hioso_legacy.go` — Driver legacy
-- `internal/db/hioso_db.go` — Tabel devices SQLite
+| `legacy_html` | `hioso_legacy.go` | GET *.asp + Basic Auth | V2.x (GoAhead-Webs) |
 
 > Dokumentasi endpoint detail: lihat [`hioso_api.md`](./hioso_api.md).
 
@@ -281,10 +317,10 @@ Perintah:
 
 ## Notes
 
-- `.env` dipakai untuk konfigurasi aplikasi, **bukan** untuk data per-device MikroTik.
-- Data MikroTik per-device disimpan di SQLite dan dikelola via `/api/mikrotik/*`.
-- Data Hioso OLT disimpan di SQLite via `/api/hioso/devices` (CRUD).
-- Jika behavior endpoint berubah, update `hioso_api.md` agar integrasi tetap sinkron.
-- Parameter registry ACS dibaca dari `internal/acsresolver/registry.yaml` — tambah vendor/model baru dari registry, bukan hardcode.
-- Auto-learn ACS menyimpan hasil resolve ke SQLite (`acs_learned_profiles`) untuk caching.
-- Hioso OLT plugin mendukung 2 firmware family (HA7304VX via `sw.cgi`, Legacy via `*.asp`/`goform`) dengan pilihan manual saat add device.
+- `.env` dipakai untuk konfigurasi aplikasi, **bukan** untuk data per-device.
+- Data MikroTik, Hioso OLT, dan ZTE connections disimpan di SQLite.
+- GenieACS dan Billing bisa di-enable/disable runtime via Settings (tanpa restart backend).
+- Activity logs otomatis menyimpan max 50 entries terbaru (auto-cleanup).
+- Parameter registry ACS dibaca dari `internal/acsresolver/registry.yaml`.
+- Hioso OLT plugin mendukung 2 firmware family dengan pilihan manual saat add device.
+- Frontend branding/logo: `frontend/src/images/logo.png`.

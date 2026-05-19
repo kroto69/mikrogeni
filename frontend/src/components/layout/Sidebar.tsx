@@ -53,7 +53,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         <div className="flex items-center justify-center rounded-lg border-2 border-border bg-primary p-2 shadow-brutal-sm">
           <img alt="NC MIKROGENI" className="h-16 w-auto object-contain" src={SidebarLogo} />
         </div>
-        <p className="mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-primary-foreground/90">v4.1</p>
+        <p className="mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-primary-foreground/90"></p>
       </div>
 
       <nav className="mt-6 space-y-2">
