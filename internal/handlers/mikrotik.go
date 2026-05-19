@@ -87,6 +87,7 @@ func CreateMikroTikDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logActivity(r, "create_mikrotik_device", created.Host, "", created.Name)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(sanitizeMikroTikDevice(*created))
 }
@@ -250,6 +251,7 @@ func DeleteMikroTikDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logActivity(r, "delete_mikrotik_device", deviceID, "", "")
 	_ = json.NewEncoder(w).Encode(models.SuccessResponse{Success: true, Message: "MikroTik device deleted"})
 }
 
@@ -383,6 +385,7 @@ func KickMikroTikPPPActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logActivity(r, "kick_ppp", sessionID, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.active.kick", map[string]interface{}{"session_id": sessionID}, "PPP active kick queued")
 }
 
@@ -499,6 +502,7 @@ func CreateMikroTikPPPSecret(w http.ResponseWriter, r *http.Request) {
 		payload["disabled"] = *request.Disabled
 	}
 
+	logActivity(r, "create_ppp_secret", request.Name, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.secret.create", payload, "PPP secret create queued")
 }
 
@@ -544,6 +548,7 @@ func UpdateMikroTikPPPSecret(w http.ResponseWriter, r *http.Request) {
 		payload["disabled"] = *request.Disabled
 	}
 
+	logActivity(r, "edit_ppp_secret", secretID, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.secret.update", payload, "PPP secret update queued")
 }
 
@@ -556,6 +561,7 @@ func DeleteMikroTikPPPSecret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logActivity(r, "delete_ppp_secret", secretID, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.secret.delete", map[string]interface{}{"secret_id": secretID}, "PPP secret delete queued")
 }
 
@@ -622,6 +628,7 @@ func CreateMikroTikPPPProfile(w http.ResponseWriter, r *http.Request) {
 		payload["comment"] = strings.TrimSpace(*request.Comment)
 	}
 
+	logActivity(r, "create_ppp_profile", request.Name, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.profile.create", payload, "PPP profile create queued")
 }
 
@@ -667,6 +674,7 @@ func UpdateMikroTikPPPProfile(w http.ResponseWriter, r *http.Request) {
 		payload["comment"] = strings.TrimSpace(*request.Comment)
 	}
 
+	logActivity(r, "update_ppp_profile", profileID, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.profile.update", payload, "PPP profile update queued")
 }
 
@@ -679,6 +687,7 @@ func DeleteMikroTikPPPProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logActivity(r, "delete_ppp_profile", profileID, deviceID, "")
 	enqueueMikroTikAction(w, deviceID, "ppp.profile.delete", map[string]interface{}{"profile_id": profileID}, "PPP profile delete queued")
 }
 

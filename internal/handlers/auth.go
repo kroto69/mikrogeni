@@ -189,4 +189,5 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		RefreshToken: refreshToken,
 		ExpiresIn:    3600, // 1 hour
 	})
+	db.InsertActivityLog(req.Username, "login", "", "", "")
 }

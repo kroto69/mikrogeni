@@ -1,9 +1,13 @@
 import { Bell, LogOut, Menu } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 
 const routeLabels: Record<string, string> = {
   dashboard: "Dashboard",
@@ -21,6 +25,27 @@ type TopbarProps = {
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  const { data: recentLogs } = useQuery({
+    queryKey: ["activity-logs-recent"],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: Array<{ id: number; username: string; action: string; target: string; device: string; created_at: string }> }>("/activity-logs", { params: { limit: 4 } });
+      return data.data ?? [];
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [bellOpen]);
 
   const crumbs = location.pathname
     .split("/")
@@ -54,9 +79,37 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
-          <Button variant="outline" size="icon" aria-label="Notifications">
-            <Bell className="h-4 w-4" />
-          </Button>
+          <div className="relative" ref={bellRef}>
+            <Button variant="outline" size="icon" aria-label="Notifications" onClick={() => setBellOpen((v) => !v)}>
+              <Bell className="h-4 w-4" />
+            </Button>
+            {bellOpen && createPortal(
+              <div className="fixed inset-0 z-[9999]" onClick={() => setBellOpen(false)}>
+                <div className="fixed right-4 top-16 w-72 rounded-lg border-2 border-border bg-card shadow-brutal sm:w-80" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between border-b-2 border-border px-3 py-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Recent Activity</span>
+                    <Link to="/logs" onClick={() => setBellOpen(false)} className="text-[10px] font-semibold text-primary hover:underline">View All</Link>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {(recentLogs ?? []).length === 0 ? (
+                      <p className="px-3 py-4 text-center text-xs text-muted-foreground">No activity yet</p>
+                    ) : (
+                      (recentLogs ?? []).map((log: { id: number; username: string; action: string; target: string; device: string; created_at: string }) => (
+                        <div key={log.id} className="border-b border-border/50 px-3 py-2 last:border-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold">{log.action.replace(/_/g, " ")}</span>
+                            <span className="text-[10px] text-muted-foreground">{new Date(log.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">{log.target} · {log.device} · by {log.username}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
+          </div>
           <Badge variant="secondary" className="hidden px-3 py-2 text-[11px] tracking-[0.08em] sm:inline-flex">
             {user?.username ?? "Admin"}
           </Badge>

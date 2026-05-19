@@ -94,13 +94,30 @@ func (d *hiosoSwcgiDriver) GetSystemInfo() (*HiosoSystemInfo, error) {
 			info.IP = v
 		}
 		if v := swcgiExtractAttr(attrs, "uptime"); v != "" {
-			info.Uptime = v
+			parts := strings.Split(v, "?")
+			if len(parts) >= 4 {
+				info.Uptime = parts[0] + "d " + parts[1] + "h " + parts[2] + "m " + parts[3] + "s"
+			} else {
+				info.Uptime = v
+			}
 		}
 		if v := swcgiExtractAttr(attrs, "cpu"); v != "" {
 			info.CPU = v + "%"
 		}
 		if v := swcgiExtractAttr(attrs, "memory"); v != "" {
-			info.Memory = v
+			parts := strings.Split(v, "?")
+			if len(parts) >= 3 {
+				total, _ := strconv.Atoi(parts[0])
+				used, _ := strconv.Atoi(parts[1])
+				if total > 0 {
+					pct := float64(used) * 100 / float64(total)
+					info.Memory = fmt.Sprintf("%.1f%%", pct)
+				} else {
+					info.Memory = v
+				}
+			} else {
+				info.Memory = v
+			}
 		}
 		if v := swcgiExtractAttr(attrs, "sn"); v != "" {
 			info.SerialNumber = v

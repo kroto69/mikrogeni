@@ -37,8 +37,8 @@ function rxPowerClass(rx: number): string {
 
 function mapDetailStatusTone(statusCode: number, status: string): { status: NmsStatus; label: string } {
   if (statusCode === 3) return { status: 'online', label: 'ONLINE' }
-  if (statusCode === 4) return { status: 'critical', label: 'LOS' }
-  if (statusCode === 1) return { status: 'offline', label: 'OFFLINE' }
+  if (statusCode === 1) return { status: 'critical', label: 'LOS' }
+  if (statusCode === 4) return { status: 'offline', label: 'OFFLINE' }
   if (statusCode === 2) return { status: 'provisioning', label: 'RANGING' }
   if (statusCode === 5) return { status: 'warning', label: 'DYING GASP' }
   if (statusCode === 6) return { status: 'down', label: 'POWER OFF' }

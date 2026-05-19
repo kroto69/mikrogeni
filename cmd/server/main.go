@@ -216,6 +216,9 @@ func main() {
 		})
 r.HandleFunc("/api/zte/olt/{connId}/*", handlers.ForwardZTEProxy)
 
+		// ── Activity Logs ───────────────────────────────────────────────────
+		r.Get("/api/activity-logs", handlers.GetActivityLogs)
+
 		})
 
 	// Jalankan server

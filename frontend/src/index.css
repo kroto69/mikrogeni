@@ -4,7 +4,7 @@
 @import "tailwindcss/utilities";
 
 :root {
-  --background: 67 100% 95%;
+  --background: 187 96% 87%;
   --foreground: 0 0% 0%;
   --muted: 350 49% 88%;
   --muted-foreground: 350 64% 39%;
@@ -24,8 +24,8 @@
   --destructive: 351 85% 44%;
   --destructive-foreground: 0 0% 100%;
   --ring: 0 0% 0%;
-  --success: 155 77% 40%;
-  --success-foreground: 0 0% 100%;
+  --success: 109 64% 72%;
+  --success-foreground: 0 0% 0%;
   --warning: 29 100% 47%;
   --warning-foreground: 0 0% 0%;
   --complementary: 147 28% 48%;

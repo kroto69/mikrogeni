@@ -1,9 +1,10 @@
-import { Blocks, LayoutDashboard, Plus, ReceiptText, Router, Settings, Wifi } from "lucide-react";
+import { Blocks, ClipboardList, LayoutDashboard, Plus, ReceiptText, Router, Settings, Wifi } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
 import { getHiosoDevices } from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { cn } from "@/lib/utils";
 import SidebarLogo from "@/images/logo.png";
 
@@ -14,6 +15,7 @@ const navigation = [
   { label: "Mikrotik", to: "/mikrotik", icon: Router },
   { label: "Billing", to: "/billing", icon: ReceiptText, feature: "billing" as const },
   { label: "Acs/ONU Device", to: "/onu", icon: Wifi },
+  { label: "Logs", to: "/logs", icon: ClipboardList },
 ] satisfies ReadonlyArray<{ label: string; to: string; icon: typeof LayoutDashboard; feature?: SidebarFeature }>;
 
 type SidebarProps = {
@@ -26,6 +28,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const navLinkActive = "border-foreground bg-primary text-primary-foreground shadow-brutal";
 
   const { can } = useRole();
+  const { genieacsEnabled, billingEnabled } = useFeatureFlags();
   const location = useLocation();
 
   const { data: zteConnections } = useQuery({
@@ -54,7 +57,12 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </div>
 
       <nav className="mt-6 space-y-2">
-        {navigation.filter((item) => !item.feature || can(item.feature)).map(({ label, to, icon: Icon }) => (
+        {navigation.filter((item) => {
+          if (item.feature && !can(item.feature)) return false;
+          if (item.to === "/billing" && !billingEnabled) return false;
+          if (item.to === "/onu" && !genieacsEnabled) return false;
+          return true;
+        }).map(({ label, to, icon: Icon }) => (
           <NavLink
             key={to}
             onClick={onNavigate}

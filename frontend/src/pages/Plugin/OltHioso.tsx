@@ -171,6 +171,8 @@ export default function OltHiosoPage() {
     queryKey: ["hioso-health", deviceId],
     queryFn: () => getHiosoPluginHealth(deviceId!),
     enabled: Boolean(deviceId),
+    staleTime: 30_000,
+    retry: 1,
   });
 
   const ports = [1, 2, 3, 4];
@@ -179,7 +181,8 @@ export default function OltHiosoPage() {
     queryKey: ["hioso-onus", deviceId, portFilter],
     queryFn: () => getHiosoOnus(deviceId!, portFilter),
     enabled: Boolean(deviceId),
-    placeholderData: [],
+    staleTime: 15_000,
+    retry: 1,
   });
 
   const onuDetailQuery = useQuery({
@@ -479,37 +482,45 @@ export default function OltHiosoPage() {
   const totalCount = onusQuery.data?.length ?? 0;
   const downCount = Math.max(totalCount - onlineCount, 0);
   const healthOnline = Boolean(healthQuery.data?.model);
-  const healthDetail = healthQuery.data?.model ? `${healthQuery.data.model} - ${healthQuery.data.firmware ?? ""} (${healthQuery.data.total_onu ?? 0} ONU)` : "Health status unavailable";
+  const healthData = healthQuery.data;
 
   const devices = devicesQuery.data ?? [];
+  const urlDeviceId = searchParams.get("device");
+
+  // Sync selectedDeviceId with URL search params
   useEffect(() => {
-    const fromQuery = searchParams.get("device");
-    if (fromQuery && devices.some((device) => device.id === fromQuery)) {
-      setSelectedDeviceId(fromQuery);
+    if (devicesQuery.isLoading || devices.length === 0) return;
+
+    // URL changed (e.g. sidebar click) — follow it
+    if (urlDeviceId && urlDeviceId !== selectedDeviceId && devices.some((d) => d.id === urlDeviceId)) {
+      setSelectedDeviceId(urlDeviceId);
+      setPortFilter(1);
+      setDetailOnuIndex(null);
+      setOnuFilter("all");
+      setOnuSearch("");
+      void queryClient.invalidateQueries({ queryKey: ["hioso-health", urlDeviceId] });
+      void queryClient.invalidateQueries({ queryKey: ["hioso-onus", urlDeviceId] });
       return;
     }
 
-    if (!selectedDeviceId && devices.length > 0 && !devicesQuery.isLoading) {
-      setSelectedDeviceId(devices[0].id);
-    }
-  }, [devices, devicesQuery.isLoading, searchParams, selectedDeviceId]);
-
-  useEffect(() => {
+    // No device selected yet — pick first
     if (!selectedDeviceId) {
-      return;
+      const target = (urlDeviceId && devices.some((d) => d.id === urlDeviceId)) ? urlDeviceId : devices[0].id;
+      setSelectedDeviceId(target);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlDeviceId, devices.length, devicesQuery.isLoading]);
 
-    if (!devices.some((device) => device.id === selectedDeviceId)) {
-      return;
+  // Keep URL in sync when device changes via inline buttons
+  useEffect(() => {
+    if (!selectedDeviceId) return;
+    if (searchParams.get("device") !== selectedDeviceId) {
+      const next = new URLSearchParams(searchParams);
+      next.set("device", selectedDeviceId);
+      setSearchParams(next, { replace: true });
     }
-
-    const next = new URLSearchParams(searchParams);
-    if (next.get("device") === selectedDeviceId) {
-      return;
-    }
-    next.set("device", selectedDeviceId);
-    setSearchParams(next, { replace: true });
-  }, [devices, searchParams, selectedDeviceId, setSearchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDeviceId]);
 
   return (
     <div className="route-shell-page route-shell-plugin-hioso space-y-5">
@@ -569,7 +580,17 @@ export default function OltHiosoPage() {
             <button
               className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${selectedDeviceId === device.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
               key={device.id}
-              onClick={() => { setSelectedDeviceId(device.id); setPortFilter(1); setDetailOnuIndex(null); }}
+              onClick={() => {
+                setSelectedDeviceId(device.id);
+                setPortFilter(1);
+                setDetailOnuIndex(null);
+                setOnuFilter("all");
+                setOnuSearch("");
+                queryClient.removeQueries({ queryKey: ["hioso-onus", selectedDeviceId] });
+                queryClient.removeQueries({ queryKey: ["hioso-health", selectedDeviceId] });
+                void queryClient.invalidateQueries({ queryKey: ["hioso-health", device.id] });
+                void queryClient.invalidateQueries({ queryKey: ["hioso-onus", device.id] });
+              }}
               type="button"
             >
               {device.name || device.host}
@@ -601,59 +622,6 @@ export default function OltHiosoPage() {
               <div className="h-3 w-10 -rotate-3 border-2 border-border bg-accent" />
             </div>
             <div className="space-y-3">
-              <Input
-                className="h-10"
-                placeholder="Search index, name, serial, port, profile"
-                value={onuSearch}
-                onChange={(event) => setOnuSearch(event.target.value)}
-              />
-
-              <div className="space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">Status Filter</p>
-                <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="flex min-w-max items-center gap-2">
-                    {(["all", "online", "offline"] as const).map((filter) => {
-                      const count = filter === "all" ? totalCount : filter === "online" ? onlineCount : downCount;
-                      return (
-                      <button
-                        className={`shrink-0 rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${onuFilter === filter ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
-                        key={filter}
-                        onClick={() => setOnuFilter(filter)}
-                        type="button"
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <span>{filter === "all" ? "All" : filter}</span>
-                          <span
-                            className={`inline-flex min-w-6 items-center justify-center rounded-md border-2 px-1.5 py-0.5 text-[10px] font-black leading-none ${onuFilter === filter ? "border-primary-foreground/40 bg-primary-foreground/20 text-primary-foreground" : "border-border/50 bg-card/80 text-foreground"}`}
-                          >
-                            {count}
-                          </span>
-                        </span>
-                      </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">Port Filter</p>
-                <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="flex min-w-max items-center gap-2">
-                    {ports.map((p) => (
-                      <button
-                        className={`shrink-0 rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${portFilter === p ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
-                        key={p}
-                        onClick={() => setPortFilter(p)}
-                        type="button"
-                      >
-                        P{p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
               <div className="rounded-lg border-2 border-border bg-card/90 px-4 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.06em]">
                   <span className={`rounded-md border-2 px-2 py-1 ${healthOnline ? "border-success/40 bg-success/20 text-success" : "border-destructive/40 bg-destructive/15 text-destructive"}`}>
@@ -661,7 +629,61 @@ export default function OltHiosoPage() {
                   </span>
                   <span className="text-muted-foreground">Status Device</span>
                 </div>
-                <p className="mt-2 text-sm font-semibold text-foreground break-words">{healthDetail}</p>
+                {healthData ? (
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+                    <span><span className="font-bold text-muted-foreground">Model:</span> {healthData.model ?? "-"}</span>
+                    <span><span className="font-bold text-muted-foreground">FW:</span> {healthData.firmware ?? "-"}</span>
+                    <span><span className="font-bold text-muted-foreground">IP:</span> {healthData.ip ?? "-"}</span>
+                    <span><span className="font-bold text-muted-foreground">Uptime:</span> {healthData.uptime ?? "-"}</span>
+                    <span><span className="font-bold text-muted-foreground">CPU:</span> {healthData.cpu ?? "-"}</span>
+                    <span><span className="font-bold text-muted-foreground">Memory:</span> {healthData.memory ?? "-"}</span>
+                    <span><span className="font-bold text-muted-foreground">ONU:</span> {healthData.online_onu ?? 0}/{healthData.total_onu ?? 0}</span>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm font-semibold text-foreground">Health status unavailable</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Select value={String(portFilter)} onValueChange={(value) => setPortFilter(Number(value))}>
+                    <Select.Trigger className="h-9 w-28 shrink-0 rounded-lg border-2 border-primary bg-card px-3 text-sm font-black uppercase shadow-brutal-sm">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {ports.map((p) => (
+                        <Select.Item key={p} value={String(p)}>PORT {p}</Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                  <Input
+                    className="h-9 min-w-0 flex-1 border-2 border-input bg-card text-sm font-medium shadow-brutal-sm"
+                    placeholder="Search..."
+                    value={onuSearch}
+                    onChange={(event) => setOnuSearch(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {(["all", "online", "offline"] as const).map((filter) => {
+                    const count = filter === "all" ? totalCount : filter === "online" ? onlineCount : downCount;
+                    const activeColors = {
+                      all: "bg-blue-600 text-white border-blue-600",
+                      online: "bg-success text-success-foreground border-success",
+                      offline: "bg-destructive text-destructive-foreground border-destructive",
+                    };
+                    const inactiveColor = "bg-muted text-foreground border-border";
+                    return (
+                      <button
+                        className={`flex-1 rounded-lg border-2 px-2 py-1.5 text-center text-[11px] font-black uppercase tracking-[0.02em] ${onuFilter === filter ? activeColors[filter] : inactiveColor}`}
+                        key={filter}
+                        onClick={() => setOnuFilter(filter)}
+                        type="button"
+                      >
+                        {filter === "all" ? "All" : filter} {count}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -680,17 +702,16 @@ export default function OltHiosoPage() {
                       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                         IDX {onu.index}
                       </p>
+                      <p className="text-[11px] font-semibold text-muted-foreground break-all">SN: {onu.sn || "-"}</p>
+                      <p className="text-[11px] font-semibold text-muted-foreground">TX: {onu.tx_power ?? "-"} dBm</p>
                     </div>
-                    <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
+                      <p className="text-[11px] font-bold text-foreground">RX: {onu.rx_power ?? "-"} dBm</p>
+                    </div>
                   </div>
 
-                  <div className="mt-2 space-y-1 text-xs font-semibold text-muted-foreground">
-                    <p className="break-all">SN: {onu.sn || "-"}</p>
-                    <p>TX {onu.tx_power ?? "-"} / RX {onu.rx_power ?? "-"}</p>
-                    <p className="break-all">Profile: {onu.profile || "-"}</p>
-                  </div>
-
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-2 flex justify-end">
                     <Button
                       aria-label="ONU actions"
                       className="h-8 w-8 p-0"
@@ -721,7 +742,7 @@ export default function OltHiosoPage() {
                     <th className="px-4 py-3">Serial</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">RX Power</th>
-                    <th className="px-4 py-3">Actions</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -735,7 +756,7 @@ export default function OltHiosoPage() {
                       </td>
                       <td className="px-4 py-3 font-bold text-foreground">{onu.rx_power ?? "-"} dBm</td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end">
+                        <div className="flex justify-center">
                           <Button
                             aria-label="ONU actions"
                             className="h-8 w-8 p-0"

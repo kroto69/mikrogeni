@@ -69,6 +69,7 @@ func RebootDevice(w http.ResponseWriter, r *http.Request) {
 		"device_id": deviceID,
 		"task":      taskStatus,
 	})
+	logActivity(r, "reboot_onu", deviceID, "ACS", "")
 }
 
 func RefreshACSDevices(w http.ResponseWriter, r *http.Request) {
@@ -340,6 +341,7 @@ func ConfigureDeviceWiFi(w http.ResponseWriter, r *http.Request) {
 	_ = db.UpsertDeviceCredentials(deviceID, nil, nil, wifiPasswords)
 
 	applyDeviceParameterUpdate(w, deviceID, parameters, "Device WiFi configuration dispatched")
+	logActivity(r, "config_wifi", deviceID, "ACS", "")
 }
 
 func ConfigureDeviceWAN(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +393,7 @@ func ConfigureDeviceWAN(w http.ResponseWriter, r *http.Request) {
 	_ = db.UpsertDeviceCredentials(deviceID, pppoeUsername, pppoePassword, nil)
 
 	applyDeviceParameterUpdate(w, deviceID, parameters, "Device WAN configuration dispatched")
+	logActivity(r, "config_wan", deviceID, "ACS", "")
 }
 
 func ConfigureDeviceSecurity(w http.ResponseWriter, r *http.Request) {
@@ -415,4 +418,5 @@ func ConfigureDeviceSecurity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	applyDeviceParameterUpdate(w, deviceID, req.Parameters, "Device security configuration dispatched")
+	logActivity(r, "config_security", deviceID, "ACS", "")
 }

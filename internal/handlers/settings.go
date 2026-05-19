@@ -45,6 +45,7 @@ func UpdateSetting(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Failed to update setting"})
 		return
 	}
+	logActivity(r, "update_setting", req.Key, "", "")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(models.SuccessResponse{Success: true, Message: "Setting updated successfully"})
 }

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"genieacs-backend/internal/db"
 	"genieacs-backend/internal/services"
 )
 
@@ -55,10 +56,12 @@ func runBillingRecurringLoop(interval time.Duration) {
 	defer ticker.Stop()
 
 	for {
-		if result, err := services.GetBillingService().GenerateRecurringInvoices(time.Now().UTC()); err != nil {
-			log.Printf("[billing] recurring run failed: %v", err)
-		} else {
-			log.Printf("[billing] recurring run generated=%d skipped=%d errors=%d", result.Generated, result.Skipped, len(result.Errors))
+		if s, _ := db.GetSettings([]string{"billing_enabled"}); s["billing_enabled"] != "false" {
+			if result, err := services.GetBillingService().GenerateRecurringInvoices(time.Now().UTC()); err != nil {
+				log.Printf("[billing] recurring run failed: %v", err)
+			} else {
+				log.Printf("[billing] recurring run generated=%d skipped=%d errors=%d", result.Generated, result.Skipped, len(result.Errors))
+			}
 		}
 
 		<-ticker.C
@@ -70,10 +73,12 @@ func runBillingOverdueLoop(interval time.Duration) {
 	defer ticker.Stop()
 
 	for {
-		if result, err := services.GetBillingService().RunOverdueChecker(time.Now().UTC()); err != nil {
-			log.Printf("[billing] overdue run failed: %v", err)
-		} else {
-			log.Printf("[billing] overdue run marked_overdue=%d suspended=%d errors=%d", result.MarkedOverdue, result.Suspended, len(result.Errors))
+		if s, _ := db.GetSettings([]string{"billing_enabled"}); s["billing_enabled"] != "false" {
+			if result, err := services.GetBillingService().RunOverdueChecker(time.Now().UTC()); err != nil {
+				log.Printf("[billing] overdue run failed: %v", err)
+			} else {
+				log.Printf("[billing] overdue run marked_overdue=%d suspended=%d errors=%d", result.MarkedOverdue, result.Suspended, len(result.Errors))
+			}
 		}
 
 		<-ticker.C

@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: genieacs-backend
     restart: unless-stopped
+    network_mode: host
     working_dir: /data
     env_file:
       - .env
@@ -12,17 +13,12 @@ services:
       PORT: "1997"
     volumes:
       - backend_data:/data
-    ports:
-      - "1997:1997"
 
   nginx:
     image: nginx:1.27-alpine
     container_name: genieacs-backend-nginx
     restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
+    network_mode: host
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
 

@@ -43,6 +43,15 @@ func ForwardZTEProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log mutation actions
+	if r.Method == "POST" {
+		if strings.Contains(targetPath, "/reboot") {
+			logActivity(r, "reboot_onu", r.URL.Query().Get("onuId"), connId, "zte")
+		} else if strings.Contains(targetPath, "/rename") {
+			logActivity(r, "rename_onu", r.URL.Query().Get("onuId"), connId, "zte")
+		}
+	}
+
 	targetURL := conn.BaseURL + targetPath
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)

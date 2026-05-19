@@ -19,6 +19,7 @@ const OnuDetail = lazy(() => import("@/pages/ONU/Detail"));
 const OnuIndex = lazy(() => import("@/pages/ONU"));
 const OltHiosoPage = lazy(() => import("@/pages/Plugin/OltHioso"));
 const Settings = lazy(() => import("@/pages/Settings"));
+const LogsPage = lazy(() => import("@/pages/Logs"));
 const ZTEONUListPage = lazy(() => import("@/pages/ZTE/ONUListPage"));
 
 function AuthBoundary({ children, guestOnly = false }: { children: ReactNode; guestOnly?: boolean }) {
@@ -89,6 +90,7 @@ function AppRoutes() {
           <Route path="hioso" element={<OltHiosoPage />} />
           <Route path="zte/:connId" element={<ZTEONUListPage />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="logs" element={<LogsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate replace to="/dashboard" />} />

@@ -1208,7 +1208,7 @@ export default function MikrotikDetail() {
                   className={cn(
                     "rounded-full border-2 border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
                     interfaceFilter === key
-                      ? "bg-foreground text-background"
+                      ? "bg-primary text-primary-foreground border-primary"
                       : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
                   )}
                   key={key}

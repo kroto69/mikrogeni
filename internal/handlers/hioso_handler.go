@@ -118,6 +118,7 @@ func HiosoCreateDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		pluginError(w, http.StatusInternalServerError, "gagal simpan device: "+err.Error())
 		return
 	}
+	logActivity(r, "create_olt_device", device.Name, "", "hioso")
 	pluginJSON(w, device)
 }
 
@@ -130,6 +131,7 @@ func HiosoDeleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		pluginError(w, http.StatusInternalServerError, "gagal hapus device: "+err.Error())
 		return
 	}
+	logActivity(r, "delete_olt_device", id, "", "hioso")
 	pluginJSON(w, map[string]interface{}{"deleted": true})
 }
 
@@ -283,6 +285,7 @@ func HiosoRenameHandler(w http.ResponseWriter, r *http.Request) {
 		pluginError(w, http.StatusBadGateway, "rename gagal: "+err.Error())
 		return
 	}
+	logActivity(r, "rename_onu", onuID, device.Name, "new name: "+req.Name)
 	pluginJSON(w, map[string]interface{}{"method": device.FirmwareType})
 }
 
@@ -311,6 +314,7 @@ func HiosoRebootHandler(w http.ResponseWriter, r *http.Request) {
 		pluginError(w, http.StatusBadGateway, "reboot gagal: "+err.Error())
 		return
 	}
+	logActivity(r, "reboot_onu", onuID, device.Name, "hioso")
 	pluginJSON(w, map[string]interface{}{"rebooted": true})
 }
 

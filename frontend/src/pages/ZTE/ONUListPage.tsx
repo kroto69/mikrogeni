@@ -286,10 +286,11 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
 
 function mapStatus(code: number): DashboardRow['status'] {
   if (code === 3) return 'ONLINE'
-  if (code === 4) return 'LOS'
+  if (code === 1) return 'LOS'
   if (code === 2) return 'RANGING'
   if (code === 5) return 'DYING_GASP'
   if (code === 6) return 'POWER_OFF'
+  if (code === 4) return 'OFF'
   return 'OFF'
 }
 
@@ -440,7 +441,7 @@ export default function ONUListPage() {
             <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
             <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
             <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
-            <StatCard value={stats.offline} label="OFF" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
+            <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
           </div>
         )}
 

@@ -27,7 +27,6 @@ func newLegacyDriver(host string, port int, user, pass string) (*hiosoLegacyDriv
 			Timeout: 15 * time.Second,
 			Jar:     jar,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				// Tetap kirim Basic Auth saat redirect
 				if len(via) > 0 {
 					req.SetBasicAuth(user, pass)
 				}
@@ -38,6 +37,7 @@ func newLegacyDriver(host string, port int, user, pass string) (*hiosoLegacyDriv
 		user:    user,
 		pass:    pass,
 	}
+	// Basic Auth is sent on every request via get()/post() methods
 	return d, nil
 }
 
@@ -58,6 +58,9 @@ func (d *hiosoLegacyDriver) get(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if resp.StatusCode == 401 {
+		return "", fmt.Errorf("authentication failed (401)")
+	}
 	return string(body), nil
 }
 
@@ -71,14 +74,19 @@ func (d *hiosoLegacyDriver) post(path string, form url.Values) (*http.Response, 
 	return d.client.Do(req)
 }
 
-var legacyQuotedRegex = regexp.MustCompile(`'([^']*)'`)
+var legacyQuotedRegex = regexp.MustCompile(`['"]([^'"]*)['"]`)
 
 // legacyParseArray mengekstrak isi array JS dari HTML, return slice of string values.
 func legacyParseArray(html, varName string) []string {
-	re := regexp.MustCompile(`(?s)var\s+` + varName + `\s*=\s*new\s+Array\s*\((.*?)\)\s*;`)
+	re := regexp.MustCompile(`(?s)var\s+` + varName + `\s*=\s*new\s+Array\s*\((.+?)\)\s*;`)
 	m := re.FindStringSubmatch(html)
 	if len(m) < 2 {
-		return nil
+		// Fallback: try without "new Array" wrapper (direct assignment)
+		re2 := regexp.MustCompile(`(?s)var\s+` + varName + `\s*=\s*\[(.+?)\]\s*;`)
+		m = re2.FindStringSubmatch(html)
+		if len(m) < 2 {
+			return nil
+		}
 	}
 	content := m[1]
 	// Strip baris komentar JS (// ...)
@@ -110,7 +118,12 @@ func (d *hiosoLegacyDriver) GetSystemInfo() (*HiosoSystemInfo, error) {
 	}
 	fields := legacyParseArray(body, "sysInfo")
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("gagal parse system info: sysInfo tidak ditemukan")
+		// Include first 500 chars of body for debugging
+		preview := body
+		if len(preview) > 500 {
+			preview = preview[:500]
+		}
+		return nil, fmt.Errorf("gagal parse system info: sysInfo tidak ditemukan (response: %s)", preview)
 	}
 	info := &HiosoSystemInfo{
 		Model:    safeIdx(fields, 0),

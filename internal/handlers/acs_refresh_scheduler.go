@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"genieacs-backend/internal/db"
 	"genieacs-backend/internal/services"
 )
 
@@ -60,6 +61,11 @@ func runACSAutoRefreshLoop(interval time.Duration, batchSize int) {
 }
 
 func triggerACSAutoRefreshBatch(batchSize int) {
+	// Check if feature is disabled via settings
+	if s, _ := db.GetSettings([]string{"genieacs_enabled"}); s["genieacs_enabled"] == "false" {
+		return
+	}
+
 	genieACSURL, err := getGenieACSURL()
 	if err != nil {
 		log.Printf("[acs] auto refresh skipped: %v", err)

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageSectionHeader } from "@/components/page/section-header";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/retroui/Select";
+import { Switch } from "@/components/retroui/Switch";
 import { useRole } from "@/hooks/useRole";
 import {
   API_BASE_URL,
@@ -375,6 +376,19 @@ export default function Settings() {
     },
     onError: (error) => {
       showToast({ title: "Failed to clear section", description: getApiErrorMessage(error), variant: "error" });
+    },
+  });
+
+  const toggleFeatureMutation = useMutation({
+    mutationFn: async ({ key, current }: { key: string; current: boolean }) => {
+      await updateAcsSetting(key, current ? "false" : "true");
+    },
+    onSuccess: async () => {
+      showToast({ title: "Feature toggled", variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: ["acs-settings"] });
+    },
+    onError: (error) => {
+      showToast({ title: "Failed to toggle feature", description: getApiErrorMessage(error), variant: "error" });
     },
   });
 
@@ -1002,6 +1016,10 @@ export default function Settings() {
             description={<CardDescription>Backend operational endpoint values. This does not change the frontend API base URL at runtime.</CardDescription>}
             actions={
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="flex items-center gap-2">
+                  <Switch checked={settingsQuery.data?.genieacs_enabled !== "false"} onCheckedChange={(val) => toggleFeatureMutation.mutate({ key: "genieacs_enabled", current: !val })} disabled={isMutating} />
+                  <span className="text-xs font-bold uppercase">{settingsQuery.data?.genieacs_enabled !== "false" ? "Enabled" : "Disabled"}</span>
+                </div>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "genieacs", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("genieacs")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
@@ -1018,6 +1036,21 @@ export default function Settings() {
             <p className="mt-2 break-all text-sm font-semibold text-foreground">{API_BASE_URL}</p>
           </div>
         </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
+        <CardHeader>
+          <PageSectionHeader
+            title={<CardTitle className="text-xl sm:text-2xl">Billing</CardTitle>}
+            description={<CardDescription>Enable or disable the billing module.</CardDescription>}
+            actions={
+              <div className="flex items-center gap-2">
+                <Switch checked={settingsQuery.data?.billing_enabled !== "false"} onCheckedChange={(val) => toggleFeatureMutation.mutate({ key: "billing_enabled", current: !val })} disabled={isMutating} />
+                <span className="text-xs font-bold uppercase">{settingsQuery.data?.billing_enabled !== "false" ? "Enabled" : "Disabled"}</span>
+              </div>
+            }
+          />
+        </CardHeader>
       </Card>
 
       <Card className="overflow-hidden border-2 shadow-[10px_10px_0_0_hsl(var(--border))]">
