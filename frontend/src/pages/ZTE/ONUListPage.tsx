@@ -126,7 +126,7 @@ function FilterToolbar({
             <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
               <Select.Value placeholder="BOARD" />
             </Select.Trigger>
-            <Select.Content>
+            <Select.Content side="bottom">
               {boardOptions.map((item) => (
                 <Select.Item key={item} value={String(item)}>
                   BOARD {item}
@@ -142,7 +142,7 @@ function FilterToolbar({
             <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
               <Select.Value placeholder="Pilih PON" />
             </Select.Trigger>
-            <Select.Content>
+            <Select.Content side="bottom">
               {ponList.map((item) => (
                 <Select.Item key={`${item.board}-${item.pon}`} value={String(item.pon)}>
                   PON {item.pon}{item.description ? ` — ${item.description}` : ''}
@@ -249,24 +249,24 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
           <thead className="sticky top-0 z-10 border-b-2 border-border bg-muted">
             <tr>
               <th className="w-12 px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">ID</th>
-              <th className="max-w-[10rem] px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">NAMA</th>
-              <th className="hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground sm:table-cell">SN</th>
+              <th className="px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">NAMA</th>
+              <th className="hidden px-2 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground sm:table-cell">SN</th>
+              <th className="w-24 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX (DBM)</th>
               <th className="w-20 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">STATUS</th>
-              <th className="w-24 px-3 py-3 text-right text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX (DBM)</th>
-              <th className="w-14 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">ACTION</th>
+              <th className="w-14 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">···</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={`${row.id}-${row.sn}`} className="cursor-pointer border-b border-border/60 transition-colors hover:bg-muted/30" onClick={() => onViewDetail(row)}>
                 <td className="px-3 py-2.5 font-bold">{row.id}</td>
-                <td className="max-w-[10rem] px-3 py-2.5">
+                <td className="px-3 py-2.5">
                   <span className="block truncate font-bold uppercase">{row.nama}</span>
                   <span className="block truncate text-xs text-muted-foreground sm:hidden">{row.sn}</span>
                 </td>
-                <td className="hidden px-3 py-2.5 font-mono text-xs text-muted-foreground sm:table-cell">{row.sn}</td>
+                <td className="hidden px-2 py-2.5 font-mono text-xs text-muted-foreground sm:table-cell">{row.sn}</td>
+                <td className="px-3 py-2.5 text-center font-bold">{row.rx}</td>
                 <td className="px-3 py-2.5 text-center"><StatusBadge status={row.status} /></td>
-                <td className="px-3 py-2.5 text-right font-bold">{row.rx}</td>
                 <td className="px-3 py-2.5 text-center">
                   <button
                     onClick={(e) => { e.stopPropagation(); onViewDetail(row) }}

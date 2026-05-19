@@ -1,4 +1,6 @@
 import { useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 
 type ZTEModalProps = {
   isOpen: boolean
@@ -28,28 +30,19 @@ export function ZTEModal({ isOpen, onClose, title, children }: ZTEModalProps) {
 
   if (!isOpen) return null
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/50 p-3 sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        className="neo-panel box-border my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-none border-2 border-border bg-card p-4 text-card-foreground shadow-brutal sm:max-h-[90dvh] sm:max-w-lg sm:p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between border-b-2 border-border pb-3">
-          <h2 className="font-heading text-sm font-extrabold uppercase tracking-tight sm:text-base">
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            className="neo-panel neo-interactive rounded-none border-2 border-border bg-card px-2 py-1 text-[10px] font-extrabold uppercase shadow-brutal-sm transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:bg-accent hover:text-accent-foreground hover:shadow-brutal"
-          >
-            X
+  return createPortal(
+    <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-foreground/35 p-3 sm:p-6">
+      <button aria-label="Close overlay" className="absolute inset-0" onClick={onClose} type="button" />
+      <div className="relative z-10 my-auto box-border max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-[28px] border-2 border-border bg-card shadow-brutal-lg sm:max-h-[90vh] sm:max-w-lg">
+        <div className="flex items-center justify-between gap-3 border-b-2 border-border px-5 py-4">
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <button onClick={onClose} type="button" className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X className="h-5 w-5" />
           </button>
         </div>
-        {children}
+        <div className="px-5 py-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
