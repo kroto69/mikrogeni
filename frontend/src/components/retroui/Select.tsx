@@ -48,6 +48,7 @@ const SelectContent = ({
             className,
           )}
         position={position}
+        avoidCollisions={false}
         {...props}
       >
         <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1 text-muted-foreground">
