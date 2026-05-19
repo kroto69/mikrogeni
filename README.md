@@ -284,6 +284,60 @@ Komunikasi ke OLT menggunakan **Web API** (HTTP), bukan SNMP. Support 2 firmware
 
 ---
 
+## Integrasi ZTE OLT
+
+Mikrogeni menggunakan container **zzte** sebagai proxy/adapter untuk komunikasi ke ZTE OLT via SNMP. Setiap ZTE OLT yang ingin dimonitor perlu satu instance zzte yang berjalan.
+
+### 1. Install zzte
+
+Clone dan jalankan dari repository terpisah:
+
+```bash
+git clone https://github.com/kroto69/zzte.git
+cd zzte
+```
+
+Ikuti instruksi di [README zzte](https://github.com/kroto69/zzte) untuk setup dan menjalankan container. Secara umum:
+
+```bash
+# Edit konfigurasi OLT (IP, community, dll)
+cp .env.example .env
+nano .env
+
+# Jalankan
+docker compose up -d
+```
+
+zzte akan expose API di port tertentu (misal `http://localhost:3000` atau `http://olt-monitor:8081`).
+
+### 2. Tambahkan Koneksi di Mikrogeni
+
+Setelah zzte berjalan, tambahkan endpoint-nya di Mikrogeni:
+
+1. Buka **Settings** → **ZTE OLT Connections**
+2. Klik **Add ZTE OLT**
+3. Isi:
+   - **Name** — nama identifikasi (misal: `olt_baru`)
+   - **Base URL** — URL zzte yang sudah jalan (misal: `http://olt-monitor:8081`)
+4. Klik **Test** untuk verifikasi koneksi
+5. Simpan
+
+### 3. Monitoring
+
+Setelah ditambahkan, ZTE OLT akan muncul di:
+- **Sidebar** → klik untuk lihat ONU per board/PON
+- **Dashboard** → OLT Summary card
+- Fitur: monitoring ONU, status online/LOS/offline, RX power
+
+### Catatan
+
+- Setiap ZTE OLT butuh **satu instance zzte** yang berjalan dan terhubung ke OLT tersebut via SNMP.
+- Mikrogeni hanya menyimpan URL endpoint zzte — tidak berkomunikasi langsung ke OLT.
+- Pastikan container mikrogeni-backend bisa reach URL zzte (gunakan `network_mode: host` atau pastikan routing antar container benar).
+- Jika menggunakan Docker, pastikan zzte dan mikrogeni-backend berada di network yang sama atau keduanya pakai `network_mode: host`.
+
+---
+
 ## Makefile Targets
 
 ```bash
