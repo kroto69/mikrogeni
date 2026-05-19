@@ -439,15 +439,6 @@ export default function ONUListPage() {
           onSettingsClick={() => setAutoRefresh((v) => !v)}
         />
 
-        {hasLoaded && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
-            <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
-            <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
-            <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
-          </div>
-        )}
-
         <FilterToolbar
           board={board}
           pon={pon}
@@ -490,6 +481,12 @@ export default function ONUListPage() {
 
         {hasLoaded && !isLoading && !isError && liveRows.length > 0 && (
           <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
+              <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
+              <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
+              <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
+            </div>
             <SectionHeader autoRefresh={autoRefresh} />
             <DataTable rows={liveRows} onViewDetail={(row) => setDetailRow(row.raw)} />
           </>
