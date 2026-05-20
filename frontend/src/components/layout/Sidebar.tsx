@@ -14,7 +14,6 @@ import SidebarLogo from "@/images/logo.png";
 
 type SidebarFeature = Parameters<ReturnType<typeof useRole>["can"]>[0];
 
-const navigation = [
 const navigation: ReadonlyArray<{ label: string; to: string; icon: React.FC<{ className?: string }>; feature?: SidebarFeature }> = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "Mikrotik", to: "/mikrotik", icon: Router },
