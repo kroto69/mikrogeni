@@ -65,55 +65,23 @@ export default function LogsPage() {
       <Card className="overflow-hidden border-2 shadow-brutal">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">Loading...</div>
+            <div className="p-4 text-center text-xs text-muted-foreground">Loading...</div>
           ) : logs.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">No activity logs yet.</div>
+            <div className="p-4 text-center text-xs text-muted-foreground">No activity logs yet.</div>
           ) : (
-            <>
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead className="border-b-2 border-border bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Time</th>
-                      <th className="px-3 py-2 text-left">User</th>
-                      <th className="px-3 py-2 text-left">Action</th>
-                      <th className="px-3 py-2 text-left">Target</th>
-                      <th className="px-3 py-2 text-left">Device</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map((log) => {
-                      const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action, variant: "secondary" as const };
-                      return (
-                        <tr key={log.id} className="border-b border-border/50">
-                          <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{formatTime(log.created_at)}</td>
-                          <td className="px-3 py-1.5 font-semibold">{log.username}</td>
-                          <td className="px-3 py-1.5"><Badge variant={actionInfo.variant}>{actionInfo.label}</Badge></td>
-                          <td className="px-3 py-1.5 font-mono">{log.target || "-"}</td>
-                          <td className="px-3 py-1.5 text-muted-foreground">{log.device || "-"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="space-y-2 p-3 lg:hidden">
-                {logs.map((log) => {
-                  const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action, variant: "secondary" as const };
-                  return (
-                    <div key={log.id} className="rounded-lg border-2 border-border bg-card p-3 shadow-brutal-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant={actionInfo.variant}>{actionInfo.label}</Badge>
-                        <span className="text-[10px] text-muted-foreground">{formatTime(log.created_at)}</span>
-                      </div>
-                      <p className="mt-1 text-sm font-semibold">{log.target || "-"} <span className="text-muted-foreground">on</span> {log.device || "-"}</p>
-                      <p className="text-xs text-muted-foreground">by {log.username}{log.detail ? ` · ${log.detail}` : ""}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+            <div className="divide-y divide-border/50">
+              {logs.map((log) => {
+                const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action, variant: "secondary" as const };
+                return (
+                  <div key={log.id} className="flex items-center gap-3 px-3 py-2 text-xs">
+                    <span className="shrink-0 text-[10px] text-muted-foreground w-28">{formatTime(log.created_at)}</span>
+                    <Badge variant={actionInfo.variant} className="shrink-0">{actionInfo.label}</Badge>
+                    <span className="truncate text-foreground">{log.target || ""}{log.device ? ` · ${log.device}` : ""}</span>
+                    <span className="ml-auto shrink-0 text-muted-foreground">{log.username}</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
