@@ -649,7 +649,7 @@ export default function OnuDetail() {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <span className="text-[15px] font-semibold text-foreground">NMS</span>
+            <span className="text-[15px] font-semibold text-foreground">BRUTALis-NMS</span>
           </div>
         </div>
 
