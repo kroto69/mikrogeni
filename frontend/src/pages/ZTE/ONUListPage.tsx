@@ -9,7 +9,7 @@ import { useGlobalLoaderOverlay } from '@/hooks/useGlobalLoaderOverlay'
 import { getApiErrorMessage } from '@/lib/api'
 import type { NmsStatus } from '@/lib/status-tone'
 import { showToast } from '@/lib/toast'
-import { getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo } from '@/lib/zteApi'
+import { getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo, getZTEUnconfiguredONUs } from '@/lib/zteApi'
 import { ZTEONUDetailModal } from './_components/ZTEONUDetailModal'
 import { ZTESkeleton } from './_components/ZTESkeleton'
 import { ZTEEmptyState } from './_components/ZTEEmptyState'
@@ -316,6 +316,14 @@ export default function ONUListPage() {
   const [tick, setTick] = useState(0)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [detailRow, setDetailRow] = useState<ZTEONUListItem | null>(null)
+  const [showUncfg, setShowUncfg] = useState(false)
+
+  const { data: uncfgOnus, isFetching: uncfgLoading } = useQuery({
+    queryKey: ['zte-uncfg', connId],
+    queryFn: () => getZTEUnconfiguredONUs(connId!),
+    enabled: !!connId && showUncfg,
+    staleTime: 15_000,
+  })
 
   const { data: systemInfo } = useQuery({
     queryKey: ['zte-system', connId],
@@ -486,7 +494,39 @@ export default function ONUListPage() {
               <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
               <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
               <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
+              <Button
+                variant={showUncfg ? "default" : "outline"}
+                size="sm"
+                className="text-[10px] font-bold uppercase"
+                onClick={() => setShowUncfg((v) => !v)}
+              >
+                UNCFG {uncfgOnus?.length ?? "?"}
+              </Button>
             </div>
+            {showUncfg && (
+              <div className="neo-panel rounded-none border-2 border-border bg-card shadow-brutal-sm overflow-hidden">
+                <div className="border-b-2 border-border bg-muted/30 px-3 py-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unconfigured ONU</span>
+                </div>
+                {uncfgLoading ? (
+                  <div className="px-3 py-4 text-center text-sm text-muted-foreground">Loading...</div>
+                ) : (uncfgOnus ?? []).length === 0 ? (
+                  <div className="px-3 py-4 text-center text-sm text-muted-foreground">No unconfigured ONU found</div>
+                ) : (
+                  <div className="divide-y divide-border/50">
+                    {(uncfgOnus ?? []).map((onu, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <div>
+                          <span className="font-bold">{onu.board}/{onu.pon}/{onu.onuId}</span>
+                          <span className="ml-2 font-mono text-muted-foreground">{onu.sn}</span>
+                        </div>
+                        <span className="rounded border border-orange-300 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{onu.state}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <SectionHeader autoRefresh={autoRefresh} />
             <DataTable rows={liveRows} onViewDetail={(row) => setDetailRow(row.raw)} />
           </>

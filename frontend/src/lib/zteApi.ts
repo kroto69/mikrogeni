@@ -95,3 +95,19 @@ export async function searchZTEONU(connId: string, q: string): Promise<ZTEONULis
 }
 
 export { getApiErrorMessage }
+
+export type ZTEUnconfiguredONU = {
+  board: number
+  pon: number
+  onuId: number
+  sn: string
+  type: string
+  state: string
+}
+
+export async function getZTEUnconfiguredONUs(connId: string): Promise<ZTEUnconfiguredONU[]> {
+  const { data } = await api.get<ApiEnvelope<ZTEUnconfiguredONU[]> | ZTEUnconfiguredONU[]>(
+    `/zte/olt/${encodeURIComponent(connId)}/provisioning/unconfigured`
+  )
+  return unwrap(data) ?? []
+}

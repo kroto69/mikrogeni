@@ -68,6 +68,14 @@ func ForwardZTEProxy(w http.ResponseWriter, r *http.Request) {
 	if r.URL.RawQuery != "" {
 		proxyReq.URL.RawQuery = r.URL.RawQuery
 	}
+	// Inject olt_id for provisioning endpoints
+	if strings.Contains(targetPath, "/provisioning/") {
+		q := proxyReq.URL.Query()
+		if q.Get("olt_id") == "" {
+			q.Set("olt_id", connId)
+			proxyReq.URL.RawQuery = q.Encode()
+		}
+	}
 
 	resp, err := http.DefaultClient.Do(proxyReq)
 	if err != nil {
