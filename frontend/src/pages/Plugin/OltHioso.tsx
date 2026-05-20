@@ -640,17 +640,18 @@ export default function OltHiosoPage() {
             {(zteConnections ?? []).length > 0 && (
               <div className="mt-6">
                 <h3 className="text-lg font-black uppercase mb-3">ZTE Connections</h3>
-                <div className="space-y-2">
-                  {(zteConnections ?? []).map((conn) => (
-                    <div key={conn.id} className="flex items-center justify-between rounded-lg border-2 border-border bg-card px-4 py-3 shadow-brutal-sm">
+                {[...new Set((zteConnections ?? []).map((c) => c.base_url))].map((url) => {
+                  const conn = (zteConnections ?? []).find((c) => c.base_url === url)!;
+                  return (
+                    <div key={url} className="flex items-center justify-between rounded-lg border-2 border-border bg-card px-4 py-3 shadow-brutal-sm">
                       <div>
-                        <p className="text-sm font-bold">{conn.name || conn.olt_id}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{conn.base_url}</p>
+                        <p className="text-sm font-bold">ZTE Backend</p>
+                        <p className="text-xs text-muted-foreground font-mono">{url}</p>
                       </div>
                       {canManageOlt ? <Button size="sm" variant="outline" onClick={() => openEditZteModal(conn)}>Edit</Button> : null}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
                 <p className="mt-2 text-[11px] text-muted-foreground">Koneksi ke zzte backend. OLT credentials dikelola di container zzte.</p>
               </div>
             )}
