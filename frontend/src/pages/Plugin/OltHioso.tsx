@@ -995,7 +995,7 @@ export default function OltHiosoPage() {
             </>
           ) : null}
 
-          {deviceModalMode === "create" && createOltType === "zte" ? (
+          {createOltType === "zte" ? (
             <>
               <div className="space-y-2 sm:col-span-2">
                 <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-name">Display Name</label>
