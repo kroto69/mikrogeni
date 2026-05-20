@@ -570,6 +570,8 @@ export default function OltHiosoPage() {
                     </Button>
                   ) : null}
                 </>
+              ) : canManageOlt ? (
+                <Button className="w-full sm:w-auto" onClick={openCreateDeviceModal} type="button">Add OLT</Button>
               ) : null}
             </div>
           )}
@@ -616,7 +618,6 @@ export default function OltHiosoPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-black uppercase">Registered OLT</h3>
-              {canManageOlt ? <Button onClick={openCreateDeviceModal} size="sm">Add OLT</Button> : null}
             </div>
             <div className="space-y-2">
               {devices.map((device) => (
@@ -640,7 +641,7 @@ export default function OltHiosoPage() {
                     <OltIcon className="h-5 w-5" />
                     <div>
                       <p className="text-sm font-bold uppercase">{conn.name || conn.olt_id}</p>
-                      <p className="text-xs text-muted-foreground">{conn.base_url} · ZTE</p>
+                      <p className="text-xs text-muted-foreground font-mono">{conn.base_url}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
