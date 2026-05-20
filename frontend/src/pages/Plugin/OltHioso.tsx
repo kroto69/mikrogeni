@@ -542,7 +542,7 @@ export default function OltHiosoPage() {
         <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
         <PageSectionHeader
           badge={<Badge>Manage</Badge>}
-          description={selectedDevice ? `HIOSO OLT · ${selectedDevice.host}` : "Kelola OLT HIOSO dari halaman ini."}
+          description={selectedDevice ? `${selectedDevice.firmware_type === "legacy_html" ? "Legacy" : "HA7304VX"} · ${selectedDevice.host}` : "Kelola semua OLT (Hioso & ZTE) dari halaman ini."}
           title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">MANAGE OLT</h2>}
           actions={(
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -571,23 +571,13 @@ export default function OltHiosoPage() {
                   ) : null}
                 </>
               ) : null}
-              {canManageOlt ? (
-                <Button
-                  className="w-full sm:w-auto"
-                  onClick={openCreateDeviceModal}
-                  type="button"
-                  variant="secondary"
-                >
-                  Add OLT
-                </Button>
-              ) : null}
             </div>
           )}
           meta={selectedDeviceId ? <Badge variant={getDeviceStatusVariant(selectedDevice?.status)}>{selectedDevice?.status || "unknown"}</Badge> : undefined}
         />
       </section>
 
-      {devices.length > 1 && (
+      {selectedDeviceId && devices.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {devices.map((device) => (
             <button
@@ -639,7 +629,7 @@ export default function OltHiosoPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={getDeviceStatusVariant(device.status)}>{device.status || "unknown"}</Badge>
+                    <Badge variant="secondary">Hioso</Badge>
                     {canManageOlt ? <Button size="sm" variant="outline" onClick={() => openEditDeviceModal(device)}>Edit</Button> : null}
                   </div>
                 </div>
