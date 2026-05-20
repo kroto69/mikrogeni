@@ -848,9 +848,19 @@ export default function OltHiosoPage() {
             <div><span className="font-semibold text-foreground">Firmware:</span> {onuDetailQuery.data?.firmware || "-"}</div>
             <div><span className="font-semibold text-foreground">Chip:</span> {onuDetailQuery.data?.chip_id || "-"}</div>
             <div><span className="font-semibold text-foreground">Serial:</span> {onuDetailQuery.data?.sn || "-"}</div>
-            <div><span className="font-semibold text-foreground">Status:</span> {onuDetailQuery.data?.status || "-"}</div>
+            <div><span className="font-semibold text-foreground">Status:</span> <Badge variant={isOnuOnline(onuDetailQuery.data?.status) ? "success" : "secondary"}>{onuDetailQuery.data?.status || "-"}</Badge></div>
             <div><span className="font-semibold text-foreground">TX Power:</span> {onuDetailQuery.data?.tx_power ?? "-"} dBm</div>
-            <div><span className="font-semibold text-foreground">RX Power:</span> {onuDetailQuery.data?.rx_power ?? "-"} dBm</div>
+            <div>
+              <span className="font-semibold text-foreground">RX Power:</span>{" "}
+              <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold ${
+                onuDetailQuery.data?.rx_power == null ? "" :
+                onuDetailQuery.data.rx_power < -27 ? "bg-destructive/20 text-destructive" :
+                onuDetailQuery.data.rx_power < -25 ? "bg-orange-100 text-orange-700" :
+                "bg-green-100 text-green-700"
+              }`}>
+                {onuDetailQuery.data?.rx_power ?? "-"} dBm
+              </span>
+            </div>
             <div><span className="font-semibold text-foreground">Temperature:</span> {onuDetailQuery.data?.temperature ?? "-"} °C</div>
             <div><span className="font-semibold text-foreground">Registered:</span> {onuDetailQuery.data?.registered_at || "-"}</div>
           </div>
