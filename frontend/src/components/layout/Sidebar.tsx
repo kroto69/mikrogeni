@@ -30,6 +30,8 @@ type SidebarProps = {
 export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const navLinkBase = "neo-panel neo-interactive relative flex items-center gap-3 rounded-lg border-2 border-border bg-card px-4 py-3 text-xs font-extrabold uppercase tracking-[0.08em] text-foreground shadow-brutal-sm transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:bg-muted/40 hover:shadow-brutal";
   const navLinkActive = "border-foreground bg-primary text-primary-foreground shadow-brutal";
+  const subNavBase = "relative ml-2 flex items-center gap-2.5 rounded-md px-3 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground";
+  const subNavActive = "bg-primary/10 text-foreground font-extrabold";
 
   const { can } = useRole();
   const { genieacsEnabled, billingEnabled } = useFeatureFlags();
@@ -84,16 +86,16 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-1">
         <p className="px-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">MANAGE OLT</p>
 
         {can("zte_connections_crud") ? (
           <NavLink
             onClick={onNavigate}
             to="/hioso"
-            className={() => cn(navLinkBase, isHiosoRoute && !activeHiosoDeviceId && navLinkActive)}
+            className={() => cn(subNavBase, isHiosoRoute && !activeHiosoDeviceId && subNavActive)}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             <span>Tambah OLT</span>
           </NavLink>
         ) : null}
@@ -105,9 +107,9 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 key={device.id}
                 onClick={onNavigate}
                 to={`/hioso?device=${encodeURIComponent(device.id)}`}
-                className={() => cn(navLinkBase, isHiosoRoute && activeHiosoDeviceId === device.id && navLinkActive)}
+                className={() => cn(subNavBase, isHiosoRoute && activeHiosoDeviceId === device.id && subNavActive)}
               >
-                <OltIcon className="h-4 w-4" />
+                <OltIcon className="h-3.5 w-3.5" />
                 <span className="truncate">{device.name || device.host}</span>
               </NavLink>
             ))}
@@ -117,15 +119,15 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 key={conn.id}
                 onClick={onNavigate}
                 to={`/zte/${conn.olt_id}`}
-                className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}
+                className={({ isActive }) => cn(subNavBase, isActive && subNavActive)}
               >
-                <OltIcon className="h-4 w-4" />
+                <OltIcon className="h-3.5 w-3.5" />
                 <span className="truncate">{conn.olt_id || conn.name}</span>
               </NavLink>
             ))}
           </>
         ) : (
-          <p className="neo-panel rounded-lg border-2 border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">No OLT connections</p>
+          <p className="ml-2 rounded-lg border border-dashed border-border/50 bg-muted/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">No OLT connections</p>
         )}
       </div>
 
