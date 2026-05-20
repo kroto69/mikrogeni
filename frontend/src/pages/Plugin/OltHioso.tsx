@@ -705,11 +705,11 @@ export default function OltHiosoPage() {
                         IDX {onu.index}
                       </p>
                       <p className="text-[11px] font-semibold text-muted-foreground break-all">SN: {onu.sn || "-"}</p>
-                      <p className="text-[11px] font-semibold text-muted-foreground">TX: {onu.tx_power ?? "-"} dBm</p>
+                      <p className="text-[11px] font-semibold text-muted-foreground">TX: {isOnuOnline(onu.status) ? (onu.tx_power ?? "-") + " dBm" : "-"}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
-                      <p className="text-[11px] font-bold text-foreground">RX: {onu.rx_power ?? "-"} dBm</p>
+                      <p className="text-[11px] font-bold text-foreground">RX: {isOnuOnline(onu.status) ? (onu.rx_power ?? "-") + " dBm" : "-"}</p>
                     </div>
                   </div>
 
@@ -756,7 +756,7 @@ export default function OltHiosoPage() {
                       <td className="px-4 py-3">
                         <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
                       </td>
-                      <td className="px-4 py-3 font-bold text-foreground">{onu.rx_power ?? "-"} dBm</td>
+                      <td className="px-4 py-3 font-bold text-foreground">{isOnuOnline(onu.status) ? (onu.rx_power ?? "-") + " dBm" : "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center">
                           <Button
