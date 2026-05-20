@@ -626,7 +626,7 @@ export default function OltHiosoPage() {
             <div className="space-y-3">
               <div className="rounded-lg border-2 border-border bg-card/90 px-4 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.06em]">
-                  <span className={`rounded-md border-2 px-2 py-1 ${healthOnline ? "border-success/40 bg-success/20 text-success" : "border-destructive/40 bg-destructive/15 text-destructive"}`}>
+                  <span className={`rounded-md border-2 px-2 py-1 ${healthOnline ? "border-green-500/40 bg-green-500/20 text-green-700" : "border-destructive/40 bg-destructive/15 text-destructive"}`}>
                     {healthOnline ? "OLT Online" : "OLT Down"}
                   </span>
                   <span className="text-muted-foreground">Status Device</span>

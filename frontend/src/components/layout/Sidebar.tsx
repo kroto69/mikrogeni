@@ -1,4 +1,4 @@
-import { Blocks, ClipboardList, LayoutDashboard, Plus, ReceiptText, Router, Settings, Wifi } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Plus, ReceiptText, Router, Settings, Wifi } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
@@ -6,6 +6,7 @@ import { getHiosoDevices } from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { cn } from "@/lib/utils";
+import { OltIcon } from "@/components/icons/OltIcon";
 import SidebarLogo from "@/images/logo.png";
 
 type SidebarFeature = Parameters<ReturnType<typeof useRole>["can"]>[0];
@@ -103,7 +104,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 to={`/hioso?device=${encodeURIComponent(device.id)}`}
                 className={() => cn(navLinkBase, isHiosoRoute && activeHiosoDeviceId === device.id && navLinkActive)}
               >
-                <Blocks className="h-4 w-4" />
+                <OltIcon className="h-4 w-4" />
                 <span className="truncate">{device.name || device.host}</span>
               </NavLink>
             ))}
@@ -115,7 +116,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 to={`/zte/${conn.olt_id}`}
                 className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}
               >
-                <Router className="h-4 w-4" />
+                <OltIcon className="h-4 w-4" />
                 <span className="truncate">{conn.olt_id || conn.name}</span>
               </NavLink>
             ))}
