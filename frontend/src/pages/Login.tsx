@@ -111,8 +111,8 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
-      </div>
       <CreditBadge />
+      </div>
     </div>
   );
 }

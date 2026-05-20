@@ -30,8 +30,8 @@ type SidebarProps = {
 export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const navLinkBase = "neo-panel neo-interactive relative flex items-center gap-3 rounded-lg border-2 border-border bg-card px-4 py-3 text-xs font-extrabold uppercase tracking-[0.08em] text-foreground shadow-brutal-sm transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:bg-muted/40 hover:shadow-brutal";
   const navLinkActive = "border-foreground bg-primary text-primary-foreground shadow-brutal";
-  const subNavBase = "relative ml-2 flex items-center gap-2.5 rounded-md px-3 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground";
-  const subNavActive = "bg-primary/10 text-foreground font-extrabold";
+  const subNavBase = "relative ml-3 flex items-center gap-2.5 rounded-lg border-2 border-border bg-card px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.06em] text-foreground shadow-[3px_3px_0_0_hsl(var(--border))] transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-brutal-sm";
+  const subNavActive = "border-foreground bg-primary text-primary-foreground shadow-brutal-sm";
 
   const { can } = useRole();
   const { genieacsEnabled, billingEnabled } = useFeatureFlags();
