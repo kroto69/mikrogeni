@@ -71,15 +71,14 @@ export default function LogsPage() {
           ) : (
             <>
               <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="border-b-2 border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
+                <table className="min-w-full text-xs">
+                  <thead className="border-b-2 border-border bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3 text-left">Time</th>
-                      <th className="px-4 py-3 text-left">User</th>
-                      <th className="px-4 py-3 text-left">Action</th>
-                      <th className="px-4 py-3 text-left">Target</th>
-                      <th className="px-4 py-3 text-left">Device</th>
-                      <th className="px-4 py-3 text-left">Detail</th>
+                      <th className="px-3 py-2 text-left">Time</th>
+                      <th className="px-3 py-2 text-left">User</th>
+                      <th className="px-3 py-2 text-left">Action</th>
+                      <th className="px-3 py-2 text-left">Target</th>
+                      <th className="px-3 py-2 text-left">Device</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -87,12 +86,11 @@ export default function LogsPage() {
                       const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action, variant: "secondary" as const };
                       return (
                         <tr key={log.id} className="border-b border-border/50">
-                          <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatTime(log.created_at)}</td>
-                          <td className="px-4 py-2.5 font-semibold">{log.username}</td>
-                          <td className="px-4 py-2.5"><Badge variant={actionInfo.variant}>{actionInfo.label}</Badge></td>
-                          <td className="px-4 py-2.5 font-mono text-xs">{log.target || "-"}</td>
-                          <td className="px-4 py-2.5">{log.device || "-"}</td>
-                          <td className="px-4 py-2.5 text-muted-foreground">{log.detail || "-"}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{formatTime(log.created_at)}</td>
+                          <td className="px-3 py-1.5 font-semibold">{log.username}</td>
+                          <td className="px-3 py-1.5"><Badge variant={actionInfo.variant}>{actionInfo.label}</Badge></td>
+                          <td className="px-3 py-1.5 font-mono">{log.target || "-"}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{log.device || "-"}</td>
                         </tr>
                       );
                     })}
