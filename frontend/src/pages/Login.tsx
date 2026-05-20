@@ -70,6 +70,7 @@ export default function Login() {
           <div className="mx-auto flex w-full items-center justify-center rounded-lg border-2 border-border bg-primary p-3 shadow-brutal-sm">
             <img alt="NC MIKROGENI" className="h-20 w-auto object-contain" src={LoginLogo} />
           </div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-foreground" style={{ textShadow: "3px 3px 0 hsl(var(--border))" }}>BRUTALis NMS</h1>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
