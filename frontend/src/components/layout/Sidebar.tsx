@@ -1,4 +1,5 @@
-import { ClipboardList, LayoutDashboard, Plus, ReceiptText, Router, Settings, Wifi } from "lucide-react";
+import React from "react";
+import { LayoutDashboard, Plus, ReceiptText, Router, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
@@ -7,17 +8,20 @@ import { useRole } from "@/hooks/useRole";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { cn } from "@/lib/utils";
 import { OltIcon } from "@/components/icons/OltIcon";
+import { AcsIcon } from "@/components/icons/AcsIcon";
+import { LogsIcon } from "@/components/icons/LogsIcon";
 import SidebarLogo from "@/images/logo.png";
 
 type SidebarFeature = Parameters<ReturnType<typeof useRole>["can"]>[0];
 
 const navigation = [
+const navigation: ReadonlyArray<{ label: string; to: string; icon: React.FC<{ className?: string }>; feature?: SidebarFeature }> = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "Mikrotik", to: "/mikrotik", icon: Router },
   { label: "Billing", to: "/billing", icon: ReceiptText, feature: "billing" as const },
-  { label: "Acs/ONU Device", to: "/onu", icon: Wifi },
-  { label: "Logs", to: "/logs", icon: ClipboardList },
-] satisfies ReadonlyArray<{ label: string; to: string; icon: typeof LayoutDashboard; feature?: SidebarFeature }>;
+  { label: "Acs/ONU Device", to: "/onu", icon: AcsIcon },
+  { label: "Logs", to: "/logs", icon: LogsIcon },
+];
 
 type SidebarProps = {
   className?: string;

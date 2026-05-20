@@ -1,10 +1,11 @@
-import { Bell, LogOut, Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NotifIcon } from "@/components/icons/NotifIcon";
 import { api } from "@/lib/api";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
@@ -81,7 +82,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
           <div className="relative" ref={bellRef}>
             <Button variant="outline" size="icon" aria-label="Notifications" onClick={() => setBellOpen((v) => !v)}>
-              <Bell className="h-4 w-4" />
+              <NotifIcon className="h-4 w-4" />
             </Button>
             {bellOpen && createPortal(
               <div className="fixed inset-0 z-[9999]" onClick={() => setBellOpen(false)}>
@@ -110,9 +111,6 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
               document.body,
             )}
           </div>
-          <Badge variant="secondary" className="hidden px-3 py-2 text-[11px] tracking-[0.08em] sm:inline-flex">
-            {user?.username ?? "Admin"}
-          </Badge>
           <Avatar fallback={(user?.username ?? "AD").slice(0, 2).toUpperCase()} />
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Logout">
             <LogOut className="h-4 w-4" />
