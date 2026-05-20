@@ -6,6 +6,7 @@ import { Select } from '@/components/retroui/Select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useGlobalLoaderOverlay } from '@/hooks/useGlobalLoaderOverlay'
+import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api'
 import type { NmsStatus } from '@/lib/status-tone'
 import { showToast } from '@/lib/toast'
@@ -96,6 +97,9 @@ type FilterToolbarProps = {
   onLoad: () => void
   onRefresh: () => void
   onSearchChange: (value: string) => void
+  showUncfg?: boolean
+  onUncfgToggle?: () => void
+  uncfgCount?: number
 }
 
 function FilterToolbar({
@@ -108,6 +112,9 @@ function FilterToolbar({
   onLoad,
   onRefresh,
   onSearchChange,
+  showUncfg,
+  onUncfgToggle,
+  uncfgCount,
 }: FilterToolbarProps) {
   const boardOptions = Array.from({ length: 8 }, (_, i) => i + 1)
 
@@ -154,6 +161,11 @@ function FilterToolbar({
           <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
             LOAD
           </Button>
+          {onUncfgToggle && (
+            <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" variant={showUncfg ? "default" : "outline"} onClick={onUncfgToggle}>
+              UNCFG {uncfgCount ?? "?"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -308,6 +320,7 @@ function mapToDashboardRows(items: ZTEONUListItem[]): DashboardRow[] {
 
 export default function ONUListPage() {
   const { runWithGlobalLoader } = useGlobalLoaderOverlay()
+  const { can } = useRole()
   const { connId } = useParams<{ connId: string }>()
   const [board, setBoard] = useState(1)
   const [pon, setPon] = useState<number | null>(null)
@@ -457,6 +470,9 @@ export default function ONUListPage() {
           onLoad={handleLoad}
           onRefresh={handleRefresh}
           onSearchChange={setSearchQuery}
+          showUncfg={showUncfg}
+          onUncfgToggle={can("zte_connections_crud") ? () => setShowUncfg((v) => !v) : undefined}
+          uncfgCount={uncfgOnus?.length}
         />
 
         {!hasLoaded && (
@@ -493,14 +509,6 @@ export default function ONUListPage() {
             <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
             <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
             <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
-            <Button
-              variant={showUncfg ? "default" : "outline"}
-              size="sm"
-              className="text-[10px] font-bold uppercase"
-              onClick={() => setShowUncfg((v) => !v)}
-            >
-              UNCFG {uncfgOnus?.length ?? "?"}
-            </Button>
           </div>
         )}
 
