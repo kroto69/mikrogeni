@@ -602,16 +602,16 @@ export default function OltHiosoPage() {
         </div>
       )}
 
-      {devices.length === 0 && !devicesQuery.isLoading ? (
+      {devices.length === 0 && (zteConnections ?? []).length === 0 && !devicesQuery.isLoading ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
-          <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
+          <CardContent className="space-y-3 p-5 text-sm text-muted-foreground">
             <p>Belum ada OLT terdaftar.</p>
-            <p>Klik tombol <span className="font-semibold text-foreground">Add OLT</span> untuk mulai monitoring.</p>
+            {canManageOlt ? <Button onClick={openCreateDeviceModal} size="sm">Add OLT</Button> : null}
           </CardContent>
         </Card>
       ) : null}
 
-      {!selectedDeviceId && devices.length > 0 ? (
+      {!selectedDeviceId && (devices.length > 0 || (zteConnections ?? []).length > 0) ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
