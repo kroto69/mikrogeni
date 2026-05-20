@@ -29,6 +29,7 @@ import type { ZTEConnection } from "@/types/zte";
 import { showToast } from "@/lib/toast";
 import { useRole } from "@/hooks/useRole";
 import { MoreHorizontal, X } from "lucide-react";
+import { OltIcon } from "@/components/icons/OltIcon";
 import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 
 // Parse ONU index "1/3:1" atau "0/3:1" → { port: 3, id: 1 }
@@ -164,6 +165,12 @@ export default function OltHiosoPage() {
   const devicesQuery = useQuery({
     queryKey: ["hioso-devices"],
     queryFn: getHiosoDevices,
+  });
+
+  const { data: zteConnections } = useQuery({
+    queryKey: ["zte-connections"],
+    queryFn: getZTEConnections,
+    staleTime: 60_000,
   });
 
   const selectedDevice = (devicesQuery.data ?? []).find((d) => d.id === selectedDeviceId) ?? null;
@@ -505,10 +512,14 @@ export default function OltHiosoPage() {
       return;
     }
 
-    // No device selected yet — pick first
-    if (!selectedDeviceId) {
-      const target = (urlDeviceId && devices.some((d) => d.id === urlDeviceId)) ? urlDeviceId : devices[0].id;
-      setSelectedDeviceId(target);
+    // No device in URL — clear selection (show management view)
+    if (!urlDeviceId && selectedDeviceId) {
+      setSelectedDeviceId(null);
+    }
+
+    // No device selected and URL has one — select it
+    if (!selectedDeviceId && urlDeviceId && devices.some((d) => d.id === urlDeviceId)) {
+      setSelectedDeviceId(urlDeviceId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlDeviceId, devices.length, devicesQuery.isLoading]);
@@ -604,8 +615,51 @@ export default function OltHiosoPage() {
       {devices.length === 0 && !devicesQuery.isLoading ? (
         <Card className="overflow-hidden border-2 shadow-brutal">
           <CardContent className="space-y-2 p-5 text-sm text-muted-foreground">
-            <p>Belum ada OLT HIOSO terdaftar.</p>
+            <p>Belum ada OLT terdaftar.</p>
             <p>Klik tombol <span className="font-semibold text-foreground">Add OLT</span> untuk mulai monitoring.</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!selectedDeviceId && devices.length > 0 ? (
+        <Card className="overflow-hidden border-2 shadow-brutal">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black uppercase">Registered OLT</h3>
+              {canManageOlt ? <Button onClick={openCreateDeviceModal} size="sm">Add OLT</Button> : null}
+            </div>
+            <div className="space-y-2">
+              {devices.map((device) => (
+                <div key={device.id} className="flex items-center justify-between rounded-lg border-2 border-border bg-card px-4 py-3 shadow-brutal-sm">
+                  <div className="flex items-center gap-3">
+                    <OltIcon className="h-5 w-5" />
+                    <div>
+                      <p className="text-sm font-bold uppercase">{device.name || device.host}</p>
+                      <p className="text-xs text-muted-foreground">{device.host}:{device.port} · {device.firmware_type === "legacy_html" ? "Legacy" : "HA7304VX"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={getDeviceStatusVariant(device.status)}>{device.status || "unknown"}</Badge>
+                    {canManageOlt ? <Button size="sm" variant="outline" onClick={() => openEditDeviceModal(device)}>Edit</Button> : null}
+                  </div>
+                </div>
+              ))}
+              {(zteConnections ?? []).map((conn) => (
+                <div key={conn.id} className="flex items-center justify-between rounded-lg border-2 border-border bg-card px-4 py-3 shadow-brutal-sm">
+                  <div className="flex items-center gap-3">
+                    <OltIcon className="h-5 w-5" />
+                    <div>
+                      <p className="text-sm font-bold uppercase">{conn.name || conn.olt_id}</p>
+                      <p className="text-xs text-muted-foreground">{conn.base_url} · ZTE</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">ZTE</Badge>
+                    {canManageOlt ? <Button size="sm" variant="outline" onClick={() => openEditZteModal(conn)}>Edit</Button> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       ) : null}

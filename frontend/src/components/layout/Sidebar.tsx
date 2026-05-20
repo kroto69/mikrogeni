@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Plus, ReceiptText, Router, Settings } from "lucide-react";
+import { LayoutDashboard, ReceiptText, Router, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
@@ -110,21 +110,17 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="mt-4 space-y-1">
-        <p className="px-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">MANAGE OLT</p>
-
-        {can("zte_connections_crud") ? (
-          <NavLink
-            onClick={onNavigate}
-            to="/hioso"
-            className={() => cn(subNavBase, isHiosoRoute && !activeHiosoDeviceId && subNavActive)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Tambah OLT</span>
-          </NavLink>
-        ) : null}
+        <NavLink
+          onClick={onNavigate}
+          to="/hioso"
+          className={() => cn(navLinkBase, isHiosoRoute && !activeHiosoDeviceId && navLinkActive)}
+        >
+          <OltIcon className="h-4 w-4" />
+          <span>Manage OLT</span>
+        </NavLink>
 
         {hasAnyOlt ? (
-          <>
+          <div className="space-y-1">
             {(hiosoDevices ?? []).map((device) => (
               <NavLink
                 key={device.id}
@@ -148,10 +144,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 <span className="truncate">{conn.olt_id || conn.name}</span>
               </NavLink>
             ))}
-          </>
-        ) : (
-          <p className="ml-2 rounded-lg border border-dashed border-border/50 bg-muted/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">No OLT connections</p>
-        )}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-auto space-y-4">
