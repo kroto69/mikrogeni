@@ -989,6 +989,9 @@ export default function OltHiosoPage() {
               <div className="space-y-2 sm:col-span-2">
                 <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-baseurl">ZTE Backend URL</label>
                 <Input id="zte-baseurl" placeholder="http://olt-monitor:8081" value={zteForm.baseUrl} onChange={(event) => setZteForm((current) => ({ ...current, baseUrl: event.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">
+                  Requires <a href="https://github.com/kroto69/zzte" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">zzte</a> container running. See README for integration guide.
+                </p>
               </div>
               <div className="sm:col-span-2">
                 <div className="flex items-center gap-3">
