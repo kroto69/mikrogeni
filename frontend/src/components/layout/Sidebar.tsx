@@ -3,7 +3,7 @@ import { LayoutDashboard, Plus, ReceiptText, Router, Settings } from "lucide-rea
 import { NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
-import { getHiosoDevices } from "@/lib/api";
+import { getHiosoDevices, getMikrotikDevices } from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,12 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
     staleTime: 60_000,
   });
 
+  const { data: mikrotikDevices } = useQuery({
+    queryKey: ["mikrotik-devices"],
+    queryFn: getMikrotikDevices,
+    staleTime: 60_000,
+  });
+
   const hasAnyOlt = (zteConnections?.length ?? 0) > 0 || (hiosoDevices?.length ?? 0) > 0;
   const activeHiosoDeviceId = new URLSearchParams(location.search).get("device");
   const isHiosoRoute = location.pathname === "/hioso";
@@ -69,20 +75,37 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           if (item.to === "/onu" && !genieacsEnabled) return false;
           return true;
         }).map(({ label, to, icon: Icon }) => (
-          <NavLink
-            key={to}
-            onClick={onNavigate}
-            to={to}
-            className={({ isActive }) =>
-              cn(
-                navLinkBase,
-                isActive && navLinkActive,
-              )
-            }
-          >
-            <Icon className="h-4 w-4" />
-            <span className="truncate">{label}</span>
-          </NavLink>
+          <React.Fragment key={to}>
+            <NavLink
+              onClick={onNavigate}
+              to={to}
+              className={({ isActive }) =>
+                cn(
+                  navLinkBase,
+                  isActive && !location.pathname.startsWith(to + "/") && navLinkActive,
+                  to === "/mikrotik" && location.pathname.startsWith("/mikrotik") && navLinkActive,
+                )
+              }
+            >
+              <Icon className="h-4 w-4" />
+              <span className="truncate">{label}</span>
+            </NavLink>
+            {to === "/mikrotik" && (mikrotikDevices ?? []).length > 0 && (
+              <div className="space-y-1">
+                {(mikrotikDevices ?? []).map((device) => (
+                  <NavLink
+                    key={device.id}
+                    onClick={onNavigate}
+                    to={`/mikrotik/${device.id}`}
+                    className={({ isActive }) => cn(subNavBase, isActive && subNavActive)}
+                  >
+                    <Router className="h-3.5 w-3.5" />
+                    <span className="truncate">{device.name || device.host}</span>
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </React.Fragment>
         ))}
       </nav>
 
