@@ -948,7 +948,7 @@ export default function OltHiosoPage() {
             </div>
           ) : null}
 
-          {(deviceModalMode === "edit" || createOltType === "hioso") ? (
+          {((deviceModalMode === "edit" && createOltType === "hioso") || (deviceModalMode === "create" && createOltType === "hioso")) ? (
             <>
           <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-name">Device Name</label>
