@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
 type ActivityLog = {
@@ -18,25 +17,25 @@ async function fetchActivityLogs(limit: number, offset: number): Promise<{ data:
   return resp.data;
 }
 
-const ACTION_LABELS: Record<string, { label: string; variant: "default" | "destructive" | "secondary" }> = {
-  reboot_onu: { label: "Reboot ONU", variant: "destructive" },
-  rename_onu: { label: "Rename ONU", variant: "default" },
-  kick_ppp: { label: "Kick PPP", variant: "destructive" },
-  edit_ppp_secret: { label: "Edit Secret", variant: "secondary" },
-  create_ppp_secret: { label: "Create Secret", variant: "default" },
-  delete_ppp_secret: { label: "Delete Secret", variant: "destructive" },
-  create_ppp_profile: { label: "Create Profile", variant: "default" },
-  update_ppp_profile: { label: "Update Profile", variant: "secondary" },
-  delete_ppp_profile: { label: "Delete Profile", variant: "destructive" },
-  create_mikrotik_device: { label: "Add MikroTik", variant: "default" },
-  delete_mikrotik_device: { label: "Remove MikroTik", variant: "destructive" },
-  create_olt_device: { label: "Add OLT", variant: "default" },
-  delete_olt_device: { label: "Remove OLT", variant: "destructive" },
-  login: { label: "Login", variant: "secondary" },
-  config_wifi: { label: "Config WiFi", variant: "secondary" },
-  config_wan: { label: "Config WAN", variant: "secondary" },
-  config_security: { label: "Config Security", variant: "secondary" },
-  update_setting: { label: "Update Setting", variant: "secondary" },
+const ACTION_LABELS: Record<string, { label: string }> = {
+  reboot_onu: { label: "Reboot ONU" },
+  rename_onu: { label: "Rename ONU" },
+  kick_ppp: { label: "Kick PPP" },
+  edit_ppp_secret: { label: "Edit Secret" },
+  create_ppp_secret: { label: "Create Secret" },
+  delete_ppp_secret: { label: "Delete Secret" },
+  create_ppp_profile: { label: "Create Profile" },
+  update_ppp_profile: { label: "Update Profile" },
+  delete_ppp_profile: { label: "Delete Profile" },
+  create_mikrotik_device: { label: "Add MikroTik" },
+  delete_mikrotik_device: { label: "Remove MikroTik" },
+  create_olt_device: { label: "Add OLT" },
+  delete_olt_device: { label: "Remove OLT" },
+  login: { label: "Login" },
+  config_wifi: { label: "Config WiFi" },
+  config_wan: { label: "Config WAN" },
+  config_security: { label: "Config Security" },
+  update_setting: { label: "Update Setting" },
 };
 
 function formatTime(iso: string) {
@@ -69,15 +68,13 @@ export default function LogsPage() {
           ) : logs.length === 0 ? (
             <div className="p-4 text-center text-xs text-muted-foreground">No activity logs yet.</div>
           ) : (
-            <div className="divide-y divide-border/50">
+            <div className="divide-y divide-border/30">
               {logs.map((log) => {
-                const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action, variant: "secondary" as const };
+                const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action };
                 return (
-                  <div key={log.id} className="flex items-center gap-3 px-3 py-2 text-xs">
-                    <span className="shrink-0 text-[10px] text-muted-foreground w-28">{formatTime(log.created_at)}</span>
-                    <Badge variant={actionInfo.variant} className="shrink-0">{actionInfo.label}</Badge>
-                    <span className="truncate text-foreground">{log.target || ""}{log.device ? ` · ${log.device}` : ""}</span>
-                    <span className="ml-auto shrink-0 text-muted-foreground">{log.username}</span>
+                  <div key={log.id} className="px-3 py-1.5 text-[11px] flex items-baseline justify-between gap-2">
+                    <span className="text-foreground"><span className="font-bold">{actionInfo.label}</span>{log.target ? ` ${log.target}` : ""}{log.device ? ` · ${log.device}` : ""} — {log.username}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(log.created_at)}</span>
                   </div>
                 );
               })}
