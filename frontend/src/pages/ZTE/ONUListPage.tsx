@@ -78,10 +78,10 @@ function StatCard({ value, label, color, onClick }: StatCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`neo-panel rounded-none border-2 border-border bg-card text-center px-2 py-2 shadow-brutal-sm transition-all hover:-translate-y-[1px] hover:shadow-brutal ${color}`}
+      className={`rounded-lg border-2 px-2.5 py-1.5 text-center transition-all hover:-translate-y-[1px] ${color}`}
     >
-      <p className="font-heading text-xl font-extrabold leading-none sm:text-2xl">{value}</p>
-      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-current/80 sm:text-[11px]">{label}</p>
+      <span className="text-sm font-black">{value}</span>
+      <span className="ml-1 text-[10px] font-bold uppercase">{label}</span>
     </button>
   )
 }
@@ -481,7 +481,7 @@ export default function ONUListPage() {
 
         {hasLoaded && !isLoading && !isError && liveRows.length > 0 && (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="flex flex-wrap items-center gap-2">
               <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
               <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
               <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
