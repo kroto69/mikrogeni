@@ -649,7 +649,7 @@ export default function OnuDetail() {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <span className="text-[15px] font-semibold text-foreground">Network Core</span>
+            <span className="text-[15px] font-semibold text-foreground">NMS</span>
           </div>
         </div>
 

@@ -135,7 +135,7 @@ export default function Dashboard() {
             <h2 className="mt-0 text-2xl font-black uppercase tracking-[0.04em] text-foreground sm:text-3xl">Operations</h2>
             <p className="text-sm font-semibold text-muted-foreground">Live network summary across ACS and MikroTik.</p>
           </div>
-          <span className="inline-flex rounded-none border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">Network Core</span>
+          <span className="inline-flex rounded-none border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">NMS</span>
         </CardContent>
       </Card>
 
