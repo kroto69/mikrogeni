@@ -487,46 +487,50 @@ export default function ONUListPage() {
           />
         )}
 
-        {hasLoaded && !isLoading && !isError && liveRows.length > 0 && (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
-              <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
-              <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
-              <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
-              <Button
-                variant={showUncfg ? "default" : "outline"}
-                size="sm"
-                className="text-[10px] font-bold uppercase"
-                onClick={() => setShowUncfg((v) => !v)}
-              >
-                UNCFG {uncfgOnus?.length ?? "?"}
-              </Button>
+        {hasLoaded && !isLoading && !isError && (
+          <div className="flex flex-wrap items-center gap-2">
+            <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
+            <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
+            <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
+            <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
+            <Button
+              variant={showUncfg ? "default" : "outline"}
+              size="sm"
+              className="text-[10px] font-bold uppercase"
+              onClick={() => setShowUncfg((v) => !v)}
+            >
+              UNCFG {uncfgOnus?.length ?? "?"}
+            </Button>
+          </div>
+        )}
+
+        {hasLoaded && !isLoading && !isError && showUncfg && (
+          <div className="neo-panel rounded-none border-2 border-border bg-card shadow-brutal-sm overflow-hidden">
+            <div className="border-b-2 border-border bg-muted/30 px-3 py-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unconfigured ONU</span>
             </div>
-            {showUncfg && (
-              <div className="neo-panel rounded-none border-2 border-border bg-card shadow-brutal-sm overflow-hidden">
-                <div className="border-b-2 border-border bg-muted/30 px-3 py-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unconfigured ONU</span>
-                </div>
-                {uncfgLoading ? (
-                  <div className="px-3 py-4 text-center text-sm text-muted-foreground">Loading...</div>
-                ) : (uncfgOnus ?? []).length === 0 ? (
-                  <div className="px-3 py-4 text-center text-sm text-muted-foreground">No unconfigured ONU found</div>
-                ) : (
-                  <div className="divide-y divide-border/50">
-                    {(uncfgOnus ?? []).map((onu, i) => (
-                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
-                        <div>
-                          <span className="font-bold">{onu.board}/{onu.pon}/{onu.onuId}</span>
-                          <span className="ml-2 font-mono text-muted-foreground">{onu.sn}</span>
-                        </div>
-                        <span className="rounded border border-orange-300 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{onu.state}</span>
-                      </div>
-                    ))}
+            {uncfgLoading ? (
+              <div className="px-3 py-4 text-center text-sm text-muted-foreground">Loading...</div>
+            ) : (uncfgOnus ?? []).length === 0 ? (
+              <div className="px-3 py-4 text-center text-sm text-muted-foreground">No unconfigured ONU found</div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {(uncfgOnus ?? []).map((onu, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                    <div>
+                      <span className="font-bold">{onu.board}/{onu.pon}/{onu.onuId}</span>
+                      <span className="ml-2 font-mono text-muted-foreground">{onu.sn}</span>
+                    </div>
+                    <span className="rounded border border-orange-300 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{onu.state}</span>
                   </div>
-                )}
+                ))}
               </div>
             )}
+          </div>
+        )}
+
+        {hasLoaded && !isLoading && !isError && liveRows.length > 0 && (
+          <>
             <SectionHeader autoRefresh={autoRefresh} />
             <DataTable rows={liveRows} onViewDetail={(row) => setDetailRow(row.raw)} />
           </>
