@@ -903,7 +903,7 @@ export default function OltHiosoPage() {
               </Button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending} type="submit">Save</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending} type="submit">Save</Button>
             </div>
           </div>
         </form>

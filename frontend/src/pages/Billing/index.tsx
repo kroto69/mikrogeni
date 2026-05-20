@@ -668,7 +668,7 @@ export default function BillingIndex() {
               <Input placeholder="Cycle days" type="number" value={planForm.billingCycleDays} onChange={(event) => setPlanForm((prev) => ({ ...prev, billingCycleDays: event.target.value }))} />
               <Input className="sm:col-span-2" placeholder="MikroTik profile (optional)" value={planForm.mikrotikProfile} onChange={(event) => setPlanForm((prev) => ({ ...prev, mikrotikProfile: event.target.value }))} />
               <div className="sm:col-span-2">
-                <Button disabled={createPlanMutation.isPending} type="submit">Save Service Plan</Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={createPlanMutation.isPending} type="submit">Save Service Plan</Button>
               </div>
             </form>
           </CardContent>
@@ -751,7 +751,7 @@ export default function BillingIndex() {
               <Input className="sm:col-span-2" placeholder="Next billing at (RFC3339 or YYYY-MM-DD, optional)" value={customerForm.nextBillingAt} onChange={(event) => setCustomerForm((prev) => ({ ...prev, nextBillingAt: event.target.value }))} />
 
               <div className="sm:col-span-2">
-                <Button disabled={createCustomerMutation.isPending || !customerForm.servicePlanId || !customerForm.mikrotikDeviceId} type="submit">Save Billing Customer</Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={createCustomerMutation.isPending || !customerForm.servicePlanId || !customerForm.mikrotikDeviceId} type="submit">Save Billing Customer</Button>
               </div>
             </form>
           </CardContent>

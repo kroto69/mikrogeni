@@ -776,7 +776,7 @@ export default function Settings() {
             description={<CardDescription>Update the name shown in the topbar and avatar menu.</CardDescription>}
             actions={
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "dashboard", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
+                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "dashboard", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("dashboard")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
             }
@@ -917,7 +917,7 @@ export default function Settings() {
             description={<CardDescription>Operational bot credentials for notifications and chat-based lookup flows.</CardDescription>}
             actions={
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "telegram", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
+                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "telegram", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("telegram")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
             }
@@ -1020,7 +1020,7 @@ export default function Settings() {
                   <Switch checked={settingsQuery.data?.genieacs_enabled !== "false"} onCheckedChange={(val) => toggleFeatureMutation.mutate({ key: "genieacs_enabled", current: !val })} disabled={isMutating} />
                   <span className="text-xs font-bold uppercase">{settingsQuery.data?.genieacs_enabled !== "false" ? "Enabled" : "Disabled"}</span>
                 </div>
-                <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "genieacs", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
+                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "genieacs", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("genieacs")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
             }

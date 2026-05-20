@@ -1838,7 +1838,7 @@ export default function MikrotikDetail() {
                 })}
               />
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:col-span-2">
-                <Button className="w-full sm:w-auto" disabled={settingsMutation.isPending} type="submit">Save settings</Button>
+                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={settingsMutation.isPending} type="submit">Save settings</Button>
                 <Button className="w-full sm:w-auto" onClick={() => setShowSettings(false)} type="button" variant="outline">Close</Button>
               </div>
             </form>
