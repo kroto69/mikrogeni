@@ -9,18 +9,19 @@ import {
 } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { routeLoaders } from "@/lib/routePreload";
 
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Login = lazy(() => import("@/pages/Login"));
-const MikrotikDetail = lazy(() => import("@/pages/Mikrotik/Detail"));
-const MikrotikIndex = lazy(() => import("@/pages/Mikrotik"));
-const BillingIndex = lazy(() => import("@/pages/Billing"));
-const OnuDetail = lazy(() => import("@/pages/ONU/Detail"));
-const OnuIndex = lazy(() => import("@/pages/ONU"));
-const OltHiosoPage = lazy(() => import("@/pages/Plugin/OltHioso"));
-const Settings = lazy(() => import("@/pages/Settings"));
-const LogsPage = lazy(() => import("@/pages/Logs"));
-const ZTEONUListPage = lazy(() => import("@/pages/ZTE/ONUListPage"));
+const Dashboard = lazy(routeLoaders.dashboard);
+const Login = lazy(routeLoaders.login);
+const MikrotikDetail = lazy(routeLoaders.mikrotikDetail);
+const MikrotikIndex = lazy(routeLoaders.mikrotik);
+const BillingIndex = lazy(routeLoaders.billing);
+const OnuDetail = lazy(routeLoaders.onuDetail);
+const OnuIndex = lazy(routeLoaders.onu);
+const OltHiosoPage = lazy(routeLoaders.hioso);
+const Settings = lazy(routeLoaders.settings);
+const LogsPage = lazy(routeLoaders.logs);
+const ZTEONUListPage = lazy(routeLoaders.zte);
 
 function AuthBoundary({ children, guestOnly = false }: { children: ReactNode; guestOnly?: boolean }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -51,10 +52,8 @@ function AppRoutes() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-          <div className="neo-panel rounded-lg border-2 border-border bg-card px-6 py-4 text-sm text-muted-foreground">
-            Loading interface...
-          </div>
+        <div className="min-h-screen bg-background" role="status" aria-label="Memuat antarmuka">
+          <div className="global-progress" />
         </div>
       }
     >

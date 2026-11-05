@@ -1,8 +1,29 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
+import BottomNav from "@/components/layout/BottomNav";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { cn } from "@/lib/utils";
+
+/**
+ * Lightweight skeleton shown while a lazy page chunk loads. The shell
+ * (sidebar, topbar, bottom nav) stays mounted, so navigating no longer
+ * flashes a full-screen "Loading interface..." card.
+ */
+function PageSkeleton() {
+  return (
+    <div className="space-y-3" role="status" aria-label="Memuat halaman">
+      <div className="h-10 animate-pulse rounded-lg border-2 border-border bg-card" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="h-24 animate-pulse rounded-lg border-2 border-border bg-card" />
+        <div className="h-24 animate-pulse rounded-lg border-2 border-border bg-card" />
+        <div className="h-24 animate-pulse rounded-lg border-2 border-border bg-card" />
+        <div className="h-24 animate-pulse rounded-lg border-2 border-border bg-card" />
+      </div>
+      <div className="h-48 animate-pulse rounded-lg border-2 border-border bg-card" />
+    </div>
+  );
+}
 
 export default function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -109,11 +130,14 @@ export default function MainLayout() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="flex min-h-full flex-col bg-background/90">
               <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
-              <main className="neo-shell flex flex-1 justify-center px-4 py-4 sm:px-6 sm:py-6 xl:px-8">
+              <main className="neo-shell flex flex-1 justify-center px-3 pb-24 pt-4 sm:px-6 sm:py-6 xl:px-8 xl:pb-6">
                 <div className="route-shell route-shell-app w-full max-w-[1760px]">
-                  <Outlet />
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Outlet />
+                  </Suspense>
                 </div>
               </main>
+              <BottomNav onMenuClick={() => setIsSidebarOpen(true)} />
             </div>
           </div>
         </div>

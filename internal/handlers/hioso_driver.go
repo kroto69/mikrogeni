@@ -123,11 +123,35 @@ func HiosoNewDriver(firmwareType, host string, port int, user, pass string) (Hio
 	}
 }
 
-// hiosoTruncateName memotong nama ONU max 31 char dan strip koma.
+// hiosoOnlineStatus reports whether an ONU status string means online.
+// Legacy firmware reports "Up"/"PwrDown"/"Down" (verified live 2026-10-29);
+// swcgi reports "online"-style values. Anything else counts as offline.
+func hiosoOnlineStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "up", "online":
+		return true
+	default:
+		return false
+	}
+}
+
+// hiosoConfigSaver is implemented by drivers whose firmware needs an explicit
+// "save configuration" step to persist RAM changes to flash. Legacy_html
+// implements it (GET /goform/saveConfiguration?savecfg=, from system_save.asp).
+// Swcgi does NOT implement it: its persist mechanism is unconfirmed, and a
+// guessed write endpoint must never be sent to a production OLT. Handlers
+// call it only when the driver implements it (optional interface).
+type hiosoConfigSaver interface {
+	SaveConfiguration() error
+}
+
+// hiosoTruncateName memotong nama ONU max 30 char dan strip koma.
+// 30 = maxlength field onuName di form /onuConfig.asp perangkat legacy
+// (dulu 31 — satu char lebih longgar dari form perangkat).
 func hiosoTruncateName(name string) string {
 	name = strings.ReplaceAll(strings.TrimSpace(name), ",", "")
-	if len([]rune(name)) > 31 {
-		return string([]rune(name)[:31])
+	if len([]rune(name)) > 30 {
+		return string([]rune(name)[:30])
 	}
 	return name
 }

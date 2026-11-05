@@ -285,8 +285,17 @@ func HiosoRenameHandler(w http.ResponseWriter, r *http.Request) {
 		pluginError(w, http.StatusBadGateway, "rename gagal: "+err.Error())
 		return
 	}
+	resp := map[string]interface{}{"method": device.FirmwareType}
+	// Auto-persist (legacy): rename hanya masuk RAM sampai Save Configuration
+	// menulisnya ke flash. Kalau save gagal, rename TIDAK dibatalkan — tapi
+	// laporkan sebagai peringatan agar tidak dikira sudah permanen.
+	if saver, ok := driver.(hiosoConfigSaver); ok {
+		if err := saver.SaveConfiguration(); err != nil {
+			resp["persist_warning"] = "nama berubah tapi gagal disimpan permanen (" + err.Error() + "); nama bisa hilang saat OLT reboot"
+		}
+	}
 	logActivity(r, "rename_onu", onuID, device.Name, "new name: "+req.Name)
-	pluginJSON(w, map[string]interface{}{"method": device.FirmwareType})
+	pluginJSON(w, resp)
 }
 
 func HiosoRebootHandler(w http.ResponseWriter, r *http.Request) {

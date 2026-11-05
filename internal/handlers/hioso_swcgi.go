@@ -164,28 +164,19 @@ func (d *hiosoSwcgiDriver) ListONUByPort(port int) ([]HiosoONU, error) {
 }
 
 func (d *hiosoSwcgiDriver) ListAllONU() ([]HiosoONU, error) {
+	// BUGFIX 2026-10-29: jangan early-stop setelah 3 PON kosong berurutan.
+	// ONU bisa tersebar di PON mana saja (mis. hanya PON 8 terisi) — early-stop
+	// membuat daftar diam-diam tidak lengkap. Selalu pindai 1..16; biayanya
+	// terbatas (16 request CGI kecil, dashboard sudah di-cache 30 dtk).
 	var all []HiosoONU
-	emptyCount := 0
 	for ponPort := 1; ponPort <= 16; ponPort++ {
 		payload := fmt.Sprintf("get=info&sysUnit=1&ponport=%d&displayfunc=displayAll", ponPort)
 		referer := fmt.Sprintf("%s/m/onu_info.htm?ponport=%d", d.baseURL, ponPort)
 		body, err := d.postSWCGI(payload, referer)
 		if err != nil {
-			emptyCount++
-			if emptyCount >= 3 {
-				break
-			}
 			continue
 		}
 		matches := swcgiItemRegex.FindAllStringSubmatch(body, -1)
-		if len(matches) == 0 {
-			emptyCount++
-			if emptyCount >= 3 {
-				break
-			}
-			continue
-		}
-		emptyCount = 0
 		for _, m := range matches {
 			if len(m) < 2 {
 				continue
@@ -281,8 +272,16 @@ func (d *hiosoSwcgiDriver) RenameONU(onuID, newName string) error {
 }
 
 func (d *hiosoSwcgiDriver) RebootONU(onuID string) error {
+	// BUGFIX 2026-10-29: jangan kirim onuname=reboot. Form set=config OLT
+	// menyimpan semua field sekaligus, jadi nama ONU ikut tertimpa "reboot".
+	// Kirim nama saat ini agar reboot tidak mengubah nama. Kalau nama saat
+	// ini tidak bisa dibaca, BATALKAN reboot daripada berisiko mengganti nama.
+	detail, err := d.GetONUDetail(onuID)
+	if err != nil {
+		return fmt.Errorf("reboot dibatalkan: nama ONU saat ini tidak bisa dibaca (%w)", err)
+	}
 	ponPort, payloadID := swcgiParseOnuID(onuID)
-	payload := fmt.Sprintf("set=config&sysUnit=1&ponport=%d&onuid=%s&onuopt=rebootOp&onuname=reboot", ponPort, payloadID)
+	payload := fmt.Sprintf("set=config&sysUnit=1&ponport=%d&onuid=%s&onuopt=rebootOp&onuname=%s", ponPort, payloadID, detail.Name)
 	referer := fmt.Sprintf("%s/m/onu_config.htm?ponport=%d&onuid=%s", d.baseURL, ponPort, payloadID)
 	body, err := d.postSWCGI(payload, referer)
 	if err != nil {

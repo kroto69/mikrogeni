@@ -1,10 +1,11 @@
-import React from "react";
-import { LayoutDashboard, ReceiptText, Router, Settings } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronDown, LayoutDashboard, ReceiptText, Router, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
-import { getHiosoDevices, getMikrotikDevices } from "@/lib/api";
+import { getDashboardSummary, getHiosoDevices, getMikrotikDevices } from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
+import { preloadRoute, type RouteLoaderKey } from "@/lib/routePreload";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { cn } from "@/lib/utils";
 import { OltIcon } from "@/components/icons/OltIcon";
@@ -14,12 +15,12 @@ import SidebarLogo from "@/images/logo.png";
 
 type SidebarFeature = Parameters<ReturnType<typeof useRole>["can"]>[0];
 
-const navigation: ReadonlyArray<{ label: string; to: string; icon: React.FC<{ className?: string }>; feature?: SidebarFeature }> = [
-  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
-  { label: "Mikrotik", to: "/mikrotik", icon: Router },
-  { label: "Billing", to: "/billing", icon: ReceiptText, feature: "billing" as const },
-  { label: "Acs/ONU Device", to: "/onu", icon: AcsIcon },
-  { label: "Logs", to: "/logs", icon: LogsIcon },
+const navigation: ReadonlyArray<{ label: string; to: string; icon: React.FC<{ className?: string }>; feature?: SidebarFeature; preload: RouteLoaderKey }> = [
+  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, preload: "dashboard" },
+  { label: "Mikrotik", to: "/mikrotik", icon: Router, preload: "mikrotik" },
+  { label: "Billing", to: "/billing", icon: ReceiptText, feature: "billing" as const, preload: "billing" },
+  { label: "Acs/ONU Device", to: "/onu", icon: AcsIcon, preload: "onu" },
+  { label: "Logs", to: "/logs", icon: LogsIcon, preload: "logs" },
 ];
 
 type SidebarProps = {
@@ -55,17 +56,30 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
     staleTime: 60_000,
   });
 
+  // Shared cache with the Dashboard page — real network health, no dummy data.
+  const { data: summary } = useQuery({
+    queryKey: ["dashboard-summary"],
+    queryFn: getDashboardSummary,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
   const hasAnyOlt = (zteConnections?.length ?? 0) > 0 || (hiosoDevices?.length ?? 0) > 0;
   const activeHiosoDeviceId = new URLSearchParams(location.search).get("device");
   const isHiosoRoute = location.pathname === "/hioso";
+  const isOltRoute = location.pathname.startsWith("/hioso") || location.pathname.startsWith("/zte");
+  const [oltOpen, setOltOpen] = useState(isOltRoute);
+
+  const onuOnline = summary?.acs.online_devices;
+  const onuTotal = summary?.acs.total_devices;
+  const routerOnline = summary?.mikrotik.online;
+  const routerTotal = summary?.mikrotik.total;
+  const oltTotal = summary?.olt.total;
 
   return (
     <aside className={cn("sidebar-surface neo-panel data-grid-line flex h-full w-full flex-col border-r-2 border-border bg-card/95 px-4 py-5", className)}>
-      <div className="sidebar-brand-surface rounded-lg border-2 border-border bg-primary p-3 text-primary-foreground shadow-brutal">
-        <div className="flex items-center justify-center rounded-lg border-2 border-border bg-primary p-2 shadow-brutal-sm">
-          <img alt="NC MIKROGENI" className="h-16 w-auto object-contain" src={SidebarLogo} />
-        </div>
-        <p className="mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-primary-foreground/90"></p>
+      <div className="sidebar-brand-surface rounded-lg border-2 border-border bg-primary p-2.5 text-primary-foreground shadow-brutal">
+        <img alt="MIKROGENI" className="mx-auto h-12 w-auto object-contain" src={SidebarLogo} />
       </div>
 
       <nav className="mt-6 space-y-2">
@@ -74,10 +88,12 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           if (item.to === "/billing" && !billingEnabled) return false;
           if (item.to === "/onu" && !genieacsEnabled) return false;
           return true;
-        }).map(({ label, to, icon: Icon }) => (
+        }).map(({ label, to, icon: Icon, preload }) => (
           <React.Fragment key={to}>
             <NavLink
               onClick={onNavigate}
+              onMouseEnter={() => preloadRoute(preload)}
+              onFocus={() => preloadRoute(preload)}
               to={to}
               className={({ isActive }) =>
                 cn(
@@ -96,6 +112,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   <NavLink
                     key={device.id}
                     onClick={onNavigate}
+                    onMouseEnter={() => preloadRoute("mikrotikDetail")}
+                    onFocus={() => preloadRoute("mikrotikDetail")}
                     to={`/mikrotik/${device.id}`}
                     className={({ isActive }) => cn(subNavBase, isActive && subNavActive)}
                   >
@@ -110,21 +128,39 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="mt-4 space-y-1">
-        <NavLink
-          onClick={onNavigate}
-          to="/hioso"
-          className={() => cn(navLinkBase, isHiosoRoute && !activeHiosoDeviceId && navLinkActive)}
-        >
-          <OltIcon className="h-4 w-4" />
-          <span>Manage OLT</span>
-        </NavLink>
+        <div className="flex gap-1">
+          <NavLink
+            onClick={onNavigate}
+            onMouseEnter={() => preloadRoute("hioso")}
+            onFocus={() => preloadRoute("hioso")}
+            to="/hioso"
+            className={() => cn(navLinkBase, "flex-1", isHiosoRoute && !activeHiosoDeviceId && navLinkActive)}
+          >
+            <OltIcon className="h-4 w-4" />
+            <span>Manage OLT</span>
+            {oltTotal != null && oltTotal > 0 ? (
+              <span className="ml-auto rounded-md border-2 border-border bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">{oltTotal}</span>
+            ) : null}
+          </NavLink>
+          <button
+            type="button"
+            aria-label={oltOpen ? "Tutup daftar OLT" : "Buka daftar OLT"}
+            aria-expanded={oltOpen}
+            onClick={() => setOltOpen((v) => !v)}
+            className="neo-panel neo-interactive flex items-center justify-center rounded-lg border-2 border-border bg-card px-2.5 shadow-brutal-sm"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", oltOpen && "rotate-180")} />
+          </button>
+        </div>
 
-        {hasAnyOlt ? (
+        {oltOpen && hasAnyOlt ? (
           <div className="space-y-1">
             {(hiosoDevices ?? []).map((device) => (
               <NavLink
                 key={device.id}
                 onClick={onNavigate}
+                onMouseEnter={() => preloadRoute("hioso")}
+                onFocus={() => preloadRoute("hioso")}
                 to={`/hioso?device=${encodeURIComponent(device.id)}`}
                 className={() => cn(subNavBase, isHiosoRoute && activeHiosoDeviceId === device.id && subNavActive)}
               >
@@ -137,6 +173,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
               <NavLink
                 key={conn.id}
                 onClick={onNavigate}
+                onMouseEnter={() => preloadRoute("zte")}
+                onFocus={() => preloadRoute("zte")}
                 to={`/zte/${conn.olt_id}`}
                 className={({ isActive }) => cn(subNavBase, isActive && subNavActive)}
               >
@@ -152,6 +190,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         {can("settings") && (
         <NavLink
           onClick={onNavigate}
+          onMouseEnter={() => preloadRoute("settings")}
+          onFocus={() => preloadRoute("settings")}
           to="/settings"
           className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}
         >
@@ -163,10 +203,30 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         <div className="sidebar-health-surface rounded-lg border-2 border-border bg-secondary p-4 text-secondary-foreground shadow-brutal">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.16em]">Network Health</span>
-          <span className="h-3 w-3 rounded-lg border-2 border-border bg-success" />
+            <span className={cn("h-3 w-3 rounded-lg border-2 border-border", summary ? "bg-success" : "bg-muted")} />
           </div>
-          <p className="mt-3 text-sm font-extrabold uppercase tracking-[0.03em]">94% nodes operational</p>
-          <p className="mt-1 text-xs font-semibold text-secondary-foreground/85">Core routers and OLT uplinks are stable.</p>
+          {summary ? (
+            <dl className="mt-3 space-y-1.5 text-xs font-bold">
+              <div className="flex items-center justify-between">
+                <dt className="uppercase tracking-[0.06em] text-secondary-foreground/80">ONU online</dt>
+                <dd>{onuOnline ?? "-"}<span className="text-secondary-foreground/60">/{onuTotal ?? "-"}</span></dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="uppercase tracking-[0.06em] text-secondary-foreground/80">Router online</dt>
+                <dd>{routerOnline ?? "-"}<span className="text-secondary-foreground/60">/{routerTotal ?? "-"}</span></dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="uppercase tracking-[0.06em] text-secondary-foreground/80">OLT managed</dt>
+                <dd>{oltTotal ?? "-"}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="uppercase tracking-[0.06em] text-secondary-foreground/80">PPPoE aktif</dt>
+                <dd>{summary.mikrotik.total_ppp_active}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-3 text-xs font-semibold text-secondary-foreground/85">Memuat status jaringan…</p>
+          )}
         </div>
       </div>
     </aside>

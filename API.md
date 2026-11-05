@@ -517,7 +517,19 @@ curl -X DELETE "http://localhost:1997/api/acs/settings/acs-learned-profiles?vend
 ```
 
 Endpoint ACS tambahan:
-- `GET /acs/dashboard`
+- `GET /acs/dashboard` — ringkasan agregat satu-request untuk halaman Dashboard
+  (menggantikan fan-out N+1 per-device di frontend). Response dihitung paralel
+  di server dan di-cache 30 detik:
+  ```json
+  {
+    "acs": { "total_devices": 0, "online_devices": 0, "offline_devices": 0, "average_rx_power": 0, "average_temp": 0 },
+    "mikrotik": { "total": 0, "online": 0, "total_ppp_active": 0,
+      "devices": [{ "id": "", "host": "", "name": "", "status": "", "identity": "", "cpu_load": "-", "uptime": "-", "ppp_active": 0 }] },
+    "olt": { "total": 0,
+      "hioso": [{ "id": "", "name": "", "host": "", "online": false, "model": "", "onu_online": 0, "onu_total": 0, "cpu": "", "uptime": "" }],
+      "zte": [{ "id": "", "name": "", "base_url": "", "olt_id": "", "online": false, "cpu_usage": 0, "memory_usage": 0, "uptime": "" }] }
+  }
+  ```
 - `GET/POST /acs/settings`
 - `GET /acs/settings/hioso-olts`
 - `POST /acs/settings/hioso-olts`

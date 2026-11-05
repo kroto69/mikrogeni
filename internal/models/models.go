@@ -68,6 +68,75 @@ type DashboardStats struct {
 	AverageTemp    float64 `json:"average_temp"`
 }
 
+// DashboardACSSummary is the ACS section of the dashboard summary.
+type DashboardACSSummary struct {
+	TotalDevices   int     `json:"total_devices"`
+	OnlineDevices  int     `json:"online_devices"`
+	OfflineDevices int     `json:"offline_devices"`
+	AverageRXPower float64 `json:"average_rx_power"`
+	AverageTemp    float64 `json:"average_temp"`
+}
+
+// DashboardMikroTikDevice is one router row in the dashboard summary.
+type DashboardMikroTikDevice struct {
+	ID        string `json:"id"`
+	Host      string `json:"host"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Identity  string `json:"identity"`
+	CPULoad   string `json:"cpu_load"`
+	Uptime    string `json:"uptime"`
+	PPPActive int    `json:"ppp_active"`
+}
+
+// DashboardMikroTikSummary is the MikroTik section of the dashboard summary.
+type DashboardMikroTikSummary struct {
+	Total          int                     `json:"total"`
+	Online         int                     `json:"online"`
+	TotalPPPActive int                     `json:"total_ppp_active"`
+	Devices        []DashboardMikroTikDevice `json:"devices"`
+}
+
+// DashboardHiosoOLT is one Hioso OLT row in the dashboard summary.
+type DashboardHiosoOLT struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Host      string `json:"host"`
+	Online    bool   `json:"online"`
+	Model     string `json:"model"`
+	ONUOnline int    `json:"onu_online"`
+	ONUTotal  int    `json:"onu_total"`
+	CPU       string `json:"cpu"`
+	Uptime    string `json:"uptime"`
+}
+
+// DashboardZTEOLT is one ZTE OLT row in the dashboard summary.
+type DashboardZTEOLT struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	BaseURL     string `json:"base_url"`
+	OltID       string `json:"olt_id"`
+	Online      bool   `json:"online"`
+	CPUUsage    int    `json:"cpu_usage"`
+	MemoryUsage int    `json:"memory_usage"`
+	Uptime      string `json:"uptime"`
+}
+
+// DashboardOLTSummary is the OLT section of the dashboard summary.
+type DashboardOLTSummary struct {
+	Total int               `json:"total"`
+	Hioso []DashboardHiosoOLT `json:"hioso"`
+	ZTE   []DashboardZTEOLT   `json:"zte"`
+}
+
+// DashboardSummary is the single-payload response for GET /api/dashboard.
+// It replaces the N+1 per-device fan-out the frontend used to perform.
+type DashboardSummary struct {
+	ACS      DashboardACSSummary     `json:"acs"`
+	MikroTik DashboardMikroTikSummary `json:"mikrotik"`
+	OLT      DashboardOLTSummary      `json:"olt"`
+}
+
 // RebootDeviceRequest represents reboot device request
 type RebootDeviceRequest struct {
 	DeviceID string `json:"device_id"`

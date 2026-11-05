@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { StatusBadge as NmsStatusBadge } from '@/components/nms/status-badge'
-import { Select } from '@/components/retroui/Select'
+import { ChevronDown } from 'lucide-react'
+import { PickerPopup } from '@/components/retroui/PickerPopup'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useGlobalLoaderOverlay } from '@/hooks/useGlobalLoaderOverlay'
@@ -10,7 +11,7 @@ import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api'
 import type { NmsStatus } from '@/lib/status-tone'
 import { showToast } from '@/lib/toast'
-import { getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo, getZTEUnconfiguredONUs } from '@/lib/zteApi'
+import { getZTEBoards, getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo, getZTEUnconfiguredONUs } from '@/lib/zteApi'
 import { ZTEONUDetailModal } from './_components/ZTEONUDetailModal'
 import { ZTESkeleton } from './_components/ZTESkeleton'
 import { ZTEEmptyState } from './_components/ZTEEmptyState'
@@ -89,6 +90,7 @@ function StatCard({ value, label, color, onClick }: StatCardProps) {
 
 type FilterToolbarProps = {
   board: number
+  boardOptions: number[]
   pon: number | null
   ponList: ZTEPONInfo[]
   searchQuery: string
@@ -104,6 +106,7 @@ type FilterToolbarProps = {
 
 function FilterToolbar({
   board,
+  boardOptions,
   pon,
   ponList,
   searchQuery,
@@ -116,53 +119,46 @@ function FilterToolbar({
   onUncfgToggle,
   uncfgCount,
 }: FilterToolbarProps) {
-  const boardOptions = Array.from({ length: 8 }, (_, i) => i + 1)
+  const [pickerOpen, setPickerOpen] = useState<'board' | 'pon' | null>(null)
+  // Nama PON tak dihafal operator — trigger menampilkan nomor + nama
+  // sekaligus ("PON 1: suambian"), bukan nama saja atau nomor saja.
+  const selectedPon = pon != null ? ponList.find((item) => item.pon === pon) : undefined
+  const ponTriggerLabel =
+    pon == null ? 'Pilih PON' : selectedPon?.description ? `PON ${pon}: ${selectedPon.description}` : `PON ${pon}`
 
   return (
-    <div className="neo-panel border-2 border-border bg-card p-4 shadow-brutal-sm flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+    <div className="neo-panel border-2 border-border bg-card p-4 shadow-brutal-sm flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
       <div className="w-full lg:w-auto">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Pilih Board &amp; Pon</p>
         <div className="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto">
-          <Select
-            value={String(board)}
-            onValueChange={(value) => {
-              onBoardChange(Number(value))
-              onPonChange(null)
-            }}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={pickerOpen === 'board'}
+            onClick={() => setPickerOpen('board')}
+            className="flex h-10 w-full items-center justify-between rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-32"
           >
-            <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
-              <Select.Value placeholder="BOARD" />
-            </Select.Trigger>
-            <Select.Content side="bottom">
-              {boardOptions.map((item) => (
-                <Select.Item key={item} value={String(item)}>
-                  BOARD {item}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
+            BOARD {board}
+            <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+          </button>
 
-          <Select
-            value={pon != null ? String(pon) : undefined}
-            onValueChange={(value) => onPonChange(value ? Number(value) : null)}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={pickerOpen === 'pon'}
+            onClick={() => setPickerOpen('pon')}
+            title={ponTriggerLabel}
+            className="flex h-10 w-full items-center justify-between rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-32"
           >
-            <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
-              <Select.Value placeholder="Pilih PON" />
-            </Select.Trigger>
-            <Select.Content side="bottom">
-              {ponList.map((item) => (
-                <Select.Item key={`${item.board}-${item.pon}`} value={String(item.pon)}>
-                  PON {item.pon}{item.description ? ` — ${item.description}` : ''}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
+            <span className="min-w-0 flex-1 truncate text-left">{ponTriggerLabel}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0" aria-hidden="true" />
+          </button>
 
-          <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
+          <Button className="h-10 w-full whitespace-nowrap px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
             LOAD
           </Button>
           {onUncfgToggle && (
-            <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" variant={showUncfg ? "default" : "outline"} onClick={onUncfgToggle}>
+            <Button className="h-10 w-full whitespace-nowrap px-4 font-bold uppercase sm:col-span-2 lg:w-auto" variant={showUncfg ? "default" : "outline"} onClick={onUncfgToggle}>
               UNCFG {uncfgCount ?? "?"}
             </Button>
           )}
@@ -174,12 +170,35 @@ function FilterToolbar({
           placeholder="Search Name, SN..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-10 w-full border-2 border-input bg-card text-sm font-medium shadow-brutal-sm lg:min-w-72"
+          className="h-10 w-full min-w-0 border-2 border-input bg-card text-sm font-medium shadow-brutal-sm lg:min-w-48"
         />
-        <Button variant="outline" className="h-10 w-full border-2 border-input px-3 font-bold uppercase shadow-brutal-sm sm:w-auto" onClick={onRefresh}>
+        <Button variant="outline" className="h-10 w-full shrink-0 whitespace-nowrap border-2 border-input px-3 font-bold uppercase shadow-brutal-sm sm:w-auto" onClick={onRefresh}>
           REFRESH
         </Button>
       </div>
+
+      <PickerPopup
+        open={pickerOpen != null}
+        title={pickerOpen === 'board' ? 'Pilih Board' : 'Pilih PON'}
+        layout={pickerOpen === 'board' ? 'grid' : 'list'}
+        searchable={pickerOpen === 'pon'}
+        searchPlaceholder="Cari nama atau nomor PON…"
+        options={pickerOpen === 'board'
+          ? boardOptions.map((item) => ({ value: String(item), label: String(item) }))
+          // Nomor + nama sekaligus ("PON 1: suambian") — tanpa nama,
+          // tampil nomor saja.
+          : ponList.map((item) => ({ value: String(item.pon), label: `PON ${item.pon}`, description: item.description || undefined }))}
+        selectedValue={pickerOpen === 'board' ? String(board) : pon != null ? String(pon) : undefined}
+        onSelect={(value) => {
+          if (pickerOpen === 'board') {
+            onBoardChange(Number(value))
+            onPonChange(null)
+          } else {
+            onPonChange(Number(value))
+          }
+        }}
+        onClose={() => setPickerOpen(null)}
+      />
     </div>
   )
 }
@@ -357,9 +376,34 @@ export default function ONUListPage() {
     enabled: !!connId,
   })
 
+  // Slot board dari perangkat (endpoint boards zzte: distinct slot hasil
+  // SNMP walk). Fallback 1..8 seperti dulu bila endpoint gagal (zzte
+  // lama) atau kosong — jangan sembunyikan board tanpa dasar data.
+  const { data: boardList } = useQuery({
+    queryKey: ['zte-boards', connId],
+    queryFn: () => getZTEBoards(connId!),
+    enabled: !!connId,
+    staleTime: 60_000,
+  })
+  const boardOptions = boardList?.length ? boardList : [1, 2, 3, 4, 5, 6, 7, 8]
+  // Tanpa auto-koreksi board: default 1 ada di hampir semua C320; bila
+  // tak ada, popup board menampilkan slot asli dan user memilih sendiri
+  // (satu ketuk) — lebih eksplisit daripada pindah diam-diam.
+
+  // Jendela live: refresh manual (LOAD/REFRESH/SYNC) kirim fresh=true,
+  // jadi teknisi dapat status + redaman live dari OLT untuk 1 PON ini
+  // (walk 1 PON saja, ~2-5 detik). Jendela cuma 3 dtk — cukup untuk
+  // refetch manual + fetch akibat ganti tick SYNC; tick AUTO berikutnya
+  // (interval 5 dtk) sudah di luar jendela, jadi AUTO tetap pakai cache
+  // dan tidak ada polling live terus-menerus yang memberatkan OLT.
+  const freshUntilRef = useRef(0)
+  const armFreshWindow = () => {
+    freshUntilRef.current = Date.now() + 3_000
+  }
+
   const { data: onuList, isLoading, isError, refetch } = useQuery({
     queryKey: ['zte-onu-list', connId, board, pon, tick],
-    queryFn: () => getZTEONUList(connId!, board, pon!),
+    queryFn: () => getZTEONUList(connId!, board, pon!, Date.now() < freshUntilRef.current),
     enabled: !!connId && pon != null,
     staleTime: 55_000,
     refetchInterval: autoRefresh ? 5_000 : false,
@@ -369,6 +413,7 @@ export default function ONUListPage() {
 
   const handleLoad = () => {
     if (pon != null) {
+      armFreshWindow()
       setHasLoaded(true)
       void runWithGlobalLoader(async () => {
         const result = await refetch()
@@ -380,6 +425,7 @@ export default function ONUListPage() {
   const handleRefresh = () => {
     if (!hasLoaded) return
 
+    armFreshWindow()
     void runWithGlobalLoader(async () => {
       const result = await refetch()
       if (result.error) {
@@ -395,6 +441,7 @@ export default function ONUListPage() {
   }
 
   const handleSync = () => {
+    armFreshWindow()
     setTick((v) => v + 1)
 
     if (!hasLoaded) {
@@ -462,6 +509,7 @@ export default function ONUListPage() {
 
         <FilterToolbar
           board={board}
+          boardOptions={boardOptions}
           pon={pon}
           ponList={ponList ?? []}
           searchQuery={searchQuery}

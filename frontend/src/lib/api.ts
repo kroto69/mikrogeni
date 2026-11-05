@@ -262,6 +262,73 @@ export async function getAcsDevices() {
   return data;
 }
 
+export type DashboardSummaryAcs = {
+  total_devices: number;
+  online_devices: number;
+  offline_devices: number;
+  average_rx_power: number;
+  average_temp: number;
+};
+
+export type DashboardSummaryMikrotikDevice = {
+  id: string;
+  host: string;
+  name: string;
+  status?: string;
+  identity: string;
+  cpu_load: string;
+  uptime: string;
+  ppp_active: number;
+};
+
+export type DashboardSummaryHiosoOlt = {
+  id: string;
+  name: string;
+  host: string;
+  online: boolean;
+  model: string;
+  onu_online: number;
+  onu_total: number;
+  cpu: string;
+  uptime: string;
+};
+
+export type DashboardSummaryZteOlt = {
+  id: string;
+  name: string;
+  base_url: string;
+  olt_id: string;
+  online: boolean;
+  cpu_usage: number;
+  memory_usage: number;
+  uptime: string;
+};
+
+export type DashboardSummary = {
+  acs: DashboardSummaryAcs;
+  mikrotik: {
+    total: number;
+    online: number;
+    total_ppp_active: number;
+    devices: DashboardSummaryMikrotikDevice[];
+  };
+  olt: {
+    total: number;
+    hioso: DashboardSummaryHiosoOlt[];
+    zte: DashboardSummaryZteOlt[];
+  };
+};
+
+/**
+ * Single-request dashboard summary (replaces the old N+1 fan-out of
+ * per-device ppp/active, detail and health queries). The backend computes it
+ * in parallel and caches it for 30s.
+ */
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const { data } = await api.get<ApiEnvelope<DashboardSummary> | DashboardSummary>("/acs/dashboard");
+  return unwrapApiEnvelope(data);
+}
+
 export async function getAcsDeviceDetail(deviceId: string, options?: { activeOnly?: boolean; refreshWait?: boolean }) {
   const { data } = await api.get<OnuDeviceDetail>(`/acs/devices/${deviceId}`, {
     params: {
@@ -373,7 +440,7 @@ export async function getHiosoOnuDetail(deviceId: string, port: number, onuId: n
 }
 
 export async function renameHiosoOnu(deviceId: string, port: number, onuId: number, name: string) {
-  const { data } = await api.post<ApiEnvelope<{ method?: string }> | { method?: string }>(
+  const { data } = await api.post<ApiEnvelope<{ method?: string; persist_warning?: string }> | { method?: string; persist_warning?: string }>(
     `/hioso/devices/${encodeURIComponent(deviceId)}/onu/rename`,
     { name },
     { params: { port, id: onuId } },
