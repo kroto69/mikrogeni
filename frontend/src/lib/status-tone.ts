@@ -19,7 +19,7 @@ export type NmsStatusTone = {
 /**
  * Wave 0 visual foundation for NMS status semantics.
  * - Uses token-driven classes only (no raw hex / ad-hoc utility palettes).
- * - Keeps strong neobrutalist baseline (border-2, square edges, readable contrast).
+ * - Soft pastel baseline (pill, 1px border, readable contrast).
  */
 export const NMS_STATUS_TONES: Record<NmsStatus, NmsStatusTone> = {
   online: {

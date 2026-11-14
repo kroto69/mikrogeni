@@ -581,9 +581,7 @@ export default function BillingIndex() {
 
   return (
     <div className="route-shell-page route-shell-billing space-y-4 sm:space-y-5">
-      <section className="route-shell-panel relative overflow-hidden rounded-[26px] border-2 border-border bg-primary/20 shadow-[12px_12px_0_0_hsl(var(--border))]">
-        <div className="pointer-events-none absolute -right-8 top-4 h-24 w-24 rotate-[15deg] border-2 border-border bg-accent/70" />
-        <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-20 -rotate-6 border-2 border-border bg-secondary/80" />
+      <section className="route-shell-panel relative overflow-hidden rounded-[26px] border-2 border-border bg-primary/20">
         <div className="flex flex-col gap-3 p-3.5 sm:p-4">
           <PageSectionHeader
             title={<h2 className="font-display text-xl font-black uppercase tracking-[0.04em] text-foreground sm:text-3xl">Billing RT/RW Net</h2>}
@@ -650,7 +648,7 @@ export default function BillingIndex() {
           </CardHeader>
           <CardContent>
             <form
-              className="grid gap-3 sm:grid-cols-2"
+              className="grid gap-4 sm:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 createPlanMutation.mutate({
@@ -662,13 +660,28 @@ export default function BillingIndex() {
                 });
               }}
             >
-              <Input placeholder="Code (HOME20)" required value={planForm.code} onChange={(event) => setPlanForm((prev) => ({ ...prev, code: event.target.value }))} />
-              <Input placeholder="Name" required value={planForm.name} onChange={(event) => setPlanForm((prev) => ({ ...prev, name: event.target.value }))} />
-              <Input placeholder="Price (IDR)" required type="number" value={planForm.price} onChange={(event) => setPlanForm((prev) => ({ ...prev, price: event.target.value }))} />
-              <Input placeholder="Cycle days" type="number" value={planForm.billingCycleDays} onChange={(event) => setPlanForm((prev) => ({ ...prev, billingCycleDays: event.target.value }))} />
-              <Input className="sm:col-span-2" placeholder="MikroTik profile (optional)" value={planForm.mikrotikProfile} onChange={(event) => setPlanForm((prev) => ({ ...prev, mikrotikProfile: event.target.value }))} />
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="plan-code">Code</label>
+                <Input id="plan-code" placeholder="HOME20" required value={planForm.code} onChange={(event) => setPlanForm((prev) => ({ ...prev, code: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="plan-name">Name</label>
+                <Input id="plan-name" placeholder="Home 20 Mbps" required value={planForm.name} onChange={(event) => setPlanForm((prev) => ({ ...prev, name: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="plan-price">Price (IDR)</label>
+                <Input id="plan-price" placeholder="150000" required type="number" value={planForm.price} onChange={(event) => setPlanForm((prev) => ({ ...prev, price: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="plan-cycle">Billing cycle (days)</label>
+                <Input id="plan-cycle" placeholder="30" type="number" value={planForm.billingCycleDays} onChange={(event) => setPlanForm((prev) => ({ ...prev, billingCycleDays: event.target.value }))} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="plan-profile">MikroTik profile <span className="font-normal text-muted-foreground/60">(optional)</span></label>
+                <Input id="plan-profile" placeholder="default" value={planForm.mikrotikProfile} onChange={(event) => setPlanForm((prev) => ({ ...prev, mikrotikProfile: event.target.value }))} />
+              </div>
               <div className="sm:col-span-2">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={createPlanMutation.isPending} type="submit">Save Service Plan</Button>
+                <Button className="bg-primary hover:bg-primary-hover text-primary-foreground" disabled={createPlanMutation.isPending} type="submit">Save Service Plan</Button>
               </div>
             </form>
           </CardContent>
@@ -681,7 +694,7 @@ export default function BillingIndex() {
           </CardHeader>
           <CardContent>
             <form
-              className="grid gap-3 sm:grid-cols-2"
+              className="grid gap-4 sm:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!customerForm.servicePlanId || !customerForm.mikrotikDeviceId) {
@@ -704,16 +717,30 @@ export default function BillingIndex() {
                 });
               }}
             >
-              <Input placeholder="Customer code" required value={customerForm.customerCode} onChange={(event) => setCustomerForm((prev) => ({ ...prev, customerCode: event.target.value }))} />
-              <Input placeholder="Full name" required value={customerForm.fullName} onChange={(event) => setCustomerForm((prev) => ({ ...prev, fullName: event.target.value }))} />
-              <Input placeholder="Phone" value={customerForm.phone} onChange={(event) => setCustomerForm((prev) => ({ ...prev, phone: event.target.value }))} />
-              <Input placeholder="PPP secret name" required value={customerForm.pppSecretName} onChange={(event) => setCustomerForm((prev) => ({ ...prev, pppSecretName: event.target.value }))} />
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-code">Customer code</label>
+                <Input id="customer-code" placeholder="CUST-001" required value={customerForm.customerCode} onChange={(event) => setCustomerForm((prev) => ({ ...prev, customerCode: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-name">Full name</label>
+                <Input id="customer-name" placeholder="Budi Santoso" required value={customerForm.fullName} onChange={(event) => setCustomerForm((prev) => ({ ...prev, fullName: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-phone">Phone</label>
+                <Input id="customer-phone" placeholder="08123456789" value={customerForm.phone} onChange={(event) => setCustomerForm((prev) => ({ ...prev, phone: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-ppp">PPP secret name</label>
+                <Input id="customer-ppp" placeholder="budi01" required value={customerForm.pppSecretName} onChange={(event) => setCustomerForm((prev) => ({ ...prev, pppSecretName: event.target.value }))} />
+              </div>
 
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-plan">Service plan</label>
               <Select
                 value={customerForm.servicePlanId || undefined}
                 onValueChange={(value) => setCustomerForm((prev) => ({ ...prev, servicePlanId: value }))}
               >
-                <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                <Select.Trigger id="customer-plan" className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
                   <Select.Value placeholder="Select service plan" />
                 </Select.Trigger>
                 <Select.Content>
@@ -724,12 +751,15 @@ export default function BillingIndex() {
                   ))}
                 </Select.Content>
               </Select>
+              </div>
 
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-device">MikroTik device</label>
               <Select
                 value={customerForm.mikrotikDeviceId || undefined}
                 onValueChange={(value) => setCustomerForm((prev) => ({ ...prev, mikrotikDeviceId: value }))}
               >
-                <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                <Select.Trigger id="customer-device" className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
                   <Select.Value placeholder="Select MikroTik device" />
                 </Select.Trigger>
                 <Select.Content>
@@ -740,6 +770,7 @@ export default function BillingIndex() {
                   ))}
                 </Select.Content>
               </Select>
+              </div>
 
               {!customerForm.servicePlanId || !customerForm.mikrotikDeviceId ? (
                 <p className="sm:col-span-2 text-xs font-semibold text-destructive">
@@ -747,11 +778,17 @@ export default function BillingIndex() {
                 </p>
               ) : null}
 
-              <Input className="sm:col-span-2" placeholder="Address" value={customerForm.address} onChange={(event) => setCustomerForm((prev) => ({ ...prev, address: event.target.value }))} />
-              <Input className="sm:col-span-2" placeholder="Next billing at (RFC3339 or YYYY-MM-DD, optional)" value={customerForm.nextBillingAt} onChange={(event) => setCustomerForm((prev) => ({ ...prev, nextBillingAt: event.target.value }))} />
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-address">Address</label>
+                <Input id="customer-address" placeholder="Jl. Melati 1" value={customerForm.address} onChange={(event) => setCustomerForm((prev) => ({ ...prev, address: event.target.value }))} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="customer-next-billing">Next billing at <span className="font-normal text-muted-foreground/60">(optional)</span></label>
+                <Input id="customer-next-billing" placeholder="2026-05-01" value={customerForm.nextBillingAt} onChange={(event) => setCustomerForm((prev) => ({ ...prev, nextBillingAt: event.target.value }))} />
+              </div>
 
               <div className="sm:col-span-2">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={createCustomerMutation.isPending || !customerForm.servicePlanId || !customerForm.mikrotikDeviceId} type="submit">Save Billing Customer</Button>
+                <Button className="bg-primary hover:bg-primary-hover text-primary-foreground" disabled={createCustomerMutation.isPending || !customerForm.servicePlanId || !customerForm.mikrotikDeviceId} type="submit">Save Billing Customer</Button>
               </div>
             </form>
           </CardContent>
@@ -768,13 +805,15 @@ export default function BillingIndex() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="import-device">Default MikroTik device <span className="font-normal text-muted-foreground/60">(optional)</span></label>
             <Select
               value={importMikrotikDeviceId || undefined}
               onValueChange={(value) => setImportMikrotikDeviceId(value)}
             >
-              <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
-                <Select.Value placeholder="Default MikroTik device (opsional, untuk fallback)" />
+              <Select.Trigger id="import-device" className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+                <Select.Value placeholder="Pilih perangkat (fallback)" />
               </Select.Trigger>
               <Select.Content>
                 {mikrotikDevices.map((device) => (
@@ -784,19 +823,27 @@ export default function BillingIndex() {
                 ))}
               </Select.Content>
             </Select>
+            </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="import-prefix">Prefix customer code</label>
             <Input
-              placeholder="Prefix customer code (default CUST)"
+              id="import-prefix"
+              placeholder="CUST"
               value={importCustomerCodePrefix}
               onChange={(event) => setImportCustomerCodePrefix(event.target.value)}
             />
+            </div>
 
             <div className="rounded-lg border-2 border-border bg-card px-3 py-2 text-xs text-muted-foreground">
               Parsed {importPreview.rows.length} row valid · {importPreview.errors.length} row invalid
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="import-data">Data pelanggan</label>
           <textarea
+            id="import-data"
             className="min-h-[180px] w-full rounded-lg border-2 border-input bg-card px-3 py-2 text-sm text-foreground shadow-brutal-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder={[
               "NAME | ALAMAT | NOMOR HP | PPPOE | PAKET | CUSTOMER_CODE | NEXT_BILLING_AT | MIKROTIK",
@@ -806,6 +853,7 @@ export default function BillingIndex() {
             value={importRawText}
             onChange={(event) => setImportRawText(event.target.value)}
           />
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <Button

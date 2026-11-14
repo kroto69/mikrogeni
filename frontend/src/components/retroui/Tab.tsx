@@ -30,7 +30,7 @@ const TabsTrigger = ({ children, className, ...props }: ITabsTrigger) => {
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "px-4 py-1 border-2 border-transparent data-[state=active]:border-border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-semibold focus:outline-hidden",
+        "px-4 py-1 rounded-full border border-transparent data-[state=active]:border-transparent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-semibold focus:outline-hidden",
         className
       )}
       {...props}
@@ -47,7 +47,7 @@ interface ITabsContent
 const TabsContent = ({ children, className, ...props }: ITabsContent) => {
   return (
     <TabsPrimitive.Content
-      className={cn("border-2 border-border mt-2 p-4 w-full", className)}
+      className={cn("border border-border rounded-[20px] mt-2 p-4 w-full", className)}
       {...props}
     >
       {children}

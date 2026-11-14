@@ -3,7 +3,7 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "neo-panel inline-flex items-center rounded-lg border-2 border-border px-2.5 py-1 font-body text-[11px] font-extrabold uppercase tracking-[0.14em] shadow-brutal-sm",
+  "inline-flex items-center rounded-full border px-2.5 py-1 font-body text-[11px] font-extrabold uppercase tracking-[0.14em]",
   {
     variants: {
       variant: {

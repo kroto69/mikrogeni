@@ -20,7 +20,7 @@ const overlayVariants = cva(
   {
     variants: {
       variant: {
-        default: "inset-0 z-50 bg-black/85",
+        default: "inset-0 z-50 bg-black/50",
         none: "fixed bg-transparent",
       },
     },
@@ -50,7 +50,7 @@ const DialogBackdrop = React.forwardRef<HTMLDivElement, IDialogBackgroupProps>(
 DialogBackdrop.displayName = "DialogBackdrop";
 
 const dialogVariants = cva(
-  `fixed left-[50%] top-[50%] z-50 grid rounded overflow-hidden w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border-2 bg-background shadow-lg duration-200 
+  `fixed left-[50%] top-[50%] z-50 grid rounded-[24px] overflow-hidden w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-xl duration-200 
   data-[state=open]:animate-in 
   data-[state=open]:fade-in-0 
   data-[state=open]:zoom-in-95 
@@ -126,7 +126,7 @@ const DialogDescription = ({
 };
 
 const dialogFooterVariants = cva(
-  "flex items-center justify-end border-t-2 min-h-12 gap-4 px-4 py-2",
+  "flex items-center justify-end border-t min-h-12 gap-4 px-4 py-2",
   {
     variants: {
       variant: {

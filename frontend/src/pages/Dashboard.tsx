@@ -1,301 +1,256 @@
-import { useMemo } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { Activity, Radio, Router, Wifi } from "lucide-react";
+import { Activity, ArrowUpRight, Radio, Router, Wifi } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { getAcsDevices, getApiErrorMessage, getHiosoDevices, getHiosoPluginHealth, getMikrotikDeviceDetail, getMikrotikDevices, getMikrotikPppActive } from "@/lib/api";
-import { getZTEConnections, getZTESystemInfo } from "@/lib/zteApi";
+import { api, getApiErrorMessage, getDashboardSummary } from "@/lib/api";
+import { IconDisc } from "@/components/nms/pastel";
+import { pastelCycleBg, pastelCycleIcon, pastelCycleMeta } from "@/lib/pastel";
 import { cn } from "@/lib/utils";
 
-function isOnuOnline(lastInform: string) {
-  const parsed = new Date(lastInform);
-  if (Number.isNaN(parsed.getTime())) {
-    return false;
-  }
-
-  return Date.now() - parsed.getTime() < 5 * 60 * 1000;
-}
-
-function getMikrotikStatusTone(status?: string) {
-  if (status === "online") {
-    return {
-      badgeVariant: "online" as const,
-      chipClassName: "border-2 border-success bg-success/20 text-foreground",
-    };
-  }
-
-  if (status === "offline" || status === "down") {
-    return {
-      badgeVariant: "offline" as const,
-      chipClassName: "border-2 border-destructive bg-destructive/15 text-foreground",
-    };
-  }
-
-  return {
-    badgeVariant: "disabled" as const,
-    chipClassName: "border-2 border-border bg-muted/20 text-muted-foreground",
-  };
-}
+type RecentLog = {
+  id: number;
+  username: string;
+  action: string;
+  target: string;
+  device: string;
+  created_at: string;
+};
 
 export default function Dashboard() {
-  const onuDevicesQuery = useQuery({
-    queryKey: ["acs-devices"],
-    queryFn: getAcsDevices,
+  // Single aggregated request (backend computes per-device data in parallel
+  // and caches it for 30s) — replaces the old N+1 fan-out of per-router
+  // ppp/active + detail and per-OLT health queries.
+  const summaryQuery = useQuery({
+    queryKey: ["dashboard-summary"],
+    queryFn: getDashboardSummary,
+    refetchInterval: 30_000,
   });
 
-  const mikrotikDevicesQuery = useQuery({
-    queryKey: ["mikrotik-devices"],
-    queryFn: getMikrotikDevices,
+  // Query key sama dengan Topbar — cache dipakai bersama, tanpa request
+  // tambahan untuk kolom aktivitas.
+  const { data: recentLogs } = useQuery({
+    queryKey: ["activity-logs-recent"],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: RecentLog[] }>("/activity-logs", { params: { limit: 4 } });
+      return data.data ?? [];
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 
-  const mikrotikDevices = mikrotikDevicesQuery.data ?? [];
-  const mikrotikPppQueries = useQueries({
-    queries: mikrotikDevices.map((device) => ({
-      queryKey: ["dashboard-mikrotik-ppp", device.id],
-      queryFn: () => getMikrotikPppActive(device.id),
-      enabled: Boolean(device.id),
-      staleTime: 15_000,
-      refetchInterval: 15_000,
-    })),
-  });
-  const mikrotikDetailQueries = useQueries({
-    queries: mikrotikDevices.map((device) => ({
-      queryKey: ["dashboard-mikrotik-detail", device.id],
-      queryFn: () => getMikrotikDeviceDetail(device.id, { cached: true }),
-      enabled: Boolean(device.id),
-      staleTime: 5 * 60_000,
-    })),
-  });
+  const summary = summaryQuery.data;
+  const acs = summary?.acs;
+  const mikrotik = summary?.mikrotik;
+  const olt = summary?.olt;
 
-  const onuOnlineCount = useMemo(() => (onuDevicesQuery.data ?? []).filter((device) => isOnuOnline(device.last_inform)).length, [onuDevicesQuery.data]);
+  const mikrotikDevices = mikrotik?.devices ?? [];
+  const hiosoDevices = olt?.hioso ?? [];
+  const zteConnections = olt?.zte ?? [];
+  const totalOltCount = olt?.total ?? hiosoDevices.length + zteConnections.length;
 
-  // OLT queries
-  const hiosoDevicesQuery = useQuery({
-    queryKey: ["hioso-devices"],
-    queryFn: getHiosoDevices,
-    staleTime: 60_000,
-  });
-  const zteConnectionsQuery = useQuery({
-    queryKey: ["zte-connections"],
-    queryFn: getZTEConnections,
-    staleTime: 60_000,
-  });
+  const today = new Date()
+    .toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    .toUpperCase();
 
-  const hiosoDevices = hiosoDevicesQuery.data ?? [];
-  const zteConnections = zteConnectionsQuery.data ?? [];
-
-  const hiosoHealthQueries = useQueries({
-    queries: hiosoDevices.map((device) => ({
-      queryKey: ["dashboard-hioso-health", device.id],
-      queryFn: () => getHiosoPluginHealth(device.id),
-      enabled: Boolean(device.id),
-      staleTime: 30_000,
-    })),
-  });
-
-  const zteHealthQueries = useQueries({
-    queries: zteConnections.map((conn) => ({
-      queryKey: ["dashboard-zte-health", conn.id],
-      queryFn: () => getZTESystemInfo(conn.id),
-      enabled: Boolean(conn.id),
-      staleTime: 30_000,
-    })),
-  });
-
-  const totalOltCount = hiosoDevices.length + zteConnections.length;
-
-  const mikrotikPppSummaries = useMemo(() => {
-    return mikrotikDevices.map((device, index) => {
-      const sessions = mikrotikPppQueries[index]?.data ?? [];
-      return {
-        device,
-        totalActive: sessions.length,
-      };
-    });
-  }, [mikrotikDevices, mikrotikPppQueries]);
-
-  const totalPppActive = useMemo(
-    () => mikrotikPppSummaries.reduce((total, item) => total + item.totalActive, 0),
-    [mikrotikPppSummaries],
-  );
-
+  const firstRouter = mikrotikDevices[0];
   const stats = [
-    { label: "ONU online", value: String(onuOnlineCount), change: `${(onuDevicesQuery.data ?? []).length} discovered`, icon: Wifi },
-    { label: "MikroTik linked", value: String(mikrotikDevices.length), change: `${mikrotikDevices.filter((device) => device.status === "online").length} online`, icon: Router },
-    { label: "PPPoE active", value: String(totalPppActive), change: `${mikrotikPppSummaries.length} routers tracked`, icon: Activity },
-    { label: "OLT managed", value: String(totalOltCount), change: `${hiosoDevices.length} Hioso · ${zteConnections.length} ZTE`, icon: Radio },
+    {
+      label: "ONU Online",
+      value: String(acs?.online_devices ?? "-"),
+      sub: `dari ${acs?.total_devices ?? "-"} ONU`,
+      icon: Wifi,
+      tone: "bg-pastel-mint",
+      meta: "text-[#4a5a50]",
+      iconTint: "text-pastel-mint",
+      to: "/onu",
+    },
+    {
+      label: "MikroTik",
+      value: String(mikrotik?.total ?? "-"),
+      sub: firstRouter ? `${firstRouter.name || firstRouter.host} · ${firstRouter.status ?? "unknown"}` : "-",
+      icon: Router,
+      tone: "bg-pastel-lavender",
+      meta: "text-[#5c5170]",
+      iconTint: "text-pastel-lavender",
+      to: "/mikrotik",
+    },
+    {
+      label: "PPPoE Aktif",
+      value: String(mikrotik?.total_ppp_active ?? "-"),
+      sub: `${mikrotikDevices.length} router terpantau`,
+      icon: Activity,
+      tone: "bg-pastel-yellow",
+      meta: "text-[#6b5a2e]",
+      iconTint: "text-pastel-yellow",
+      to: "/mikrotik",
+    },
+    {
+      label: "OLT",
+      value: String(totalOltCount),
+      sub: `${hiosoDevices.length} Hioso · ${zteConnections.length} ZTE`,
+      icon: Radio,
+      tone: "bg-pastel-pink",
+      meta: "text-[#6b4a5c]",
+      iconTint: "text-pastel-pink",
+      to: "/hioso",
+    },
+  ];
+
+  type OltBlock = {
+    key: string;
+    to: string;
+    name: string;
+    meta: string;
+    count: string;
+    online: boolean;
+  };
+  const oltBlocks: OltBlock[] = [
+    ...hiosoDevices.map((device) => ({
+      key: `hioso-${device.id}`,
+      to: `/hioso?device=${encodeURIComponent(device.id)}`,
+      name: device.name || device.host,
+      meta: `${device.model || "-"} · ${device.host}`,
+      count: `ONU ${device.onu_online ?? 0}/${device.onu_total ?? 0}`,
+      online: device.online,
+    })),
+    ...zteConnections.map((conn) => {
+      const isCData = (conn.vendor || "zte") === "cdata";
+      return {
+        key: `zte-${conn.id}`,
+        to: isCData ? `/cdata/${encodeURIComponent(conn.olt_id || conn.id)}` : `/zte/${encodeURIComponent(conn.olt_id || conn.id)}`,
+        name: conn.name || conn.base_url,
+        meta: `${isCData ? "C-Data" : "ZTE"} · ${conn.base_url}`,
+        count: conn.online ? `CPU ${conn.cpu_usage}% · MEM ${conn.memory_usage}%` : "-",
+        online: conn.online,
+      };
+    }),
+  ];
+
+  const offlineRouters = mikrotikDevices.filter((d) => d.status && d.status !== "online");
+  const offlineOlts = oltBlocks.filter((b) => !b.online);
+  const attentionParts = [
+    ...(offlineRouters.length > 0 ? [`${offlineRouters.length} router offline`] : []),
+    ...(offlineOlts.length > 0 ? [`${offlineOlts.length} OLT offline`] : []),
   ];
 
   return (
-    <div className="route-shell-page route-shell-dashboard space-y-5">
-      <Card className="route-shell-panel border-2 bg-card/95 shadow-brutal">
-        <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="mt-0 text-2xl font-black uppercase tracking-[0.04em] text-foreground sm:text-3xl">Operations</h2>
-            <p className="text-sm font-semibold text-muted-foreground">Live network summary across ACS and MikroTik.</p>
-          </div>
-          <span className="inline-flex rounded-none border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">BRUTALis-NMS</span>
-        </CardContent>
-      </Card>
+    <div className="space-y-5">
+      <header>
+        <h1 className="font-display text-4xl font-bold tracking-[-0.03em] text-foreground">Halo, Juragan</h1>
+        <p className="mt-2 font-mono text-xs tracking-[0.04em] text-muted-foreground">{today}</p>
+      </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map(({ label, value, change, icon: Icon }) => (
-            <Card className="neo-panel neo-interactive relative overflow-hidden border-2 shadow-brutal" key={label}>
-              <CardContent className="p-3.5 sm:p-4">
-                <div className="pointer-events-none absolute right-3 top-3 h-2.5 w-8 -rotate-6 border-2 border-border bg-secondary/80" />
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-                    <p className="mt-2 text-2xl font-black text-foreground sm:text-3xl">{value}</p>
-                  </div>
-                  <div className="rounded-none border-2 border-border bg-primary/15 p-2.5 text-primary shadow-brutal-sm">
-                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </div>
-                </div>
-              <div className="mt-3 text-sm text-muted-foreground">{change}</div>
-            </CardContent>
-          </Card>
+      {summaryQuery.isError ? (
+        <div className="rounded-[20px] border border-destructive/40 bg-destructive/10 p-4 text-sm font-semibold text-destructive">
+          {getApiErrorMessage(summaryQuery.error)}
+        </div>
+      ) : null}
+
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {stats.map(({ label, value, sub, icon: Icon, tone, meta, iconTint, to }) => (
+          <div key={label} className={cn("rounded-[20px] p-4 text-[#131313] sm:p-5", tone)}>
+            <div className="flex items-center justify-between">
+              <IconDisc iconClass={iconTint} className="h-11 w-11">
+                <Icon className="h-5 w-5" />
+              </IconDisc>
+              <Link
+                to={to}
+                aria-label={`Buka ${label}`}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] transition-opacity hover:opacity-80"
+              >
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <p className="mt-4 font-display text-4xl font-bold leading-none tracking-[-0.03em]">{value}</p>
+            <p className="mt-1.5 text-sm font-semibold">{label}</p>
+            <p className={cn("mt-1 truncate font-mono text-[11px]", meta)}>{sub}</p>
+          </div>
         ))}
       </section>
 
-      <section className="route-shell-panel space-y-3 rounded-none border-2 border-border bg-card/95 p-4 shadow-brutal sm:p-5">
-        <div className="flex items-center justify-between gap-3 border-b-2 border-border/70 pb-3">
-          <div>
-            <h3 className="text-lg font-black uppercase tracking-[0.03em] text-foreground">MikroTik PPP Active Summary</h3>
-            <p className="text-sm text-muted-foreground">Per-router active PPPoE session overview.</p>
+      <div className="grid items-start gap-4 xl:grid-cols-[1fr_340px]">
+        <section className="min-w-0">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <h2 className="font-display text-xl font-bold tracking-[-0.02em] text-foreground">OLT</h2>
+            <Link to="/hioso" className="font-mono text-xs font-bold text-[#1f7a4d] hover:underline dark:text-pastel-mint">
+              Lihat semua →
+            </Link>
           </div>
-          <Badge variant="secondary">{totalPppActive} total sessions</Badge>
-        </div>
 
-        {mikrotikDevicesQuery.isError ? (
-          <Card className="border-destructive bg-destructive/10">
-            <CardContent className="p-4 text-sm font-semibold text-destructive">{getApiErrorMessage(mikrotikDevicesQuery.error)}</CardContent>
-          </Card>
-        ) : null}
+          {summaryQuery.isLoading ? (
+            <div className="rounded-[20px] border bg-card p-4 text-sm font-semibold text-muted-foreground">
+              Memuat OLT…
+            </div>
+          ) : oltBlocks.length === 0 ? (
+            <div className="rounded-[20px] border bg-card p-4 text-sm font-semibold text-muted-foreground">
+              Belum ada OLT terdaftar.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {oltBlocks.map((block, i) => (
+                <Link key={block.key} to={block.to} className={cn("flex items-center gap-4 rounded-[20px] p-4 text-[#131313]", pastelCycleBg(i))}>
+                  <IconDisc iconClass={pastelCycleIcon(i)} className="h-11 w-11">
+                    <Radio className="h-5 w-5" />
+                  </IconDisc>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-lg font-bold tracking-[-0.01em]">{block.name}</p>
+                    <p className={cn("mt-0.5 truncate font-mono text-[11px]", pastelCycleMeta(i))}>{block.meta}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="hidden font-mono text-[13px] font-bold sm:inline">{block.count}</span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#131313] px-3.5 py-2 font-mono text-xs font-bold",
+                        block.online ? "text-pastel-mint" : "text-pastel-grey",
+                      )}
+                    >
+                      <i className={cn("h-2 w-2 rounded-full", block.online ? "bg-pastel-mint" : "bg-pastel-grey")} />
+                      {block.online ? "Online" : "Offline"}
+                    </span>
+                    <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex">
+                      <ArrowUpRight className="h-4 w-4" />
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
-        {mikrotikDevicesQuery.isLoading ? (
-          <Card className="bg-muted/20">
-            <CardContent className="p-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Loading MikroTik PPP summaries...</CardContent>
-          </Card>
-        ) : null}
-
-        {!mikrotikDevicesQuery.isLoading && !mikrotikDevicesQuery.isError && mikrotikPppSummaries.length === 0 ? (
-          <Card className="border-dashed bg-muted/20">
-            <CardContent className="p-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">No MikroTik devices linked yet.</CardContent>
-          </Card>
-        ) : null}
-
-        <div className="grid gap-3 xl:grid-cols-2">
-          {mikrotikPppSummaries.map(({ device, totalActive }, index) => {
-            const tone = getMikrotikStatusTone(device.status);
-            const isLoadingSessions = mikrotikPppQueries[index]?.isLoading ?? false;
-            const detail = mikrotikDetailQueries[index]?.data;
-            const identityLabel = detail?.identity || device.name;
-            const cpuLabel = detail?.cpu_load || "-";
-            const uptimeLabel = detail?.uptime || "-";
-
-            return (
-              <Link className="block" key={device.id} to={`/mikrotik/${device.id}`}>
-                <Card className="neo-panel neo-interactive h-full border-2 transition-colors hover:border-primary/40">
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p className="break-all text-base font-semibold text-foreground">{device.host}</p>
-                        <Badge variant={tone.badgeVariant}>{device.status ?? "unknown"}</Badge>
-                      </div>
-                      <div className={cn("inline-flex items-center gap-2 rounded-none px-3 py-2 text-right", tone.chipClassName)}>
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">PPPoE Active</span>
-                        <span className="text-lg font-semibold">{totalActive}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{identityLabel}</span>
-                      <span>CPU {cpuLabel}</span>
-                      <span>Uptime {uptimeLabel}</span>
-                    </div>
-
-                    {isLoadingSessions ? (
-                      <div className="rounded-none border-2 border-border px-3 py-2 text-sm text-muted-foreground">
-                        Loading PPP active summary...
-                      </div>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-      <section className="route-shell-panel space-y-3 rounded-none border-2 border-border bg-card/95 p-4 shadow-brutal sm:p-5">
-        <div className="flex items-center justify-between gap-3 border-b-2 border-border/70 pb-3">
-          <div>
-            <h3 className="text-lg font-black uppercase tracking-[0.03em] text-foreground">OLT Summary</h3>
-            <p className="text-sm text-muted-foreground">Per-OLT health overview.</p>
+        <section className="min-w-0">
+          <div className="mb-3 px-1">
+            <h2 className="font-display text-xl font-bold tracking-[-0.02em] text-foreground">Aktivitas terakhir</h2>
           </div>
-          <Badge variant="secondary">{totalOltCount} OLT</Badge>
-        </div>
 
-        {totalOltCount === 0 ? (
-          <Card className="border-dashed bg-muted/20">
-            <CardContent className="p-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">No OLT devices configured yet.</CardContent>
-          </Card>
-        ) : null}
+          {attentionParts.length > 0 ? (
+            <div className="mb-3 rounded-[20px] bg-pastel-yellow p-4 text-[#131313]">
+              <p className="font-mono text-[11px] font-bold tracking-[0.05em] text-[#6b5a2e]">PERLU PERHATIAN</p>
+              <p className="mt-1.5 text-sm font-semibold leading-snug">{attentionParts.join(" · ")}</p>
+            </div>
+          ) : null}
 
-        <div className="grid gap-3 xl:grid-cols-2">
-          {hiosoDevices.map((device, index) => {
-            const health = hiosoHealthQueries[index]?.data;
-            const isOnline = Boolean(health?.model);
-            return (
-              <Link className="block" key={device.id} to={`/hioso?device=${encodeURIComponent(device.id)}`}>
-                <Card className="neo-panel neo-interactive h-full border-2 transition-colors hover:border-primary/40">
-                  <CardContent className="space-y-2 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p className="break-all text-base font-semibold text-foreground">{device.name || device.host}</p>
-                        <Badge variant={isOnline ? "online" : "offline"}>{isOnline ? "online" : "down"}</Badge>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">HIOSO</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{health?.model ?? "-"}</span>
-                      <span>ONU {health?.online_onu ?? 0}/{health?.total_onu ?? 0}</span>
-                      <span>CPU {health?.cpu ?? "-"}</span>
-                      <span>Uptime {health?.uptime ?? "-"}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-          {zteConnections.map((conn, index) => {
-            const health = zteHealthQueries[index]?.data;
-            const isOnline = Boolean(health?.cpuUsage != null);
-            return (
-              <Link className="block" key={conn.id} to={`/zte/${encodeURIComponent(conn.id)}`}>
-                <Card className="neo-panel neo-interactive h-full border-2 transition-colors hover:border-primary/40">
-                  <CardContent className="space-y-2 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p className="break-all text-base font-semibold text-foreground">{conn.name || conn.base_url}</p>
-                        <Badge variant={isOnline ? "online" : "offline"}>{isOnline ? "online" : "down"}</Badge>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">ZTE</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{conn.name ?? "-"}</span>
-                      <span>CPU {health?.cpuUsage ?? "-"}%</span>
-                      <span>MEM {health?.memoryUsage ?? "-"}%</span>
-                      <span>Uptime {health?.uptime ?? "-"}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+          {(recentLogs ?? []).length === 0 ? (
+            <div className="rounded-[20px] border bg-card p-4 text-sm font-semibold text-muted-foreground">
+              Belum ada aktivitas.
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {(recentLogs ?? []).map((log) => (
+                <div key={log.id} className="flex items-center gap-3 rounded-[16px] bg-pastel-mint p-3 text-[#131313]">
+                  <IconDisc iconClass="text-pastel-mint" className="h-9 w-9">
+                    <Activity className="h-4 w-4" />
+                  </IconDisc>
+                  <p className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-snug">
+                    {log.action.replace(/_/g, " ")} · {log.target}
+                  </p>
+                  <span className="shrink-0 font-mono text-[11px] text-[#4a5a50]">
+                    {new Date(log.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

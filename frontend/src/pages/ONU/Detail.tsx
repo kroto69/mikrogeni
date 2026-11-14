@@ -281,6 +281,7 @@ export default function OnuDetail() {
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [showPppoePassword, setShowPppoePassword] = useState(false);
   const [showWifiPassword, setShowWifiPassword] = useState(false);
+  const [showWanPassword, setShowWanPassword] = useState(false);
   const [visibleWifiPasswords, setVisibleWifiPasswords] = useState<Record<string, boolean>>({});
   const [wifiForm, setWifiForm] = useState<WifiFormState>(DEFAULT_WIFI_FORM);
   const [wanForm, setWanForm] = useState<WanFormState>(DEFAULT_WAN_FORM);
@@ -477,6 +478,12 @@ export default function OnuDetail() {
     setRows: (rows: ParameterRow[]) => void,
   ) => (
     <div className="space-y-4">
+      <div className="hidden grid-cols-[1.3fr_1fr_0.8fr_auto] gap-3 px-4 sm:grid">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Parameter path</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Value</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Type</p>
+        <span aria-hidden="true" />
+      </div>
       {rows.map((row, index) => (
         <div className="grid gap-3 rounded-xl border-2 border-border p-4 sm:grid-cols-[1.3fr_1fr_0.8fr_auto]" key={row.id}>
           <Input
@@ -679,9 +686,7 @@ export default function OnuDetail() {
               <span>›</span>
               <span className="max-w-[16rem] truncate font-medium text-foreground">{detail.serial_number}</span>
             </div>
-            <div className="relative overflow-hidden rounded-[28px] border-2 border-border bg-primary/20 p-3.5 shadow-[12px_12px_0_0_hsl(var(--border))] md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-              <div className="pointer-events-none absolute -right-7 top-3 hidden h-14 w-14 rotate-[15deg] border-2 border-border bg-accent/75 md:block" />
-              <div className="pointer-events-none absolute bottom-2 left-4 hidden h-3 w-14 -rotate-6 border-2 border-border bg-secondary/80 md:block" />
+            <div className="relative overflow-hidden rounded-[28px] border-2 border-border bg-primary/20 p-3.5 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
               <div className="flex items-center gap-2 md:hidden">
                 <h2 className="text-[clamp(1.45rem,5.4vw,1.85rem)] font-black tracking-tight text-foreground">{detail.vendor} {detail.device_type}</h2>
                 <Badge variant="success">Active</Badge>
@@ -1073,11 +1078,13 @@ export default function OnuDetail() {
       <OverlayPanel open={activeModal === "wifi"} title="Config WiFi" description="Select an existing SSID profile, adjust the name or password, then save." onClose={() => setActiveModal("none")}>
         <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void handleWifiSubmit(); }}>
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wifi-profile">Profil WiFi</label>
             <Select
               value={wifiForm.profileIndex || undefined}
               onValueChange={(value) => handleWifiProfileChange(value)}
             >
-              <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm sm:col-span-2">
+              <Select.Trigger id="wifi-profile" className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
                 <Select.Value placeholder="Select profile" />
               </Select.Trigger>
               <Select.Content>
@@ -1093,11 +1100,18 @@ export default function OnuDetail() {
                 ))}
               </Select.Content>
             </Select>
-            <Input placeholder="SSID" required value={wifiForm.ssid} onChange={(event) => setWifiForm((current) => ({ ...current, ssid: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wifi-ssid">SSID</label>
+              <Input id="wifi-ssid" placeholder="Nama WiFi" required value={wifiForm.ssid} onChange={(event) => setWifiForm((current) => ({ ...current, ssid: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wifi-password">Password</label>
             <div className="relative">
               <Input
+                id="wifi-password"
                 className="pr-10"
-                placeholder="Password"
+                placeholder="••••••••"
                 required
                 type={showWifiPassword ? "text" : "password"}
                 value={wifiForm.password}
@@ -1107,18 +1121,25 @@ export default function OnuDetail() {
                 className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-foreground/60 hover:text-foreground"
                 onClick={() => setShowWifiPassword((current) => !current)}
                 type="button"
+                aria-label={showWifiPassword ? "Hide password" : "Show password"}
               >
                 {showWifiPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
-            <div className="flex h-11 items-center rounded-lg border-2 border-input bg-card px-3 text-sm font-medium text-foreground shadow-brutal-sm">
-              {wifiForm.band}
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wifi-band">Band</label>
+              <div id="wifi-band" className="flex h-11 items-center rounded-lg border-2 border-input bg-card px-3 text-sm font-medium text-foreground shadow-brutal-sm">
+                {wifiForm.band}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wifi-enabled">Status SSID</label>
             <Select
               value={wifiForm.enabled ? "on" : "off"}
               onValueChange={(value) => setWifiForm((current) => ({ ...current, enabled: value === "on" }))}
             >
-              <Select.Trigger className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
+              <Select.Trigger id="wifi-enabled" className="h-11 rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm">
                 <Select.Value placeholder="Select state" />
               </Select.Trigger>
               <Select.Content>
@@ -1126,6 +1147,7 @@ export default function OnuDetail() {
                 <Select.Item value="off">Disable SSID</Select.Item>
               </Select.Content>
             </Select>
+            </div>
           </div>
           <div className="rounded-2xl bg-card/80 px-4 py-3 text-xs text-muted-foreground dark:bg-card/70">
             <p>Current profile selection loads the existing SSID name and password so you only need to edit the fields that should change.</p>
@@ -1141,11 +1163,46 @@ export default function OnuDetail() {
       <OverlayPanel open={activeModal === "wan"} title="Config WAN" description="Update WAN PPPoE credentials and connection profile." onClose={() => setActiveModal("none")}>
         <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void handleWanSubmit(); }}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input placeholder="PPPoE Username" required value={wanForm.username} onChange={(event) => setWanForm((current) => ({ ...current, username: event.target.value }))} />
-            <Input placeholder="PPPoE Password" required type="password" value={wanForm.password} onChange={(event) => setWanForm((current) => ({ ...current, password: event.target.value }))} />
-            <Input placeholder="MTU (optional)" value={wanForm.mtu} onChange={(event) => setWanForm((current) => ({ ...current, mtu: event.target.value }))} />
-            <Input placeholder="VPI (if available)" value={wanForm.vpi} onChange={(event) => setWanForm((current) => ({ ...current, vpi: event.target.value }))} />
-            <Input className="sm:col-span-2" placeholder="VCI (if available)" value={wanForm.vci} onChange={(event) => setWanForm((current) => ({ ...current, vci: event.target.value }))} />
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wan-username">PPPoE Username</label>
+              <Input id="wan-username" placeholder="budi01@isp" required value={wanForm.username} onChange={(event) => setWanForm((current) => ({ ...current, username: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground" htmlFor="wan-password">PPPoE Password</label>
+              <div className="relative">
+                <Input
+                  id="wan-password"
+                  className="pr-10"
+                  placeholder="••••••••"
+                  required
+                  type={showWanPassword ? "text" : "password"}
+                  value={wanForm.password}
+                  onChange={(event) => setWanForm((current) => ({ ...current, password: event.target.value }))}
+                />
+                <button
+                  className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-foreground/60 hover:text-foreground"
+                  onClick={() => setShowWanPassword((current) => !current)}
+                  type="button"
+                  aria-label={showWanPassword ? "Hide password" : "Show password"}
+                >
+                  {showWanPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 sm:col-span-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="wan-mtu">MTU <span className="font-normal text-muted-foreground/60">(optional)</span></label>
+                <Input id="wan-mtu" placeholder="1492" value={wanForm.mtu} onChange={(event) => setWanForm((current) => ({ ...current, mtu: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="wan-vpi">VPI</label>
+                <Input id="wan-vpi" placeholder="0" value={wanForm.vpi} onChange={(event) => setWanForm((current) => ({ ...current, vpi: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground" htmlFor="wan-vci">VCI</label>
+                <Input id="wan-vci" placeholder="35" value={wanForm.vci} onChange={(event) => setWanForm((current) => ({ ...current, vci: event.target.value }))} />
+              </div>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">Current backend contract applies PPPoE credentials and MTU directly. VPI/VCI are shown here for operator reference and may require vendor-specific parameter mapping.</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">

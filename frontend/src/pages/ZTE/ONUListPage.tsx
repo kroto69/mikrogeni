@@ -1,16 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { StatusBadge as NmsStatusBadge } from '@/components/nms/status-badge'
-import { Select } from '@/components/retroui/Select'
+import { ArrowUpRight, ChevronDown, Monitor } from 'lucide-react'
+import { PickerPopup } from '@/components/retroui/PickerPopup'
+import { IconDisc, OnuStatusPill } from '@/components/nms/pastel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useGlobalLoaderOverlay } from '@/hooks/useGlobalLoaderOverlay'
 import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api'
-import type { NmsStatus } from '@/lib/status-tone'
+import { ONU_PILL_DOT, ONU_PILL_TEXT, ONU_ROW_BG, ONU_ROW_META, type OnuRowTone } from '@/lib/pastel'
 import { showToast } from '@/lib/toast'
-import { getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo, getZTEUnconfiguredONUs } from '@/lib/zteApi'
+import { getZTEBoards, getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo, getZTEUnconfiguredONUs } from '@/lib/zteApi'
 import { ZTEONUDetailModal } from './_components/ZTEONUDetailModal'
 import { ZTESkeleton } from './_components/ZTESkeleton'
 import { ZTEEmptyState } from './_components/ZTEEmptyState'
@@ -37,7 +38,7 @@ type DashboardHeaderProps = {
 
 function DashboardHeader({ title, subtitle, systemInfo, autoRefresh, onSyncClick, onSettingsClick }: DashboardHeaderProps) {
   return (
-    <div className="neo-panel border-2 border-border bg-card p-4 shadow-brutal-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="rounded-[20px] border bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{subtitle ?? 'Live Monitoring'}</p>
         <h1 className="truncate font-heading text-lg font-extrabold uppercase tracking-tight sm:text-xl">
@@ -45,7 +46,7 @@ function DashboardHeader({ title, subtitle, systemInfo, autoRefresh, onSyncClick
         </h1>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
         {systemInfo ? (
           <>
             <span>CPU {systemInfo.cpuUsage}%</span>
@@ -67,28 +68,29 @@ function DashboardHeader({ title, subtitle, systemInfo, autoRefresh, onSyncClick
   )
 }
 
-type StatCardProps = {
+type StatPillProps = {
   value: number
   label: string
-  color: string
+  tone: string
   onClick?: () => void
 }
 
-function StatCard({ value, label, color, onClick }: StatCardProps) {
+// Filter cepat ala v29: pill berwarna menurut status (klik = filter).
+function StatPill({ value, label, tone, onClick }: StatPillProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border-2 px-2.5 py-1.5 text-center transition-all hover:-translate-y-[1px] ${color}`}
+      className={`rounded-full px-4 py-2 font-mono text-xs font-bold transition-opacity hover:opacity-80 ${tone}`}
     >
-      <span className="text-sm font-black">{value}</span>
-      <span className="ml-1 text-[10px] font-bold uppercase">{label}</span>
+      {label} {value}
     </button>
   )
 }
 
 type FilterToolbarProps = {
   board: number
+  boardOptions: number[]
   pon: number | null
   ponList: ZTEPONInfo[]
   searchQuery: string
@@ -104,6 +106,7 @@ type FilterToolbarProps = {
 
 function FilterToolbar({
   board,
+  boardOptions,
   pon,
   ponList,
   searchQuery,
@@ -116,53 +119,46 @@ function FilterToolbar({
   onUncfgToggle,
   uncfgCount,
 }: FilterToolbarProps) {
-  const boardOptions = Array.from({ length: 8 }, (_, i) => i + 1)
+  const [pickerOpen, setPickerOpen] = useState<'board' | 'pon' | null>(null)
+  // Nama PON tak dihafal operator — trigger menampilkan nomor + nama
+  // sekaligus ("PON 1: suambian"), bukan nama saja atau nomor saja.
+  const selectedPon = pon != null ? ponList.find((item) => item.pon === pon) : undefined
+  const ponTriggerLabel =
+    pon == null ? 'Pilih PON' : selectedPon?.description ? `PON ${pon}: ${selectedPon.description}` : `PON ${pon}`
 
   return (
-    <div className="neo-panel border-2 border-border bg-card p-4 shadow-brutal-sm flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+    <div className="rounded-[20px] border bg-card p-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
       <div className="w-full lg:w-auto">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Pilih Board &amp; Pon</p>
         <div className="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto">
-          <Select
-            value={String(board)}
-            onValueChange={(value) => {
-              onBoardChange(Number(value))
-              onPonChange(null)
-            }}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={pickerOpen === 'board'}
+            onClick={() => setPickerOpen('board')}
+            className="flex h-10 w-full items-center justify-between rounded-full border border-input bg-card px-3 text-sm font-bold uppercase outline-none lg:min-w-32"
           >
-            <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
-              <Select.Value placeholder="BOARD" />
-            </Select.Trigger>
-            <Select.Content side="bottom">
-              {boardOptions.map((item) => (
-                <Select.Item key={item} value={String(item)}>
-                  BOARD {item}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
+            BOARD {board}
+            <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+          </button>
 
-          <Select
-            value={pon != null ? String(pon) : undefined}
-            onValueChange={(value) => onPonChange(value ? Number(value) : null)}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={pickerOpen === 'pon'}
+            onClick={() => setPickerOpen('pon')}
+            title={ponTriggerLabel}
+            className="flex h-10 w-full items-center justify-between rounded-full border border-input bg-card px-3 text-sm font-bold uppercase outline-none lg:min-w-32"
           >
-            <Select.Trigger className="h-10 w-full rounded-none border-2 border-input bg-card px-3 text-sm font-bold uppercase shadow-brutal-sm outline-none lg:min-w-36">
-              <Select.Value placeholder="Pilih PON" />
-            </Select.Trigger>
-            <Select.Content side="bottom">
-              {ponList.map((item) => (
-                <Select.Item key={`${item.board}-${item.pon}`} value={String(item.pon)}>
-                  PON {item.pon}{item.description ? ` — ${item.description}` : ''}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
+            <span className="min-w-0 flex-1 truncate text-left">{ponTriggerLabel}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0" aria-hidden="true" />
+          </button>
 
-          <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
+          <Button className="h-10 w-full whitespace-nowrap px-4 font-bold uppercase sm:col-span-2 lg:w-auto" onClick={onLoad} disabled={pon == null}>
             LOAD
           </Button>
           {onUncfgToggle && (
-            <Button className="h-10 w-full px-4 font-bold uppercase sm:col-span-2 lg:w-auto" variant={showUncfg ? "default" : "outline"} onClick={onUncfgToggle}>
+            <Button className="h-10 w-full whitespace-nowrap px-4 font-bold uppercase sm:col-span-2 lg:w-auto" variant={showUncfg ? "default" : "outline"} onClick={onUncfgToggle}>
               UNCFG {uncfgCount ?? "?"}
             </Button>
           )}
@@ -174,48 +170,59 @@ function FilterToolbar({
           placeholder="Search Name, SN..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-10 w-full border-2 border-input bg-card text-sm font-medium shadow-brutal-sm lg:min-w-72"
+          className="h-10 w-full min-w-0 text-sm font-medium lg:min-w-48"
         />
-        <Button variant="outline" className="h-10 w-full border-2 border-input px-3 font-bold uppercase shadow-brutal-sm sm:w-auto" onClick={onRefresh}>
+        <Button variant="outline" className="h-10 w-full shrink-0 whitespace-nowrap px-3 font-bold uppercase sm:w-auto" onClick={onRefresh}>
           REFRESH
         </Button>
       </div>
+
+      <PickerPopup
+        open={pickerOpen != null}
+        title={pickerOpen === 'board' ? 'Pilih Board' : 'Pilih PON'}
+        layout={pickerOpen === 'board' ? 'grid' : 'list'}
+        searchable={pickerOpen === 'pon'}
+        searchPlaceholder="Cari nama atau nomor PON…"
+        options={pickerOpen === 'board'
+          ? boardOptions.map((item) => ({ value: String(item), label: String(item) }))
+          // Nomor + nama sekaligus ("PON 1: suambian") — tanpa nama,
+          // tampil nomor saja.
+          : ponList.map((item) => ({ value: String(item.pon), label: `PON ${item.pon}`, description: item.description || undefined }))}
+        selectedValue={pickerOpen === 'board' ? String(board) : pon != null ? String(pon) : undefined}
+        onSelect={(value) => {
+          if (pickerOpen === 'board') {
+            onBoardChange(Number(value))
+            onPonChange(null)
+          } else {
+            onPonChange(Number(value))
+          }
+        }}
+        onClose={() => setPickerOpen(null)}
+      />
     </div>
   )
 }
 
-type SectionHeaderProps = {
-  autoRefresh: boolean
-}
-
-function SectionHeader({ autoRefresh }: SectionHeaderProps) {
+function SectionHeader({ autoRefresh }: { autoRefresh: boolean }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-2">
-      <h2 className="font-heading text-base font-extrabold uppercase tracking-tight">LIVE ONU LIST</h2>
-      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-        REFRESH: {autoRefresh ? '5s' : 'OFF'}
+      <h2 className="font-heading text-base font-extrabold uppercase tracking-tight">Live ONU List</h2>
+      <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+        Refresh: {autoRefresh ? '5s' : 'OFF'}
       </span>
     </div>
   )
 }
 
-type StatusBadgeProps = {
-  status: DashboardRow['status']
-}
-
-function mapZteStatusToNms(status: DashboardRow['status']): { status: NmsStatus; label: string } {
-  if (status === 'ONLINE') return { status: 'online', label: 'ONLINE' }
-  if (status === 'LOS') return { status: 'critical', label: 'LOS' }
-  if (status === 'RANGING') return { status: 'provisioning', label: 'RANGING' }
-  if (status === 'DYING_GASP') return { status: 'warning', label: 'DYING GASP' }
-  if (status === 'POWER_OFF') return { status: 'down', label: 'POWER OFF' }
-  return { status: 'offline', label: 'OFFLINE' }
-}
-
-function StatusBadge({ status }: StatusBadgeProps) {
-  const tone = mapZteStatusToNms(status)
-
-  return <NmsStatusBadge status={tone.status} label={tone.label} size="sm" />
+// Baris ONU bahasa pastel (v29): kartu penuh warna status, kolom
+// nama (+ ID · PON), SN, RX optik, pill status besar.
+function rowTone(status: DashboardRow['status']): { tone: OnuRowTone; label: string } {
+  if (status === 'ONLINE') return { tone: 'online', label: 'ONLINE' }
+  if (status === 'LOS') return { tone: 'los', label: 'LOS' }
+  if (status === 'RANGING') return { tone: 'offline', label: 'RANGING' }
+  if (status === 'DYING_GASP') return { tone: 'offline', label: 'DYING GASP' }
+  if (status === 'POWER_OFF') return { tone: 'offline', label: 'POWER OFF' }
+  return { tone: 'offline', label: 'OFFLINE' }
 }
 
 type DataTableProps = {
@@ -225,73 +232,48 @@ type DataTableProps = {
 
 function DataTable({ rows, onViewDetail }: DataTableProps) {
   return (
-    <div className="neo-panel rounded-none border-2 border-border bg-card shadow-brutal-sm overflow-hidden">
-      <div className="space-y-2 p-2.5 sm:p-3 lg:hidden">
-        {rows.map((row) => (
+    <div className="flex flex-col gap-3">
+      {rows.map((row) => {
+        const { tone, label } = rowTone(row.status)
+        const iconTint = tone === 'online' ? 'text-pastel-mint' : tone === 'los' ? 'text-pastel-red' : 'text-pastel-grey'
+        return (
           <button
             key={`${row.id}-${row.sn}`}
             type="button"
             onClick={() => onViewDetail(row)}
-            className="w-full rounded-none border-2 border-border bg-card px-3 py-3 text-left shadow-brutal-sm transition-all hover:-translate-y-[1px] hover:shadow-brutal"
+            className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${ONU_ROW_BG[tone]}`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-extrabold uppercase text-foreground">{row.nama}</p>
-                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">ID {row.id}</p>
+            <div className="flex items-center gap-3">
+              <IconDisc iconClass={iconTint} className="h-11 w-11">
+                <Monitor className="h-5 w-5" />
+              </IconDisc>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-[17px] font-bold tracking-[-0.01em]">{row.nama}</p>
+                <p className={`mt-0.5 truncate font-mono text-[11px] ${ONU_ROW_META[tone]}`}>
+                  ID {row.id} · PON {row.raw.pon}
+                </p>
               </div>
-              <StatusBadge status={row.status} />
+              <div className="hidden min-w-0 flex-1 font-mono text-xs leading-[1.7] lg:block">
+                <p className="truncate">{row.sn}</p>
+                <p className={ONU_ROW_META[tone]}>BOARD {row.raw.board}</p>
+              </div>
+              <div className="hidden font-mono text-xs font-bold leading-[1.7] lg:block">
+                <p>{row.rx === 'NONE' ? 'RX —' : `RX ${row.rx} dBm`}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2.5">
+                <OnuStatusPill label={label} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
+                <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex">
+                  <ArrowUpRight className="h-4 w-4" />
+                </span>
+              </div>
             </div>
-
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-none border-2 border-border bg-muted/20 px-2 py-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Serial</p>
-                <p className="mt-0.5 break-all font-semibold text-foreground">{row.sn}</p>
-              </div>
-              <div className="rounded-none border-2 border-border bg-muted/20 px-2 py-1.5 text-right">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX</p>
-                <p className="mt-0.5 font-extrabold text-foreground">{row.rx === 'NONE' ? 'NONE' : `${row.rx} dBm`}</p>
-              </div>
+            <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono text-xs lg:hidden ${ONU_ROW_META[tone]}`}>
+              <p className="truncate text-[#131313]">{row.sn}</p>
+              <p>{row.rx === 'NONE' ? 'RX —' : `RX ${row.rx} dBm`} · BOARD {row.raw.board}</p>
             </div>
           </button>
-        ))}
-      </div>
-
-      <div className="hidden max-h-[60vh] overflow-y-auto overflow-x-auto lg:block">
-        <table className="min-w-full text-left text-sm">
-          <thead className="sticky top-0 z-10 border-b-2 border-border bg-muted">
-            <tr>
-              <th className="w-12 px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">ID</th>
-              <th className="px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">NAMA</th>
-              <th className="hidden px-2 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground sm:table-cell">SN</th>
-              <th className="w-24 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">RX (DBM)</th>
-              <th className="w-20 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">STATUS</th>
-              <th className="w-14 px-3 py-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">···</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={`${row.id}-${row.sn}`} className="cursor-pointer border-b border-border/60 transition-colors hover:bg-muted/30" onClick={() => onViewDetail(row)}>
-                <td className="px-3 py-2.5 font-bold">{row.id}</td>
-                <td className="px-3 py-2.5">
-                  <span className="block truncate font-bold uppercase">{row.nama}</span>
-                  <span className="block truncate text-xs text-muted-foreground sm:hidden">{row.sn}</span>
-                </td>
-                <td className="hidden px-2 py-2.5 font-mono text-xs text-muted-foreground sm:table-cell">{row.sn}</td>
-                <td className="px-3 py-2.5 text-center font-bold">{row.rx}</td>
-                <td className="px-3 py-2.5 text-center"><StatusBadge status={row.status} /></td>
-                <td className="px-3 py-2.5 text-center">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onViewDetail(row) }}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-none border-2 border-input bg-card text-[10px] font-bold shadow-brutal-sm hover:bg-accent"
-                  >
-                    ...
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        )
+      })}
     </div>
   )
 }
@@ -313,7 +295,7 @@ function mapToDashboardRows(items: ZTEONUListItem[]): DashboardRow[] {
     sn: item.serialNumber || '-',
     status: mapStatus(item.statusCode),
     statusCode: item.statusCode,
-    rx: mapStatus(item.statusCode) === 'LOS' ? 'NONE' : item.rxPower.toFixed(2),
+    rx: mapStatus(item.statusCode) === 'LOS' || !item.rxPower ? 'NONE' : item.rxPower.toFixed(2),
     raw: item,
   }))
 }
@@ -357,9 +339,34 @@ export default function ONUListPage() {
     enabled: !!connId,
   })
 
+  // Slot board dari perangkat (endpoint boards zzte: distinct slot hasil
+  // SNMP walk). Fallback 1..8 seperti dulu bila endpoint gagal (zzte
+  // lama) atau kosong — jangan sembunyikan board tanpa dasar data.
+  const { data: boardList } = useQuery({
+    queryKey: ['zte-boards', connId],
+    queryFn: () => getZTEBoards(connId!),
+    enabled: !!connId,
+    staleTime: 60_000,
+  })
+  const boardOptions = boardList?.length ? boardList : [1, 2, 3, 4, 5, 6, 7, 8]
+  // Tanpa auto-koreksi board: default 1 ada di hampir semua C320; bila
+  // tak ada, popup board menampilkan slot asli dan user memilih sendiri
+  // (satu ketuk) — lebih eksplisit daripada pindah diam-diam.
+
+  // Jendela live: refresh manual (LOAD/REFRESH/SYNC) kirim fresh=true,
+  // jadi teknisi dapat status + redaman live dari OLT untuk 1 PON ini
+  // (walk 1 PON saja, ~2-5 detik). Jendela cuma 3 dtk — cukup untuk
+  // refetch manual + fetch akibat ganti tick SYNC; tick AUTO berikutnya
+  // (interval 5 dtk) sudah di luar jendela, jadi AUTO tetap pakai cache
+  // dan tidak ada polling live terus-menerus yang memberatkan OLT.
+  const freshUntilRef = useRef(0)
+  const armFreshWindow = () => {
+    freshUntilRef.current = Date.now() + 3_000
+  }
+
   const { data: onuList, isLoading, isError, refetch } = useQuery({
     queryKey: ['zte-onu-list', connId, board, pon, tick],
-    queryFn: () => getZTEONUList(connId!, board, pon!),
+    queryFn: () => getZTEONUList(connId!, board, pon!, Date.now() < freshUntilRef.current),
     enabled: !!connId && pon != null,
     staleTime: 55_000,
     refetchInterval: autoRefresh ? 5_000 : false,
@@ -369,6 +376,7 @@ export default function ONUListPage() {
 
   const handleLoad = () => {
     if (pon != null) {
+      armFreshWindow()
       setHasLoaded(true)
       void runWithGlobalLoader(async () => {
         const result = await refetch()
@@ -380,6 +388,7 @@ export default function ONUListPage() {
   const handleRefresh = () => {
     if (!hasLoaded) return
 
+    armFreshWindow()
     void runWithGlobalLoader(async () => {
       const result = await refetch()
       if (result.error) {
@@ -395,6 +404,7 @@ export default function ONUListPage() {
   }
 
   const handleSync = () => {
+    armFreshWindow()
     setTick((v) => v + 1)
 
     if (!hasLoaded) {
@@ -462,6 +472,7 @@ export default function ONUListPage() {
 
         <FilterToolbar
           board={board}
+          boardOptions={boardOptions}
           pon={pon}
           ponList={ponList ?? []}
           searchQuery={searchQuery}
@@ -505,16 +516,16 @@ export default function ONUListPage() {
 
         {hasLoaded && !isLoading && !isError && (
           <div className="flex flex-wrap items-center gap-2">
-            <StatCard value={stats.total} label="TOTAL" color="bg-secondary text-secondary-foreground" onClick={() => setSearchQuery('')} />
-            <StatCard value={stats.online} label="ONLINE" color="bg-success text-success-foreground" onClick={() => setSearchQuery('ONLINE')} />
-            <StatCard value={stats.los} label="LOS" color="bg-destructive text-destructive-foreground" onClick={() => setSearchQuery('LOS')} />
-            <StatCard value={stats.offline} label="OFFLINE" color="bg-muted text-muted-foreground" onClick={() => setSearchQuery('OFF')} />
+            <StatPill value={stats.total} label="TOTAL" tone="bg-card border border-border text-foreground" onClick={() => setSearchQuery('')} />
+            <StatPill value={stats.online} label="ONLINE" tone="bg-pastel-mint text-[#131313]" onClick={() => setSearchQuery('ONLINE')} />
+            <StatPill value={stats.los} label="LOS" tone="bg-pastel-red text-[#131313]" onClick={() => setSearchQuery('LOS')} />
+            <StatPill value={stats.offline} label="OFFLINE" tone="bg-pastel-grey text-[#131313]" onClick={() => setSearchQuery('OFF')} />
           </div>
         )}
 
         {hasLoaded && !isLoading && !isError && showUncfg && (
-          <div className="neo-panel rounded-none border-2 border-border bg-card shadow-brutal-sm overflow-hidden">
-            <div className="border-b-2 border-border bg-muted/30 px-3 py-2">
+          <div className="rounded-[20px] border bg-card overflow-hidden">
+            <div className="border-b border-border bg-muted/30 px-3 py-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unconfigured ONU</span>
             </div>
             {uncfgLoading ? (
@@ -529,7 +540,7 @@ export default function ONUListPage() {
                       <span className="font-bold">{onu.board}/{onu.pon}/{onu.onuId}</span>
                       <span className="ml-2 font-mono text-muted-foreground">{onu.sn}</span>
                     </div>
-                    <span className="rounded border border-orange-300 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{onu.state}</span>
+                    <span className="rounded-full border border-orange-300 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{onu.state}</span>
                   </div>
                 ))}
               </div>

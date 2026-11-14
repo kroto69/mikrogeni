@@ -205,21 +205,22 @@ func main() {
 			r.Post("/devices/{id}/onu/reboot", handlers.HiosoRebootHandler)
 		})
 
-// ZTE Plugin routes
-	r.Route("/api/zte", func(r chi.Router) {
-   			r.Post("/connections/test", handlers.TestZTEConnection)
-    		r.Get("/connections", handlers.ListZTEConnections)
-    		r.With(middleware.RequireRole("admin")).Post("/connections", handlers.CreateZTEConnection)
-   		r.With(middleware.RequireRole("admin")).Patch("/connections/{id}", handlers.UpdateZTEConnection)
-    		r.With(middleware.RequireRole("admin")).Delete("/connections/{id}", handlers.DeleteZTEConnection)
-    		r.Post("/connections/{id}/health", handlers.HealthCheckZTE)
+		// ZTE Plugin routes
+		r.Route("/api/zte", func(r chi.Router) {
+			r.Post("/connections/test", handlers.TestZTEConnection)
+			r.Get("/connections", handlers.ListZTEConnections)
+			r.With(middleware.RequireRole("admin")).Post("/connections", handlers.CreateZTEConnection)
+			r.With(middleware.RequireRole("admin")).Patch("/connections/{id}", handlers.UpdateZTEConnection)
+			r.With(middleware.RequireRole("admin")).Delete("/connections/{id}", handlers.DeleteZTEConnection)
+			r.Post("/connections/{id}/health", handlers.HealthCheckZTE)
 		})
-r.HandleFunc("/api/zte/olt/{connId}/*", handlers.ForwardZTEProxy)
+		r.HandleFunc("/api/zte/olt/{connId}/*", handlers.ForwardZTEProxy)
+		r.HandleFunc("/api/cdata/olt/{connId}/*", handlers.ForwardCDataProxy)
 
 		// ── Activity Logs ───────────────────────────────────────────────────
 		r.Get("/api/activity-logs", handlers.GetActivityLogs)
 
-		})
+	})
 
 	// Jalankan server
 	addr := fmt.Sprintf(":%s", port)

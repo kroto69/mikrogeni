@@ -72,7 +72,7 @@ type hiosoCreateDeviceReq struct {
 	Port         int    `json:"port"`
 	Username     string `json:"username"`
 	Password     string `json:"password"`
-	FirmwareType int    `json:"firmware_type"` // 0 = HA7304VX (swcgi_xml), 1 = Other (legacy_html)
+	FirmwareType int    `json:"firmware_type"` // 0 = HA7304VX (swcgi_xml), 1 = Other (legacy_html), 2 = HSGQ auto, 3 = HSGQ GPON, 4 = HSGQ EPON
 }
 
 func HiosoCreateDeviceHandler(w http.ResponseWriter, r *http.Request) {
@@ -98,8 +98,14 @@ func HiosoCreateDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		fwType = "swcgi_xml"
 	case 1:
 		fwType = "legacy_html"
+	case 2:
+		fwType = "hsgq"
+	case 3:
+		fwType = "hsgq-gpon"
+	case 4:
+		fwType = "hsgq-epon"
 	default:
-		pluginError(w, http.StatusBadRequest, "firmware_type harus 0 (HA7304VX) atau 1 (Other)")
+		pluginError(w, http.StatusBadRequest, "firmware_type harus 0 (HA7304VX), 1 (Other), 2 (HSGQ), 3 (HSGQ GPON), atau 4 (HSGQ EPON)")
 		return
 	}
 
@@ -150,6 +156,11 @@ func HiosoTestDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		_ = db.UpdateHiosoDeviceFirmware(id, device.FirmwareType, "offline")
 		pluginError(w, http.StatusBadGateway, "gagal detect: "+err.Error())
 		return
+	}
+	// Jangan timpa varian HSGQ yang dipilih eksplisit (hsgq-gpon/hsgq-epon)
+	// dengan hasil deteksi "hsgq" (auto) — pilihan user yang menang.
+	if fwType == "hsgq" && (device.FirmwareType == "hsgq-gpon" || device.FirmwareType == "hsgq-epon") {
+		fwType = device.FirmwareType
 	}
 	_ = db.UpdateHiosoDeviceFirmware(id, fwType, "online")
 	pluginJSON(w, map[string]interface{}{"firmware_type": fwType, "status": "online"})
@@ -285,8 +296,17 @@ func HiosoRenameHandler(w http.ResponseWriter, r *http.Request) {
 		pluginError(w, http.StatusBadGateway, "rename gagal: "+err.Error())
 		return
 	}
+	resp := map[string]interface{}{"method": device.FirmwareType}
+	// Auto-persist (legacy): rename hanya masuk RAM sampai Save Configuration
+	// menulisnya ke flash. Kalau save gagal, rename TIDAK dibatalkan — tapi
+	// laporkan sebagai peringatan agar tidak dikira sudah permanen.
+	if saver, ok := driver.(hiosoConfigSaver); ok {
+		if err := saver.SaveConfiguration(); err != nil {
+			resp["persist_warning"] = "nama berubah tapi gagal disimpan permanen (" + err.Error() + "); nama bisa hilang saat OLT reboot"
+		}
+	}
 	logActivity(r, "rename_onu", onuID, device.Name, "new name: "+req.Name)
-	pluginJSON(w, map[string]interface{}{"method": device.FirmwareType})
+	pluginJSON(w, resp)
 }
 
 func HiosoRebootHandler(w http.ResponseWriter, r *http.Request) {

@@ -19,6 +19,7 @@ func createZTEConnectionTables() error {
 		name TEXT NOT NULL,
 		base_url TEXT NOT NULL,
 		olt_id TEXT DEFAULT '',
+		vendor TEXT DEFAULT '',
 		is_active INTEGER DEFAULT 1,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -33,6 +34,7 @@ func createZTEConnectionTables() error {
 	}
 
 	DB.Exec(`ALTER TABLE zte_connections ADD COLUMN olt_id TEXT DEFAULT ''`)
+	DB.Exec(`ALTER TABLE zte_connections ADD COLUMN vendor TEXT DEFAULT ''`)
 
 	return nil
 }
@@ -52,11 +54,16 @@ func CreateZTEConnection(req models.ZTEConnectionRequest) (*models.ZTEConnection
 		id = NewZTEConnectionID()
 	}
 
+	vendor := strings.TrimSpace(req.Vendor)
+	if vendor == "" {
+		vendor = "zte"
+	}
 	_, err := DB.Exec(
-		`INSERT INTO zte_connections (id, name, base_url) VALUES (?, ?, ?)`,
+		`INSERT INTO zte_connections (id, name, base_url, vendor) VALUES (?, ?, ?, ?)`,
 		id,
 		strings.TrimSpace(req.Name),
 		strings.TrimSpace(req.BaseURL),
+		vendor,
 	)
 	if err != nil {
 		return nil, err
@@ -68,7 +75,8 @@ func CreateZTEConnection(req models.ZTEConnectionRequest) (*models.ZTEConnection
 func GetZTEConnectionByID(id string) (*models.ZTEConnection, error) {
 	query := `SELECT id, name, base_url, is_active,
 		COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', created_at), ''),
-		COALESCE(olt_id, '')
+		COALESCE(olt_id, ''),
+		COALESCE(vendor, '')
 		FROM zte_connections WHERE id = ?`
 
 	row := DB.QueryRow(query, strings.TrimSpace(id))
@@ -85,7 +93,8 @@ func GetZTEConnectionByID(id string) (*models.ZTEConnection, error) {
 func GetZTEConnectionByOltID(oltId string) (*models.ZTEConnection, error) {
 	query := `SELECT id, name, base_url, is_active,
 		COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', created_at), ''),
-		COALESCE(olt_id, '')
+		COALESCE(olt_id, ''),
+		COALESCE(vendor, '')
 		FROM zte_connections WHERE olt_id = ?`
 
 	row := DB.QueryRow(query, strings.TrimSpace(oltId))
@@ -102,7 +111,8 @@ func GetZTEConnectionByOltID(oltId string) (*models.ZTEConnection, error) {
 func ListZTEConnections() ([]models.ZTEConnection, error) {
 	query := `SELECT id, name, base_url, is_active,
 		COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', created_at), ''),
-		COALESCE(olt_id, '')
+		COALESCE(olt_id, ''),
+		COALESCE(vendor, '')
 		FROM zte_connections ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query)
@@ -150,6 +160,7 @@ func UpdateZTEConnection(id string, req models.ZTEConnectionUpdateRequest) (*mod
 	name := existing.Name
 	baseURL := existing.BaseURL
 	oltID := existing.OltID
+	vendor := existing.Vendor
 
 	if req.Name != nil {
 		name = strings.TrimSpace(*req.Name)
@@ -160,10 +171,13 @@ func UpdateZTEConnection(id string, req models.ZTEConnectionUpdateRequest) (*mod
 	if req.OltID != nil {
 		oltID = strings.TrimSpace(*req.OltID)
 	}
+	if req.Vendor != nil {
+		vendor = strings.TrimSpace(*req.Vendor)
+	}
 
 	_, err = DB.Exec(
-		`UPDATE zte_connections SET name = ?, base_url = ?, olt_id = ? WHERE id = ?`,
-		name, baseURL, oltID, strings.TrimSpace(id),
+		`UPDATE zte_connections SET name = ?, base_url = ?, olt_id = ?, vendor = ? WHERE id = ?`,
+		name, baseURL, oltID, vendor, strings.TrimSpace(id),
 	)
 	if err != nil {
 		return nil, err
@@ -188,6 +202,7 @@ func scanZTEConnection(scanner interface {
 		&isActive,
 		&createdAt,
 		&conn.OltID,
+		&conn.Vendor,
 	)
 	if err != nil {
 		return nil, err

@@ -144,6 +144,18 @@ func (d *hiosoLegacyDriver) GetSystemInfo() (*HiosoSystemInfo, error) {
 	if len(fields) > 12 {
 		info.Memory = safeIdx(fields, 12) + "%"
 	}
+	// BUGFIX 2026-10-29: sysInfo legacy tidak punya counter ONU, jadi
+	// TotalONU/OnlineONU selalu 0 di dashboard & health. Turunkan dari
+	// daftar all-PON (satu page fetch) agar angka sesuai kenyataan.
+	// Gagal di sini tidak menggagalkan sysinfo — biarkan 0/0.
+	if onus, err := d.ListAllONU(); err == nil {
+		info.TotalONU = len(onus)
+		for _, o := range onus {
+			if hiosoOnlineStatus(o.Status) {
+				info.OnlineONU++
+			}
+		}
+	}
 	return info, nil
 }
 
@@ -236,15 +248,15 @@ func (d *hiosoLegacyDriver) GetONUDetail(onuID string) (*HiosoONUDetail, error) 
 	}
 
 	detail := &HiosoONUDetail{
-		Index:   strings.TrimSpace(safeIdx(infoFields, 0)),
-		WebID:   strings.TrimSpace(safeIdx(infoFields, 0)),
-		Name:    strings.TrimSpace(safeIdx(infoFields, 1)),
-		SN:      strings.TrimSpace(safeIdx(infoFields, 2)),
-		Status:  strings.TrimSpace(safeIdx(infoFields, 3)),
-		Profile: "legacy_html",
+		Index:    strings.TrimSpace(safeIdx(infoFields, 0)),
+		WebID:    strings.TrimSpace(safeIdx(infoFields, 0)),
+		Name:     strings.TrimSpace(safeIdx(infoFields, 1)),
+		SN:       strings.TrimSpace(safeIdx(infoFields, 2)),
+		Status:   strings.TrimSpace(safeIdx(infoFields, 3)),
+		Profile:  "legacy_html",
 		Firmware: strings.TrimSpace(safeIdx(infoFields, 4)),
-		ChipID:  strings.TrimSpace(safeIdx(infoFields, 5)),
-		Ports:   strings.TrimSpace(safeIdx(infoFields, 6)),
+		ChipID:   strings.TrimSpace(safeIdx(infoFields, 5)),
+		Ports:    strings.TrimSpace(safeIdx(infoFields, 6)),
 	}
 	if len(infoFields) > 7 {
 		detail.RegisteredAt = strings.TrimSpace(safeIdx(infoFields, 7))
@@ -282,10 +294,30 @@ func (d *hiosoLegacyDriver) RenameONU(onuID, newName string) error {
 	return nil
 }
 
+// SaveConfiguration menekan tombol "Save Configuration" di system_save.asp:
+// form-nya method=get action=/goform/saveConfiguration dengan hidden field
+// savecfg (kosong). Tanpa langkah ini, rename hanya masuk RAM OLT dan HILANG
+// saat OLT reboot/mati listrik. Dipanggil otomatis setelah rename sukses.
+func (d *hiosoLegacyDriver) SaveConfiguration() error {
+	if _, err := d.get("/goform/saveConfiguration?savecfg="); err != nil {
+		return fmt.Errorf("save configuration gagal: %w", err)
+	}
+	return nil
+}
+
 func (d *hiosoLegacyDriver) RebootONU(onuID string) error {
+	// BUGFIX 2026-10-29: jangan kirim onuName="reboot". Endpoint /goform/setOnu
+	// memproses form utuh (nama + operasi sekaligus), jadi nama ONU ikut
+	// tertimpa "reboot" — lalu Save berikutnya mengabadikannya. Kirim nama
+	// saat ini agar reboot tidak mengubah nama. Kalau nama saat ini tidak
+	// bisa dibaca, BATALKAN reboot daripada berisiko mengganti nama.
+	detail, err := d.GetONUDetail(onuID)
+	if err != nil {
+		return fmt.Errorf("reboot dibatalkan: nama ONU saat ini tidak bisa dibaca (%w)", err)
+	}
 	form := url.Values{}
 	form.Set("onuId", onuID)
-	form.Set("onuName", "reboot")
+	form.Set("onuName", detail.Name)
 	form.Set("onuOperation", "rebootOp")
 	resp, err := d.post("/goform/setOnu", form)
 	if err != nil {

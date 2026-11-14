@@ -3,6 +3,7 @@ export type ZTEConnection = {
   name: string
   base_url: string
   olt_id: string
+  vendor?: string
   is_active: boolean
   created_at: string
 }

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { StatusBadge as NmsStatusBadge } from '@/components/nms/status-badge'
+import { OnuStatusPill, RxBar } from '@/components/nms/pastel'
 import { Button } from '@/components/ui/button'
 import type { NmsStatus } from '@/lib/status-tone'
+import { rxQuality } from '@/lib/pastel'
 import { ZTEModal } from './ZTEModal'
 import { ZTESkeleton } from './ZTESkeleton'
 import { getZTEONUDetail, rebootZTEONU, getApiErrorMessage } from '@/lib/zteApi'
 import { showToast } from '@/lib/toast'
-import { cn } from '@/lib/utils'
 
 import type { ZTEONUListItem, ZTEONUDetail } from '@/types/zte'
 
@@ -29,10 +30,15 @@ function formatDate(dateStr: string): string {
   })
 }
 
-function rxPowerClass(rx: number): string {
-  if (rx > -25) return 'bg-success/20 text-foreground font-extrabold px-2 py-0.5 rounded'
-  if (rx >= -27) return 'bg-warning/20 text-foreground font-extrabold px-2 py-0.5 rounded'
-  return 'bg-destructive/20 text-destructive font-extrabold px-2 py-0.5 rounded'
+function formatShortDate(dateStr: string): string {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function mapDetailStatusTone(statusCode: number, status: string): { status: NmsStatus; label: string } {
@@ -45,6 +51,15 @@ function mapDetailStatusTone(statusCode: number, status: string): { status: NmsS
 
   const normalized = status.trim().toUpperCase()
   return { status: 'unknown', label: normalized || 'UNKNOWN' }
+}
+
+function InfoCell({ label, children, mono }: { label: string; children: React.ReactNode; mono?: boolean }) {
+  return (
+    <div className="border-b border-border/60 py-2.5 last:border-b-0">
+      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-sm font-semibold text-foreground ${mono ? 'break-all font-mono text-[13px]' : ''}`}>{children}</p>
+    </div>
+  )
 }
 
 export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalProps) {
@@ -84,82 +99,83 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
     }
   }
 
+  const quality = detail ? rxQuality(detail.rxPower) : null
+
   return (
     <ZTEModal isOpen onClose={onClose} title={`${onu.name || `ONU ${onu.onuId}`}`}>
       {loading && <ZTESkeleton rows={4} />}
       {error && (
-        <p className="rounded-none border-2 border-border bg-destructive/10 px-3 py-2 text-sm font-extrabold uppercase text-destructive">Gagal memuat detail ONU</p>
+        <p className="rounded-[16px] bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">Gagal memuat detail ONU</p>
       )}
       {detail && !loading && !error && (
-        <>
-          <div className="grid grid-cols-1 gap-x-4 gap-y-3 text-xs sm:grid-cols-2">
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Location</span>
-              <p className="font-extrabold uppercase">{detail.board}/{detail.pon}/{detail.onuId}</p>
+        <div className="space-y-4">
+          {/* Hero sinyal (v18): angka RX besar + pill kualitas + satu bar tipis. */}
+          <div className="rounded-[20px] bg-pastel-mint p-4 text-[#131313]">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]">RX Power</p>
+            <div className="mt-1.5 flex items-baseline gap-2">
+              <span className="font-display text-4xl font-bold leading-none tracking-[-0.02em]">{detail.rxPower ? detail.rxPower : '—'}</span>
+              {detail.rxPower ? <span className="font-mono text-sm font-bold">dBm</span> : null}
+              {quality && quality.label !== '-' ? (
+                <span className="ml-auto">
+                  <OnuStatusPill
+                    label={quality.label}
+                    textClass={quality.label === 'Baik' ? 'text-pastel-mint' : quality.label === 'Cukup' ? 'text-pastel-yellow' : 'text-pastel-red'}
+                    dotClass={quality.label === 'Baik' ? 'bg-pastel-mint' : quality.label === 'Cukup' ? 'bg-pastel-yellow' : 'bg-pastel-red'}
+                  />
+                </span>
+              ) : null}
             </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Status</span>
-              <div className="mt-0.5">
+            <RxBar rx={detail.rxPower} barColor={quality?.bar ?? '#9aa3a8'} className="mt-3" />
+            <div className="mt-3 flex gap-2.5">
+              <div className="flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3">
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]">TX Power</p>
+                <p className="mt-1 font-mono text-[15px] font-bold">{detail.txPower ? `${detail.txPower} dBm` : '—'}</p>
+              </div>
+              <div className="flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3">
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]">Terakhir Online</p>
+                <p className="mt-1 font-mono text-[15px] font-bold">{formatShortDate(detail.lastOnline)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[20px] border bg-card px-4 py-2">
+            <div className="grid grid-cols-2 gap-x-4">
+              <InfoCell label="Lokasi">{detail.board}/{detail.pon}/{detail.onuId}</InfoCell>
+              <InfoCell label="Status">
                 <NmsStatusBadge
                   label={detailStatusTone?.label}
                   size="sm"
                   status={detailStatusTone?.status ?? 'unknown'}
                 />
-              </div>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Type</span>
-              <p className="break-words font-extrabold uppercase">{detail.type || '-'}</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Serial Number</span>
-              <p className="break-all font-mono font-extrabold text-[10px]">{detail.serialNumber || '-'}</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">RX Power</span>
-              <p className={cn(rxPowerClass(detail.rxPower))}>{detail.rxPower} dBm</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">TX Power</span>
-              <p className="font-extrabold">{detail.txPower} dBm</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Last Online</span>
-              <p className="font-extrabold">{formatDate(detail.lastOnline)}</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Last Offline</span>
-              <p className="font-extrabold">{formatDate(detail.lastOffline)}</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">WAN IP</span>
-              <p className="break-all font-extrabold">{detail.wanIp || '-'}</p>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">Offline Reason</span>
-              <p className="break-words font-extrabold">{detail.offlineReason || '-'}</p>
+              </InfoCell>
+              <InfoCell label="Tipe">{detail.type || '-'}</InfoCell>
+              <InfoCell label="Serial" mono>{detail.serialNumber || '-'}</InfoCell>
+              <InfoCell label="Terakhir Offline">{formatDate(detail.lastOffline)}</InfoCell>
+              <InfoCell label="WAN IP" mono>{detail.wanIp || '-'}</InfoCell>
+              <InfoCell label="Alasan Offline">{detail.offlineReason || '-'}</InfoCell>
             </div>
           </div>
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
+
+          <div className="flex gap-2.5">
             <Button
               onClick={() => fetchDetail(true)}
-              className="h-11 w-full sm:h-10 sm:w-auto"
+              className="h-11 flex-1"
               size="sm"
               variant="outline"
             >
-              REFRESH
+              ↻ Refresh
             </Button>
             <Button
               onClick={handleReboot}
               disabled={rebooting}
-              className="h-11 w-full sm:h-10 sm:w-auto"
+              className="h-11 flex-1"
               size="sm"
               variant="destructive"
             >
-              REBOOT
+              {rebooting ? 'Mengirim reboot…' : 'Reboot ONU'}
             </Button>
           </div>
-        </>
+        </div>
       )}
     </ZTEModal>
   )

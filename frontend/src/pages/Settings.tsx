@@ -744,9 +744,7 @@ export default function Settings() {
 
   return (
     <div className="route-shell-page route-shell-settings space-y-7">
-      <section className="route-shell-panel relative overflow-hidden rounded-[28px] border-2 border-border bg-primary/20 px-5 py-6 shadow-[12px_12px_0_0_hsl(var(--border))] sm:px-7 sm:py-8">
-        <div className="pointer-events-none absolute -right-8 top-4 h-24 w-24 rotate-[18deg] border-2 border-border bg-accent/70" />
-        <div className="pointer-events-none absolute -bottom-6 left-6 h-12 w-24 -rotate-6 border-2 border-border bg-secondary/80" />
+      <section className="route-shell-panel relative overflow-hidden rounded-[28px] border-2 border-border bg-primary/20 px-5 py-6 sm:px-7 sm:py-8">
         <div className="relative">
           <h2 className="text-3xl font-black uppercase tracking-[0.04em] text-foreground sm:text-5xl">Settings Center</h2>
           <p className="mt-3 max-w-3xl text-sm font-semibold text-muted-foreground sm:text-base">
@@ -776,7 +774,7 @@ export default function Settings() {
             description={<CardDescription>Update the name shown in the topbar and avatar menu.</CardDescription>}
             actions={
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "dashboard", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
+                <Button className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "dashboard", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("dashboard")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
             }
@@ -785,7 +783,7 @@ export default function Settings() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="dashboard-username">Dashboard Username</label>
-            <Input id="dashboard-username" value={form.dashboardUsername} onChange={(event) => setForm((current) => ({ ...current, dashboardUsername: event.target.value }))} />
+            <Input id="dashboard-username" placeholder="Admin" value={form.dashboardUsername} onChange={(event) => setForm((current) => ({ ...current, dashboardUsername: event.target.value }))} />
           </div>
           <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
             <p className="text-sm text-muted-foreground">Session storage</p>
@@ -917,7 +915,7 @@ export default function Settings() {
             description={<CardDescription>Operational bot credentials for notifications and chat-based lookup flows.</CardDescription>}
             actions={
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "telegram", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
+                <Button className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "telegram", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("telegram")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
             }
@@ -967,7 +965,7 @@ export default function Settings() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Router className="h-4 w-4 text-primary" />
+                      <Router className="h-4 w-4 text-[#1f7a4d] dark:text-pastel-mint" />
                       <p className="truncate text-base font-semibold text-foreground">{device.name}</p>
                       <Badge variant={getRegistryStatusVariant(device.status)}>{device.status ?? "unknown"}</Badge>
                     </div>
@@ -1020,7 +1018,7 @@ export default function Settings() {
                   <Switch checked={settingsQuery.data?.genieacs_enabled !== "false"} onCheckedChange={(val) => toggleFeatureMutation.mutate({ key: "genieacs_enabled", current: !val })} disabled={isMutating} />
                   <span className="text-xs font-bold uppercase">{settingsQuery.data?.genieacs_enabled !== "false" ? "Enabled" : "Disabled"}</span>
                 </div>
-                <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "genieacs", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
+                <Button className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground" disabled={isMutating} onClick={() => saveSectionMutation.mutate({ section: "genieacs", values: form })} type="button"><Save className="mr-2 h-4 w-4" />Save</Button>
                 <Button className="w-full sm:w-auto" disabled={isMutating} onClick={() => clearSectionMutation.mutate("genieacs")} type="button" variant="outline"><Trash2 className="mr-2 h-4 w-4" />Clear</Button>
               </div>
             }
@@ -1064,7 +1062,7 @@ export default function Settings() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="user-username">Username</label>
-            <Input id="user-username" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} />
+            <Input id="user-username" placeholder="teknisi01" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="user-role">Role</label>
@@ -1118,15 +1116,15 @@ export default function Settings() {
             <label className="text-sm font-medium text-muted-foreground" htmlFor="registry-name">Router Name</label>
             <Input id="registry-name" value={registryForm.name} onChange={(event) => setRegistryForm((current) => ({ ...current, name: event.target.value }))} />
           </div>
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="registry-host">Host / IP</label>
-            <Input id="registry-host" value={registryForm.host} onChange={(event) => setRegistryForm((current) => ({ ...current, host: event.target.value }))} />
+            <Input id="registry-host" placeholder="192.168.88.1" value={registryForm.host} onChange={(event) => setRegistryForm((current) => ({ ...current, host: event.target.value }))} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="registry-port">Port</label>
             <Input id="registry-port" value={registryForm.port} onChange={(event) => setRegistryForm((current) => ({ ...current, port: event.target.value }))} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="registry-site">Site</label>
             <Input id="registry-site" placeholder="POP A / Branch Office" value={registryForm.site} onChange={(event) => setRegistryForm((current) => ({ ...current, site: event.target.value }))} />
           </div>

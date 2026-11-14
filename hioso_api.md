@@ -63,6 +63,11 @@ Tambah OLT baru.
 |---|---|
 | `0` | HA7304VX (swcgi_xml) |
 | `1` | Other/Legacy (legacy_html) |
+| `2` | HSGQ Auto — deteksi GPON/EPON otomatis |
+| `3` | HSGQ GPON (paksa) |
+| `4` | HSGQ EPON (paksa) |
+
+> `firmware_type` yang dikirim saat `POST /devices` adalah angka (0–4). Yang dikembalikan `GET /devices` / `POST /devices/{id}/test` adalah nama driver string: `swcgi_xml`, `legacy_html`, `hsgq`, `hsgq-gpon`, atau `hsgq-epon`.
 
 ### DELETE /devices/{id}
 Hapus OLT dari database.
@@ -185,6 +190,10 @@ Rename ONU (save nama baru).
 { "success": true, "data": { "method": "swcgi_xml" } }
 ```
 
+**Catatan perilaku:**
+- **Rename otomatis disimpan permanen** (legacy + HSGQ): driver memanggil Save Configuration tepat setelah rename sukses (legacy: `GET /goform/saveConfiguration?savecfg=`; HSGQ: `POST /system_save`). Kalau penyimpanan gagal, rename tetap berlaku dan respons membawa `persist_warning` — nama bisa hilang saat OLT reboot.
+- **Reboot tidak menimpa nama**: reboot membaca dulu nama ONU yang tersimpan; kalau nama tidak terbaca, reboot dibatalkan (fail-closed). Dulu pernah ada bug: reboot mengirim nama literal `"reboot"` sehingga ONU ikut ter-rename — sudah diperbaiki.
+
 ### POST /devices/{id}/onu/reboot?port={N}&id={X}
 Reboot ONU.
 
@@ -197,6 +206,33 @@ Reboot ONU.
 ```json
 { "success": true, "data": { "rebooted": true } }
 ```
+
+---
+
+## HSGQ OLT (Web JSON API)
+
+HSGQ **bukan SNMP**: MIB HSGQ hanya read-only (satu objek read-write: ambang suhu alarm), jadi semua aksi lewat Web JSON API OLT. Driver: `internal/handlers/hsgq_web.go` (belum pernah diverifikasi ke OLT HSGQ nyata — pemakaian live pertama sebaiknya ke ONU tes).
+
+### Login
+
+`POST /userlogin?form=login` dengan JSON `{"method":"set","param":{"name":user,"key":md5(user+":"+pass),"value":base64(pass),...}}` → `{"code":1}` + header **`X-Token`** untuk request berikutnya.
+
+- Kredensial = **login web UI OLT** (default pabrik: root/admin).
+- HTTP polos tanpa TLS — pakai lewat VPN.
+- Sesi auto-logout ±5 menit idle; captcha bisa aktif (driver mengembalikan error yang jelas).
+- Varian dipilih saat tambah device (`firmware_type` 2/3/4); varian Auto mendeteksi GPON/EPON dari respons OLT.
+
+### Endpoint yang dipakai driver
+
+| Aksi | GPON | EPON |
+|---|---|---|
+| List ONU | `/ontinfo_table` + `/gponont_mgmt?form=base` | `/onutable` |
+| Detail optik | `/gponont_mgmt?form=ont_optical` | `/onumgmt?form=optical-diagnose` |
+| Reboot | `/gponont_mgmt?form=info` (flags=4) | `/onumgmt?form=config` (flags=1) |
+| Rename | `/gponont_mgmt?form=info` (flags=8) | `/onumgmt?form=config` (flags=8) |
+| Simpan konfigurasi | `POST /system_save` (otomatis setelah rename) | sama |
+
+Catatan EPON: rename/reboot membaca dulu `base-info` dan mengirim ulang `fec_mode` yang sedang aktif — jangan mengirim nilai default.
 
 ---
 

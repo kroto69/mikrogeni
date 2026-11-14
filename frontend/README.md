@@ -50,7 +50,7 @@ Gunakan file `frontend/.env.example` sebagai acuan. Variabel penting:
 ## Branding & Logo
 
 Branding default UI saat ini:
-- Nama: `NC MIKROGENI v4.1`
+- Nama: `NC MIKROGENI`
 - Logo utama frontend: `src/images/logo.png`
 
 Lokasi penggunaan logo:
@@ -59,7 +59,8 @@ Lokasi penggunaan logo:
 
 Untuk ganti logo brand:
 1. Replace file `src/images/logo.png`.
-2. (Opsional) Ubah teks versi/nama brand di komponen Login/Sidebar jika diperlukan.
+2. (Opsional) Ubah teks nama brand di komponen Login/Sidebar jika diperlukan.
 
-Catatan:
-- Wrapper logo Login dan Sidebar sudah menggunakan token merah (`bg-primary`) agar logo putih tetap kontras.
+## Tema (Pastel)
+
+Sejak Nov 2026 dashboard memakai bahasa pastel: blok warna pastel per status (ONLINE mint, OFFLINE abu, LOS merah pastel), teks gelap di atasnya, pill status berlatar gelap. Light/dark bisa diganti lewat tombol Sun/Moon di Topbar (default dark, latar black-75 `#404040`). Font: Space Grotesk (judul/angka) + Inter (teks) + JetBrains Mono (data teknis).

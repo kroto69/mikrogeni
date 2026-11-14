@@ -1,5 +1,14 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { Loader } from "@/components/retroui/Loader";
+
+/**
+ * NOTE (redesign 2026-10-29): this used to render a full-screen blocking
+ * overlay with backdrop blur on every Load/Refresh/Sync, freezing the whole
+ * UI until the request finished. It now renders only a slim indeterminate
+ * progress bar pinned to the top of the viewport: the page stays interactive
+ * (scroll, navigate, cancel) while data loads, and buttons that need to guard
+ * double-submit keep working via `isGlobalLoading`. The API is unchanged, so
+ * all existing callers (ONU, OLT, ZTE pages) keep working as-is.
+ */
 
 type GlobalLoaderOverlayContextValue = {
   isGlobalLoading: boolean;
@@ -56,11 +65,8 @@ export function GlobalLoaderOverlayProvider({ children }: { children: ReactNode 
       {children}
 
       {isGlobalLoading ? (
-        <div className="fixed inset-0 z-[240] grid place-items-center bg-foreground/35 p-4 backdrop-blur-sm">
-          <div className="neo-panel flex min-w-[16rem] max-w-[22rem] flex-col items-center gap-3 border-2 border-border bg-card px-5 py-5 text-center shadow-brutal">
-            <Loader size="lg" variant="default" />
-            <p className="text-sm font-black uppercase tracking-[0.06em] text-foreground">{message}</p>
-          </div>
+        <div className="global-progress" role="status" aria-label={message}>
+          <span className="sr-only">{message}</span>
         </div>
       ) : null}
     </GlobalLoaderOverlayContext.Provider>

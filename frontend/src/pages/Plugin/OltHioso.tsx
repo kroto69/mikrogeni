@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/retroui/Select";
+import { PickerPopup } from "@/components/retroui/PickerPopup";
 import { Loader } from "@/components/retroui/Loader";
 import { PageSectionHeader } from "@/components/page/section-header";
 import {
@@ -28,11 +29,16 @@ import { addZTEConnection, deleteZTEConnection, getZTEConnections, healthCheckZT
 import type { ZTEConnection } from "@/types/zte";
 import { showToast } from "@/lib/toast";
 import { useRole } from "@/hooks/useRole";
-import { MoreHorizontal, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Monitor, RefreshCw, Search, X } from "lucide-react";
+import { IconDisc, OnuStatusPill, RxBar } from "@/components/nms/pastel";
+import { ONU_PILL_DOT, ONU_PILL_TEXT, ONU_ROW_BG, ONU_ROW_META, rxQuality, type OnuRowTone } from "@/lib/pastel";
 import { OltIcon } from "@/components/icons/OltIcon";
 import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
 
 // Parse ONU index "1/3:1" atau "0/3:1" → { port: 3, id: 1 }
+// Fallback popup port bila daftar semua-ONU tak tersedia: 1..16.
+const FALLBACK_PORTS = Array.from({ length: 16 }, (_, i) => i + 1);
+
 function parseOnuIndex(index: string): { port: number; id: number } {
   const match = index.match(/\d+\/(\d+):(\d+)/);
   if (match) {
@@ -50,7 +56,7 @@ type DeviceFormState = {
   password: string;
 };
 
-type OltType = "hioso" | "zte";
+type OltType = "hioso" | "zte" | "hsgq";
 
 type ZteFormState = {
   name: string;
@@ -79,7 +85,7 @@ function buildDeviceForm(device?: HiosoOLTDevice): DeviceFormState {
     name: device.name ?? "",
     host: device.host ?? "",
     port: String(device.port ?? 80),
-    firmware_type: device.firmware_type === "legacy_html" ? "1" : "0",
+    firmware_type: device.firmware_type === "hsgq-gpon" ? "3" : device.firmware_type === "hsgq-epon" ? "4" : device.firmware_type === "hsgq" ? "2" : device.firmware_type === "legacy_html" ? "1" : "0",
     username: device.username ?? "",
     password: "",
   };
@@ -95,15 +101,15 @@ function PluginOverlay({ open, title, description, onClose, children }: { open: 
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-foreground/35 p-3 sm:p-6">
+    <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-black/50 p-3 backdrop-blur-[3px] sm:p-6">
       <button aria-label="Close overlay" className="absolute inset-0" onClick={onClose} type="button" />
-      <div className="relative z-10 my-auto box-border max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-[28px] border-2 border-border bg-card shadow-brutal-lg sm:max-h-[90vh] sm:max-w-2xl">
-        <div className="flex items-center justify-between gap-3 border-b-2 border-border px-5 py-4">
+      <div className="relative z-10 my-auto box-border max-h-[calc(100dvh-1.5rem)] w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden overflow-y-auto rounded-[24px] border border-border bg-card shadow-xl sm:max-h-[90vh] sm:max-w-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+            <h3 className="font-display text-lg font-bold tracking-[-0.01em] text-foreground">{title}</h3>
             {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
           </div>
-          <button onClick={onClose} type="button" className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+          <button onClick={onClose} type="button" className="shrink-0 rounded-full bg-muted p-2 text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -118,6 +124,9 @@ function isOnuOnline(status?: string) {
   const normalized = String(status ?? "").toLowerCase();
   return normalized.includes("up") || normalized.includes("online") || normalized.includes("active");
 }
+
+// Kualitas sinyal RX: ambang sama seperti dulu (<-27 Buruk, <-25 Cukup,
+// sisanya Baik) — implementasi di lib/pastel (dipakai juga ZTE/C-Data).
 
 function getDeviceStatusVariant(status?: string): "success" | "destructive" | "secondary" {
   const normalized = (status ?? "").toLowerCase();
@@ -141,8 +150,17 @@ export default function OltHiosoPage() {
   const [onuFilter, setOnuFilter] = useState<"all" | "online" | "offline">("all");
   const [onuSearch, setOnuSearch] = useState("");
   const [portFilter, setPortFilter] = useState<number>(1);
+  const [portPickerOpen, setPortPickerOpen] = useState(false);
   const [detailOnuIndex, setDetailOnuIndex] = useState<string | null>(null);
   const [onuDraftName, setOnuDraftName] = useState("");
+  // Two-click confirm for Reboot (2026-10-29): first click arms, second
+  // confirms; auto-disarms after 3s so an accidental tap can't reboot.
+  const [rebootArmed, setRebootArmed] = useState(false);
+  useEffect(() => {
+    if (!rebootArmed) return;
+    const timer = setTimeout(() => setRebootArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [rebootArmed]);
   const [deviceModalMode, setDeviceModalMode] = useState<"closed" | "create" | "edit">("closed");
   const [deviceForm, setDeviceForm] = useState<DeviceFormState>(EMPTY_DEVICE_FORM);
   const [editingDevice, setEditingDevice] = useState<HiosoOLTDevice | null>(null);
@@ -184,8 +202,6 @@ export default function OltHiosoPage() {
     retry: 1,
   });
 
-  const ports = [1, 2, 3, 4];
-
   const onusQuery = useQuery({
     queryKey: ["hioso-onus", deviceId, portFilter],
     queryFn: () => getHiosoOnus(deviceId!, portFilter),
@@ -193,6 +209,43 @@ export default function OltHiosoPage() {
     staleTime: 15_000,
     retry: 1,
   });
+
+  // Semua ONU lintas port (backend: GET /onu tanpa port = ListAllONU).
+  // Dipakai untuk menurunkan daftar port popup dari data nyata, bukan
+  // hardcode — satu request tambahan per device, di-cache React Query.
+  const allOnusQuery = useQuery({
+    queryKey: ["hioso-all-onus", deviceId],
+    queryFn: () => getHiosoOnus(deviceId!),
+    enabled: Boolean(deviceId),
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  // Popup port hanya menampilkan port yang benar-benar ada di OLT:
+  // port yang punya ONU (dari daftar semua-ONU) + port yang sedang
+  // dipilih (agar tak hilang saat datanya kosong). Bila daftar
+  // semua-ONU belum termuat, gagal, atau kosong, fallback ke 1..16
+  // seperti dulu — jangan sembunyikan port tanpa dasar data.
+  const availablePorts = useMemo(() => {
+    const rows = allOnusQuery.data ?? [];
+    if (rows.length === 0) {
+      return FALLBACK_PORTS;
+    }
+    const found = new Set<number>();
+    for (const row of rows) {
+      // Sama polanya dengan parseOnuIndex, tapi baris yang tak bisa
+      // diparse dilewati (parseOnuIndex fallback ke port 1).
+      const match = row.index.match(/\d+\/(\d+):(\d+)/);
+      if (match) {
+        found.add(Number(match[1]));
+      }
+    }
+    found.add(portFilter);
+    if (found.size === 0) {
+      return FALLBACK_PORTS;
+    }
+    return [...found].sort((a, b) => a - b);
+  }, [allOnusQuery.data, portFilter]);
 
   const onuDetailQuery = useQuery({
     queryKey: ["hioso-onu-detail", deviceId, detailOnuIndex],
@@ -208,8 +261,16 @@ export default function OltHiosoPage() {
       const { port, id } = parseOnuIndex(index);
       return renameHiosoOnu(deviceId!, port, id, name);
     },
-    onSuccess: async () => {
-      showToast({ title: "ONU name updated", description: "The ONU name was saved successfully.", variant: "success" });
+    onSuccess: async (data) => {
+      // persist_warning = rename masuk RAM tapi Save Configuration gagal:
+      // nama belum permanen, bisa hilang saat OLT reboot. Jangan tampilkan
+      // sukses polos seolah sudah aman.
+      const warning = (data as { persist_warning?: string } | undefined)?.persist_warning;
+      showToast({
+        title: warning ? "ONU name updated (not persisted yet)" : "ONU name updated",
+        description: warning ?? "The ONU name was saved successfully.",
+        variant: warning ? "error" : "success",
+      });
       await queryClient.invalidateQueries({ queryKey: ["hioso-onus", deviceId] });
       await queryClient.invalidateQueries({ queryKey: ["hioso-onu-detail", deviceId] });
     },
@@ -223,8 +284,13 @@ export default function OltHiosoPage() {
       const { port, id } = parseOnuIndex(index);
       return rebootHiosoOnu(deviceId!, port, id);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       showToast({ title: "ONU reboot queued", description: "Reboot command was sent to the ONU.", variant: "success" });
+      // BUGFIX 2026-10-29: refresh list + detail immediately after reboot so
+      // the UI never shows stale data (previously only a toast was shown,
+      // hiding the fact that the device state had changed).
+      await queryClient.invalidateQueries({ queryKey: ["hioso-onus", deviceId] });
+      await queryClient.invalidateQueries({ queryKey: ["hioso-onu-detail", deviceId] });
     },
     onError: (error) => {
       showToast({ title: "Failed to reboot ONU", description: getApiErrorMessage(error), variant: "error" });
@@ -358,7 +424,9 @@ export default function OltHiosoPage() {
     setEditingDevice(device);
     setEditingZte(null);
     setDeviceForm(buildDeviceForm(device));
-    setCreateOltType("hioso");
+    // Perangkat HSGQ dibuka sebagai tipe sendiri agar dropdown firmware
+    // hanya menampilkan varian HSGQ (2/3/4), bukan firmware Hioso.
+    setCreateOltType(device.firmware_type === "hsgq" || device.firmware_type === "hsgq-gpon" || device.firmware_type === "hsgq-epon" ? "hsgq" : "hioso");
     setDeviceModalMode("edit");
   };
 
@@ -487,6 +555,20 @@ export default function OltHiosoPage() {
       });
   }, [onuFilter, onuSearch, onusQuery.data]);
 
+  // Save hanya aktif bila nama benar-benar berubah dari data detail —
+  // mencegah Save tak sengaja yang menimpa nama dengan nilai yang sama.
+  // Sebelum detail termuat, draft non-kosong dianggap berubah agar rename
+  // dari data list tetap bisa dilakukan saat detail gagal dimuat.
+  const isDetailNameChanged = onuDetailQuery.data
+    ? onuDraftName.trim() !== (onuDetailQuery.data.name ?? "").trim()
+    : onuDraftName.trim() !== "";
+
+  // Nilai hero popup detail (v18): RX hanya bila online + ada datanya.
+  const detailOnline = isOnuOnline(onuDetailQuery.data?.status);
+  const detailLos = String(onuDetailQuery.data?.status ?? "").toLowerCase().includes("los");
+  const detailRx = detailOnline && onuDetailQuery.data?.rx_power != null ? onuDetailQuery.data.rx_power : null;
+  const detailQuality = rxQuality(detailRx);
+
   const onlineCount = (onusQuery.data ?? []).filter((onu) => isOnuOnline(onu.status)).length;
   const totalCount = onusQuery.data?.length ?? 0;
   const downCount = Math.max(totalCount - onlineCount, 0);
@@ -537,28 +619,15 @@ export default function OltHiosoPage() {
 
   return (
     <div className="route-shell-page route-shell-plugin-hioso space-y-5">
-      <section className="route-shell-panel relative overflow-hidden rounded-[26px] border-2 border-border bg-primary/20 px-4 py-5 shadow-[12px_12px_0_0_hsl(var(--border))] sm:px-6 sm:py-6">
-        <div className="pointer-events-none absolute -right-5 top-4 h-20 w-20 rotate-12 border-2 border-border bg-primary/90" />
-        <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-16 -rotate-6 border-2 border-border bg-accent" />
+      <section className="route-shell-panel relative overflow-hidden rounded-[20px] border border-border bg-card px-4 py-5 sm:px-6 sm:py-6">
         <PageSectionHeader
           badge={<Badge>Manage</Badge>}
-          description={selectedDevice ? `${selectedDevice.firmware_type === "legacy_html" ? "Legacy" : "HA7304VX"} · ${selectedDevice.host}` : "Kelola semua OLT (Hioso & ZTE) dari halaman ini."}
+          description={selectedDevice ? `${selectedDevice.firmware_type === "hsgq-gpon" ? "HSGQ GPON" : selectedDevice.firmware_type === "hsgq-epon" ? "HSGQ EPON" : selectedDevice.firmware_type === "hsgq" ? "HSGQ" : selectedDevice.firmware_type === "legacy_html" ? "Legacy" : "HA7304VX"} · ${selectedDevice.host}` : "Kelola semua OLT (Hioso & ZTE) dari halaman ini."}
           title={<h2 className="text-2xl font-black uppercase tracking-[0.05em] text-foreground sm:text-4xl">MANAGE OLT</h2>}
           actions={(
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               {selectedDeviceId ? (
                 <>
-                  <Button
-                    className="w-full sm:w-auto"
-                    disabled={isGlobalLoading}
-                    onClick={() => {
-                      void handleRefreshAll();
-                    }}
-                    type="button"
-                    variant="outline"
-                  >
-                    Refresh
-                  </Button>
                   {canManageOlt ? (
                     <Button
                       className="w-full sm:w-auto"
@@ -583,7 +652,7 @@ export default function OltHiosoPage() {
         <div className="flex flex-wrap gap-2">
           {devices.map((device) => (
             <button
-              className={`rounded-lg border-2 border-border px-3 py-1.5 text-sm font-black uppercase tracking-[0.04em] shadow-[4px_4px_0_0_hsl(var(--border))] ${selectedDeviceId === device.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+              className={`rounded-full border px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.04em] ${selectedDeviceId === device.id ? "border-transparent bg-pastel-mint text-[#131313]" : "border-border bg-card text-foreground"}`}
               key={device.id}
               onClick={() => {
                 setSelectedDeviceId(device.id);
@@ -605,7 +674,7 @@ export default function OltHiosoPage() {
       )}
 
       {devices.length === 0 && (zteConnections ?? []).length === 0 && !devicesQuery.isLoading ? (
-        <Card className="overflow-hidden border-2 shadow-brutal">
+        <Card className="overflow-hidden">
           <CardContent className="space-y-3 p-5 text-sm text-muted-foreground">
             <p>Belum ada OLT terdaftar.</p>
             {canManageOlt ? <Button onClick={openCreateDeviceModal} size="sm">Add OLT</Button> : null}
@@ -614,19 +683,19 @@ export default function OltHiosoPage() {
       ) : null}
 
       {!selectedDeviceId && (devices.length > 0 || (zteConnections ?? []).length > 0) ? (
-        <Card className="overflow-hidden border-2 shadow-brutal">
+        <Card className="overflow-hidden">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-black uppercase">Registered OLT</h3>
             </div>
             <div className="space-y-2">
               {devices.map((device) => (
-                <div key={device.id} className="flex items-center justify-between rounded-lg border-2 border-border bg-card px-4 py-3 shadow-brutal-sm">
+                <div key={device.id} className="flex items-center justify-between rounded-[18px] border border-border bg-card px-4 py-3">
                   <div className="flex items-center gap-3">
                     <OltIcon className="h-5 w-5" />
                     <div>
                       <p className="text-sm font-bold uppercase">{device.name || device.host}</p>
-                      <p className="text-xs text-muted-foreground">{device.host}:{device.port} · {device.firmware_type === "legacy_html" ? "Legacy" : "HA7304VX"}</p>
+                      <p className="text-xs text-muted-foreground">{device.host}:{device.port} · {device.firmware_type === "hsgq-gpon" ? "HSGQ GPON" : device.firmware_type === "hsgq-epon" ? "HSGQ EPON" : device.firmware_type === "hsgq" ? "HSGQ" : device.firmware_type === "legacy_html" ? "Legacy" : "HA7304VX"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -643,7 +712,7 @@ export default function OltHiosoPage() {
                 {[...new Set((zteConnections ?? []).map((c) => c.base_url))].map((url) => {
                   const conn = (zteConnections ?? []).find((c) => c.base_url === url)!;
                   return (
-                    <div key={url} className="flex items-center justify-between rounded-lg border-2 border-border bg-card px-4 py-3 shadow-brutal-sm">
+                    <div key={url} className="flex items-center justify-between rounded-[18px] border border-border bg-card px-4 py-3">
                       <div>
                         <p className="text-sm font-bold">ZTE Backend</p>
                         <p className="text-xs text-muted-foreground font-mono">{url}</p>
@@ -660,24 +729,22 @@ export default function OltHiosoPage() {
       ) : null}
 
       {devicesQuery.isError ? (
-        <Card className="overflow-hidden border-2 shadow-brutal">
+        <Card className="overflow-hidden">
           <CardContent className="p-5 text-sm text-destructive">{getApiErrorMessage(devicesQuery.error)}</CardContent>
         </Card>
       ) : null}
 
       {selectedDeviceId ? (
-        <Card className="overflow-hidden border-2 shadow-brutal">
+        <Card className="overflow-hidden">
           <CardContent className="space-y-4 p-5">
-            <div className="flex justify-end gap-2">
-              <div className="h-3 w-5 rotate-6 border-2 border-border bg-primary" />
-              <div className="h-3 w-10 -rotate-3 border-2 border-border bg-accent" />
-            </div>
             <div className="space-y-3">
-              <div className="rounded-lg border-2 border-border bg-card/90 px-4 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]">
+              <div className="rounded-[18px] border border-border bg-card/90 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.06em]">
-                  <span className={`rounded-md border-2 px-2 py-1 ${healthOnline ? "border-green-500/40 bg-green-500/20 text-green-700" : "border-destructive/40 bg-destructive/15 text-destructive"}`}>
-                    {healthOnline ? "OLT Online" : "OLT Down"}
-                  </span>
+                  <OnuStatusPill
+                    label={healthOnline ? "OLT Online" : "OLT Down"}
+                    textClass={healthOnline ? "text-pastel-mint" : "text-pastel-red"}
+                    dotClass={healthOnline ? "bg-pastel-mint" : "bg-pastel-red"}
+                  />
                   <span className="text-muted-foreground">Status Device</span>
                 </div>
                 {healthData ? (
@@ -695,150 +762,171 @@ export default function OltHiosoPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Select value={String(portFilter)} onValueChange={(value) => setPortFilter(Number(value))}>
-                    <Select.Trigger className="h-9 w-28 shrink-0 rounded-lg border-2 border-primary bg-card px-3 text-sm font-black uppercase shadow-brutal-sm">
-                      <Select.Value />
-                    </Select.Trigger>
-                    <Select.Content>
-                      {ports.map((p) => (
-                        <Select.Item key={p} value={String(p)}>PORT {p}</Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select>
-                  <Input
-                    className="h-9 min-w-0 flex-1 border-2 border-input bg-card text-sm font-medium shadow-brutal-sm"
-                    placeholder="Search..."
-                    value={onuSearch}
-                    onChange={(event) => setOnuSearch(event.target.value)}
-                  />
+              <div className="rounded-[20px] border border-border bg-card p-3 sm:p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="shrink-0">
+                    <label className="mb-1.5 block text-xs font-black uppercase tracking-[0.08em] text-foreground" htmlFor="onu-port-select">
+                      Port PON
+                    </label>
+                    <button
+                      aria-expanded={portPickerOpen}
+                      aria-haspopup="dialog"
+                      aria-label="Pilih port PON"
+                      className="flex h-11 w-full min-w-0 items-center justify-between rounded-full border border-border bg-card px-3 text-sm font-black uppercase sm:w-36"
+                      id="onu-port-select"
+                      onClick={() => setPortPickerOpen(true)}
+                      type="button"
+                    >
+                      PORT {portFilter}
+                      <ChevronDown aria-hidden="true" className="ml-2 h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <label className="mb-1.5 block text-xs font-black uppercase tracking-[0.08em] text-foreground" htmlFor="onu-search-input">
+                      Cari ONU
+                    </label>
+                    <div className="relative">
+                      <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="h-11 bg-card pl-9 pr-9 text-sm font-medium"
+                        id="onu-search-input"
+                        placeholder="Cari nama, SN, atau index…"
+                        value={onuSearch}
+                        onChange={(event) => setOnuSearch(event.target.value)}
+                      />
+                      {onuSearch ? (
+                        <button
+                          aria-label="Hapus pencarian"
+                          className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onClick={() => setOnuSearch("")}
+                          type="button"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <Button
+                    className="h-11 shrink-0 gap-2"
+                    disabled={isGlobalLoading}
+                    onClick={() => {
+                      void handleRefreshAll();
+                    }}
+                    type="button"
+                    variant="outline"
+                  >
+                    <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isGlobalLoading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="mt-3 flex rounded-full border border-border bg-muted p-1" role="group" aria-label="Filter status ONU">
                   {(["all", "online", "offline"] as const).map((filter) => {
                     const count = filter === "all" ? totalCount : filter === "online" ? onlineCount : downCount;
-                    const activeColors = {
-                      all: "bg-blue-600 text-white border-blue-600",
-                      online: "bg-success text-success-foreground border-success",
-                      offline: "bg-destructive text-destructive-foreground border-destructive",
-                    };
-                    const inactiveColor = "bg-muted text-foreground border-border";
+                    const label = filter === "all" ? "Semua" : filter === "online" ? "Online" : "Offline";
+                    const active = onuFilter === filter;
                     return (
                       <button
-                        className={`flex-1 rounded-lg border-2 px-2 py-1.5 text-center text-[11px] font-black uppercase tracking-[0.02em] ${onuFilter === filter ? activeColors[filter] : inactiveColor}`}
+                        aria-pressed={active}
+                        className={`h-11 flex-1 rounded-full border px-2 font-mono text-xs font-bold uppercase tracking-[0.02em] ${active ? "border-transparent bg-pastel-mint text-[#131313]" : "border-transparent text-foreground hover:bg-card"}`}
                         key={filter}
                         onClick={() => setOnuFilter(filter)}
                         type="button"
                       >
-                        {filter === "all" ? "All" : filter} {count}
+                        {label} <span className="tabular-nums">{count}</span>
                       </button>
                     );
                   })}
                 </div>
+                {onuSearch.trim() ? (
+                  <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                    {filteredOnus.length} hasil untuk “{onuSearch.trim()}” ·{" "}
+                    <button className="font-black text-foreground underline underline-offset-2" onClick={() => setOnuSearch("")} type="button">
+                      Hapus pencarian
+                    </button>
+                  </p>
+                ) : null}
               </div>
             </div>
 
             {onusQuery.isError ? (
-              <div className="rounded-2xl border-2 border-border bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive shadow-[4px_4px_0_0_hsl(var(--border))]">
+              <div className="rounded-[20px] border border-border bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
                 {getApiErrorMessage(onusQuery.error)}
               </div>
             ) : null}
 
-            <div className="space-y-2 lg:hidden">
-              {filteredOnus.map((onu: HiosoOnuRow) => (
-                <div className="rounded-2xl border-2 border-border bg-card px-3 py-3 shadow-[4px_4px_0_0_hsl(var(--border))]" key={onu.index}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-black uppercase tracking-[0.04em] text-foreground">{onu.name || "ONU"}</p>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        IDX {onu.index}
+            <div className="flex flex-col gap-3">
+              {filteredOnus.map((onu: HiosoOnuRow) => {
+                const { port } = parseOnuIndex(onu.index);
+                const online = isOnuOnline(onu.status);
+                const isLos = String(onu.status ?? "").toLowerCase().includes("los");
+                const tone: OnuRowTone = online ? "online" : isLos ? "los" : "offline";
+                const iconTint = tone === "online" ? "text-pastel-mint" : tone === "los" ? "text-pastel-red" : "text-pastel-grey";
+                const rx = online ? onu.rx_power : null;
+                const tx = online ? onu.tx_power : null;
+                return (
+                  <button
+                    key={onu.index}
+                    type="button"
+                    onClick={() => openOnuDetailOverlay(onu)}
+                    className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${ONU_ROW_BG[tone]}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <IconDisc iconClass={iconTint} className="h-11 w-11">
+                        <Monitor className="h-5 w-5" />
+                      </IconDisc>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-display text-[17px] font-bold tracking-[-0.01em]">{onu.name || "ONU"}</p>
+                        <p className={`mt-0.5 truncate font-mono text-[11px] ${ONU_ROW_META[tone]}`}>
+                          IDX {onu.index} · PON {port}
+                        </p>
+                      </div>
+                      <div className="hidden min-w-0 flex-1 font-mono text-xs leading-[1.7] lg:block">
+                        <p className="truncate">SN {onu.sn || "-"}</p>
+                      </div>
+                      <div className="hidden font-mono text-xs font-bold leading-[1.7] lg:block">
+                        <p>{tx != null ? `TX ${tx} dBm` : "TX —"}</p>
+                        <p>{rx != null ? `RX ${rx} dBm` : "RX —"}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2.5">
+                        <OnuStatusPill label={(onu.status || "Unknown").toUpperCase()} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
+                        <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex">
+                          <ArrowUpRight className="h-4 w-4" />
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono text-xs lg:hidden ${ONU_ROW_META[tone]}`}>
+                      <p className="truncate text-[#131313]">SN {onu.sn || "-"}</p>
+                      <p>
+                        {tx != null ? `TX ${tx} dBm` : "TX —"} · {rx != null ? `RX ${rx} dBm` : "RX —"}
                       </p>
-                      <p className="text-[11px] font-semibold text-muted-foreground break-all">SN: {onu.sn || "-"}</p>
-                      <p className="text-[11px] font-semibold text-muted-foreground">TX: {isOnuOnline(onu.status) ? (onu.tx_power ?? "-") + " dBm" : "-"}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
-                      <p className="text-[11px] font-bold text-foreground">RX: {isOnuOnline(onu.status) ? (onu.rx_power ?? "-") + " dBm" : "-"}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex justify-end">
-                    <Button
-                      aria-label="ONU actions"
-                      className="h-8 w-8 p-0"
-                      onClick={() => openOnuDetailOverlay(onu)}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
 
               {(onusQuery.isFetching || filteredOnus.length === 0) ? (
-                <div className="rounded-2xl border-2 border-border bg-card px-4 py-8 text-center text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_0_hsl(var(--border))] flex flex-col items-center gap-3">
+                <div className="rounded-[20px] border border-border bg-card px-4 py-8 text-center text-sm font-semibold text-muted-foreground flex flex-col items-center gap-3">
                   {onusQuery.isFetching ? <><Loader size="sm" /><span>Loading ONU data...</span></> : "No ONU matched current filter."}
                 </div>
               ) : null}
-            </div>
-
-            <div className="hidden overflow-x-auto rounded-2xl border-2 border-border shadow-[6px_6px_0_0_hsl(var(--border))] lg:block">
-              <table className="min-w-full text-sm">
-                <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3">Index</th>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Serial</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">RX Power</th>
-                    <th className="px-4 py-3 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOnus.map((onu: HiosoOnuRow) => (
-                    <tr className="border-t-2 border-border/80" key={onu.index}>
-                      <td className="px-4 py-3 font-semibold text-foreground">{onu.index}</td>
-                      <td className="px-4 py-3 text-foreground">{onu.name || "-"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{onu.sn || "-"}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={isOnuOnline(onu.status) ? "success" : "secondary"}>{onu.status || "Unknown"}</Badge>
-                      </td>
-                      <td className="px-4 py-3 font-bold text-foreground">{isOnuOnline(onu.status) ? (onu.rx_power ?? "-") + " dBm" : "-"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-center">
-                          <Button
-                            aria-label="ONU actions"
-                            className="h-8 w-8 p-0"
-                            onClick={() => openOnuDetailOverlay(onu)}
-                            size="sm"
-                            type="button"
-                            variant="outline"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {(onusQuery.isFetching || filteredOnus.length === 0) ? (
-                    <tr>
-                      <td className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground" colSpan={6}>
-                        {onusQuery.isFetching ? <div className="flex items-center justify-center gap-3"><Loader size="sm" /><span>Loading ONU data...</span></div> : "No ONU matched current filter."}
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
             </div>
           </CardContent>
         </Card>
       ) : null}
 
-      <PluginOverlay open={Boolean(detailOnuIndex)} title="ONU Detail" onClose={closeOnuDetailOverlay}>
+      <PickerPopup
+        layout="list"
+        onClose={() => setPortPickerOpen(false)}
+        onSelect={(value) => setPortFilter(Number(value))}
+        open={portPickerOpen}
+        options={availablePorts.map((p) => ({ value: String(p), label: `PORT ${p}` }))}
+        selectedValue={String(portFilter)}
+        title="Pilih Port PON"
+      />
+
+      <PluginOverlay open={Boolean(detailOnuIndex)} title={onuDetailQuery.data?.name || "ONU Detail"} description={onuDetailQuery.data ? `IDX ${onuDetailQuery.data.index || detailOnuIndex}` : onuDetailQuery.isLoading ? "Memuat detail ONU…" : undefined} onClose={closeOnuDetailOverlay}>
         <form
-          className="space-y-4"
+          className="space-y-6"
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             if (!detailOnuIndex) {
@@ -847,69 +935,170 @@ export default function OltHiosoPage() {
             renameOnuMutation.mutate({ index: detailOnuIndex, name: onuDraftName });
           }}
         >
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            <div><span className="font-semibold text-foreground">Index:</span> {onuDetailQuery.data?.index || "-"}</div>
-            <div><span className="font-semibold text-foreground">Web ID:</span> {onuDetailQuery.data?.web_id || "-"}</div>
-            <div><span className="font-semibold text-foreground">Firmware:</span> {onuDetailQuery.data?.firmware || "-"}</div>
-            <div><span className="font-semibold text-foreground">Chip:</span> {onuDetailQuery.data?.chip_id || "-"}</div>
-            <div><span className="font-semibold text-foreground">Serial:</span> {onuDetailQuery.data?.sn || "-"}</div>
-            <div><span className="font-semibold text-foreground">Status:</span> <Badge variant={isOnuOnline(onuDetailQuery.data?.status) ? "success" : "secondary"}>{onuDetailQuery.data?.status || "-"}</Badge></div>
-            <div><span className="font-semibold text-foreground">TX Power:</span> {onuDetailQuery.data?.tx_power ?? "-"} dBm</div>
-            <div>
-              <span className="font-semibold text-foreground">RX Power:</span>{" "}
-              <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold ${
-                onuDetailQuery.data?.rx_power == null ? "" :
-                onuDetailQuery.data.rx_power < -27 ? "bg-destructive/20 text-destructive" :
-                onuDetailQuery.data.rx_power < -25 ? "bg-orange-100 text-orange-700" :
-                "bg-green-100 text-green-700"
-              }`}>
-                {onuDetailQuery.data?.rx_power ?? "-"} dBm
-              </span>
+          {onuDetailQuery.isError ? (
+            <p className="rounded-[16px] bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+              {getApiErrorMessage(onuDetailQuery.error)}
+            </p>
+          ) : null}
+
+          {onuDetailQuery.isLoading ? (
+            <div className="space-y-4" aria-busy="true">
+              <div className="h-8 w-2/3 animate-pulse rounded-md bg-muted" />
+              <div className="h-4 w-1/2 animate-pulse rounded-md bg-muted" />
+              <div className="grid grid-cols-2 gap-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 animate-pulse rounded-md bg-muted" />
+                ))}
+              </div>
             </div>
-            <div><span className="font-semibold text-foreground">Temperature:</span> {onuDetailQuery.data?.temperature ?? "-"} °C</div>
-            <div><span className="font-semibold text-foreground">Registered:</span> {onuDetailQuery.data?.registered_at || "-"}</div>
-          </div>
+          ) : (
+            <>
+              <div className="rounded-[20px] bg-pastel-mint p-4 text-[#131313]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]">RX Power</p>
+                  <OnuStatusPill
+                    label={(onuDetailQuery.data?.status || "-").toUpperCase()}
+                    textClass={detailOnline ? "text-pastel-mint" : detailLos ? "text-pastel-red" : "text-pastel-grey"}
+                    dotClass={detailOnline ? "bg-pastel-mint" : detailLos ? "bg-pastel-red" : "bg-pastel-grey"}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-2">
+                  <span className="font-display text-4xl font-bold leading-none tracking-[-0.02em]">{detailRx != null ? detailRx : "−"}</span>
+                  <span className="font-mono text-sm font-bold">dBm</span>
+                  {detailQuality.label !== "-" ? (
+                    <span className="ml-auto">
+                      <OnuStatusPill
+                        label={detailQuality.label}
+                        textClass={detailQuality.label === "Baik" ? "text-pastel-mint" : detailQuality.label === "Cukup" ? "text-pastel-yellow" : "text-pastel-red"}
+                        dotClass={detailQuality.label === "Baik" ? "bg-pastel-mint" : detailQuality.label === "Cukup" ? "bg-pastel-yellow" : "bg-pastel-red"}
+                      />
+                    </span>
+                  ) : null}
+                </div>
+                <RxBar rx={detailRx} barColor={detailQuality.bar} className="mt-3" />
+                <div className="mt-3 flex gap-2.5">
+                  <div className="flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3">
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]">TX Power</p>
+                    <p className="mt-1 font-mono text-[15px] font-bold">{detailOnline && onuDetailQuery.data?.tx_power != null ? `${onuDetailQuery.data.tx_power} dBm` : "−"}</p>
+                  </div>
+                  <div className="flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3">
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]">Suhu</p>
+                    <p className="mt-1 font-mono text-[15px] font-bold">{onuDetailQuery.data?.temperature != null ? `${onuDetailQuery.data.temperature} °C` : "−"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border bg-card px-4 py-2">
+                <div className="grid grid-cols-2 gap-x-4">
+                  {onuDetailQuery.data?.web_id && onuDetailQuery.data.web_id !== onuDetailQuery.data.index ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Web ID</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.web_id}</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.sn ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Serial</p>
+                      <p className="mt-1 break-all font-mono text-[13px] font-semibold text-foreground">{onuDetailQuery.data.sn}</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.firmware ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Firmware</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.firmware}</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.chip_id ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Chip</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.chip_id}</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.ports ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Ports</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.ports}</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.voltage != null && onuDetailQuery.data.voltage > 0 ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Tegangan</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.voltage} V</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.bias_current != null && onuDetailQuery.data.bias_current > 0 ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Bias</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.bias_current} mA</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.registered_at ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Terdaftar</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.registered_at}</p>
+                    </div>
+                  ) : null}
+                  {onuDetailQuery.data?.last_online_at ? (
+                    <div className="border-b border-border/60 py-2.5">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Terakhir Online</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.last_online_at}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-[0.08em] text-foreground" htmlFor="onu-name-input">ONU Name</label>
-            <Input id="onu-name-input" value={onuDraftName} onChange={(event) => setOnuDraftName(event.target.value)} />
+            <div className="flex items-baseline justify-between gap-2">
+              <label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground" htmlFor="onu-name-input">Nama ONU</label>
+              <span className="font-mono text-[11px] font-semibold tabular-nums text-muted-foreground">{onuDraftName.length}/30</span>
+            </div>
+            <Input className="h-11" id="onu-name-input" maxLength={30} value={onuDraftName} onChange={(event) => setOnuDraftName(event.target.value)} />
           </div>
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                disabled={onuDetailQuery.isFetching || rebootOnuMutation.isPending || renameOnuMutation.isPending}
-                onClick={() => {
-                  void runWithGlobalLoader(async () => {
-                    const result = await onuDetailQuery.refetch();
-                    if (result.error) {
-                      throw result.error;
-                    }
-                  }, "Refreshing ONU Detail...").catch((refreshError) => {
-                    showToast({
-                      title: "Refresh ONU gagal",
-                      description: getApiErrorMessage(refreshError),
-                      variant: "error",
-                    });
+          <div className="flex gap-2.5">
+            <Button className="h-11 flex-1" disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending || onuDetailQuery.isLoading || !isDetailNameChanged} type="submit">Simpan Nama</Button>
+            <Button
+              className="h-11 flex-1 gap-2"
+              disabled={onuDetailQuery.isFetching || rebootOnuMutation.isPending || renameOnuMutation.isPending}
+              onClick={() => {
+                void runWithGlobalLoader(async () => {
+                  const result = await onuDetailQuery.refetch();
+                  if (result.error) {
+                    throw result.error;
+                  }
+                }, "Refreshing ONU Detail...").catch((refreshError) => {
+                  showToast({
+                    title: "Refresh ONU gagal",
+                    description: getApiErrorMessage(refreshError),
+                    variant: "error",
                   });
-                }}
-                type="button"
-                variant="outline"
-              >
-                Refresh
-              </Button>
-              <Button
-                disabled={!detailOnuIndex || rebootOnuMutation.isPending || renameOnuMutation.isPending}
-                onClick={() => detailOnuIndex ? rebootOnuMutation.mutate(detailOnuIndex) : undefined}
-                type="button"
-                variant="secondary"
-              >
-                Reboot
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending} type="submit">Save</Button>
-            </div>
+                });
+              }}
+              type="button"
+              variant="outline"
+            >
+              <RefreshCw aria-hidden="true" className={`h-4 w-4 ${onuDetailQuery.isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button
+              className="h-11 flex-1"
+              disabled={!detailOnuIndex || rebootOnuMutation.isPending || renameOnuMutation.isPending}
+              onClick={() => {
+                if (!detailOnuIndex) return;
+                if (!rebootArmed) {
+                  setRebootArmed(true);
+                  return;
+                }
+                setRebootArmed(false);
+                rebootOnuMutation.mutate(detailOnuIndex);
+              }}
+              type="button"
+              variant="destructive"
+            >
+              {rebootArmed ? "Yakin reboot?" : "Reboot ONU"}
+            </Button>
           </div>
         </form>
       </PluginOverlay>
@@ -936,19 +1125,33 @@ export default function OltHiosoPage() {
           {deviceModalMode === "create" ? (
             <div className="space-y-2 sm:col-span-2">
               <label className="text-sm font-medium text-muted-foreground" htmlFor="device-type">Tipe OLT</label>
-              <Select value={createOltType} onValueChange={(value) => setCreateOltType(value as OltType)}>
-                <Select.Trigger id="device-type" className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring">
+              <Select value={createOltType} onValueChange={(value) => {
+                const next = value as OltType;
+                setCreateOltType(next);
+                // Pindah ke HSGQ: firmware Hioso (0/1) tidak ada di daftar
+                // varian HSGQ — paksa ke HSGQ (Auto). Balik ke HIOSO tidak
+                // perlu diubah (2/3/4 tetap valid di daftar lengkap).
+                if (next === "hsgq") {
+                  setDeviceForm((current) => (current.firmware_type === "0" || current.firmware_type === "1" ? { ...current, firmware_type: "2" } : current));
+                } else if (next === "hioso") {
+                  // Balik ke HIOSO: varian HSGQ (2/3/4) tidak cocok di form
+                  // HIOSO — kembalikan ke HA7304VX.
+                  setDeviceForm((current) => (current.firmware_type === "2" || current.firmware_type === "3" || current.firmware_type === "4" ? { ...current, firmware_type: "0" } : current));
+                }
+              }}>
+                <Select.Trigger id="device-type" className="h-11 w-full rounded-full border border-input bg-card px-3 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                   <Select.Value placeholder="Pilih tipe OLT" />
                 </Select.Trigger>
                 <Select.Content>
                   <Select.Item value="hioso">HIOSO</Select.Item>
+                  <Select.Item value="hsgq">HSGQ</Select.Item>
                   <Select.Item value="zte">ZTE</Select.Item>
                 </Select.Content>
               </Select>
             </div>
           ) : null}
 
-          {((deviceModalMode === "edit" && createOltType === "hioso") || (deviceModalMode === "create" && createOltType === "hioso")) ? (
+          {((deviceModalMode === "edit" && createOltType !== "zte") || (deviceModalMode === "create" && createOltType !== "zte")) ? (
             <>
           <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-name">Device Name</label>
@@ -956,33 +1159,52 @@ export default function OltHiosoPage() {
           </div>
 
           <div className="space-y-2 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">SNMP</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Web UI</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-host">Host / IP</label>
-            <Input id="device-host" value={deviceForm.host} onChange={(event) => setDeviceForm((current) => ({ ...current, host: event.target.value }))} />
+            <Input id="device-host" placeholder={createOltType === "hsgq" ? "192.168.100.1" : undefined} value={deviceForm.host} onChange={(event) => setDeviceForm((current) => ({ ...current, host: event.target.value }))} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-port">Port</label>
             <Input id="device-port" value={deviceForm.port} onChange={(event) => setDeviceForm((current) => ({ ...current, port: event.target.value }))} />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-firmware-type">Firmware Type</label>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-muted-foreground" htmlFor="device-firmware-type">{createOltType === "hsgq" ? "Varian HSGQ" : "Firmware Type"}</label>
             <Select
               value={deviceForm.firmware_type}
               onValueChange={(value) => setDeviceForm((current) => ({ ...current, firmware_type: value }))}
             >
               <Select.Trigger
                 id="device-firmware-type"
-                className="h-11 w-full rounded-lg border-2 border-input bg-card px-3 text-sm text-foreground shadow-brutal-sm focus-visible:-translate-x-[1px] focus-visible:-translate-y-[1px] focus-visible:shadow-brutal focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-11 w-full rounded-full border border-input bg-card px-3 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Select.Value placeholder="Select type" />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="0">HA7304VX</Select.Item>
-                <Select.Item value="1">Other (Legacy)</Select.Item>
+                {createOltType === "hsgq" ? (
+                  <>
+                    <Select.Item value="2">HSGQ (Auto)</Select.Item>
+                    <Select.Item value="3">HSGQ GPON</Select.Item>
+                    <Select.Item value="4">HSGQ EPON</Select.Item>
+                  </>
+                ) : (
+                  <>
+                    <Select.Item value="0">HA7304VX</Select.Item>
+                    <Select.Item value="1">Other (Legacy)</Select.Item>
+                    <Select.Item value="2">HSGQ (Auto)</Select.Item>
+                    <Select.Item value="3">HSGQ GPON</Select.Item>
+                    <Select.Item value="4">HSGQ EPON</Select.Item>
+                  </>
+                )}
               </Select.Content>
             </Select>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Login Web</p>
+            {createOltType === "hsgq" ? (
+              <p className="text-[11px] text-muted-foreground">Akun login web UI OLT. Default pabrik HSGQ: root / admin.</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground" htmlFor="device-username">Username</label>
@@ -1005,7 +1227,7 @@ export default function OltHiosoPage() {
                 <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-baseurl">ZTE Backend URL</label>
                 <Input id="zte-baseurl" placeholder="http://olt-monitor:8081" value={zteForm.baseUrl} onChange={(event) => setZteForm((current) => ({ ...current, baseUrl: event.target.value }))} />
                 <p className="text-[11px] text-muted-foreground">
-                  Requires <a href="https://github.com/kroto69/zzte" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">zzte</a> container running. See README for integration guide.
+                  Requires <a href="https://github.com/kroto69/zzte" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#1f7a4d] underline dark:text-pastel-mint">zzte</a> container running. See README for integration guide.
                 </p>
               </div>
               <div className="sm:col-span-2">
@@ -1051,7 +1273,7 @@ export default function OltHiosoPage() {
                 }}
                 type="button"
                 variant="outline"
-                className="flex-1 text-red-600 hover:bg-red-50"
+                className="flex-1 text-destructive hover:bg-destructive/10"
               >
                 Delete
               </Button>
@@ -1065,7 +1287,9 @@ export default function OltHiosoPage() {
                 ? "Save Changes"
                 : createOltType === "zte"
                   ? "Create ZTE OLT"
-                  : "Create HIOSO OLT"}
+                  : createOltType === "hsgq"
+                    ? "Create HSGQ OLT"
+                    : "Create HIOSO OLT"}
           </Button>
         </div>
       </PluginOverlay>

@@ -57,6 +57,11 @@ export async function getZTESystemInfo(connId: string): Promise<ZTESystemInfo> {
   return Array.isArray(result) ? result[0] : result
 }
 
+export async function getZTEBoards(connId: string): Promise<number[]> {
+  const { data } = await api.get<ApiEnvelope<number[]> | number[]>(`/zte/olt/${encodeURIComponent(connId)}/boards`)
+  return unwrap(data) ?? []
+}
+
 export async function getZTEPONList(connId: string, board: number): Promise<ZTEPONInfo[]> {
   const { data } = await api.get<ApiEnvelope<ZTEPONInfo[]> | ZTEPONInfo[]>(`/zte/olt/${encodeURIComponent(connId)}/board/${board}/pon`)
   return unwrap(data) ?? []

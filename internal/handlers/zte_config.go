@@ -39,8 +39,11 @@ func CreateZTEConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type oltItem struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Config struct {
+			Vendor string `json:"vendor"`
+		} `json:"config"`
 	}
 	type oltsResponse struct {
 		Success bool      `json:"success"`
@@ -88,9 +91,14 @@ func CreateZTEConnection(w http.ResponseWriter, r *http.Request) {
 	for _, olt := range result.Data {
 		oltName := strings.TrimSpace(olt.Name)
 		oltID := strings.TrimSpace(olt.ID)
+		vendor := strings.TrimSpace(olt.Config.Vendor)
+		if vendor == "" {
+			vendor = "zte"
+		}
 		createReq := models.ZTEConnectionRequest{
 			Name:    oltName,
 			BaseURL: strings.TrimSpace(req.BaseURL),
+			Vendor:  vendor,
 		}
 		conn, err := db.CreateZTEConnection(createReq)
 		if err != nil {
@@ -103,6 +111,7 @@ func CreateZTEConnection(w http.ResponseWriter, r *http.Request) {
 			if oltID != "" {
 				updateReq.OltID = &oltID
 			}
+			updateReq.Vendor = &vendor
 			if oltName != "" && oltName != conn.Name {
 				updateReq.Name = &oltName
 			}

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { OnuStatusPill } from "@/components/nms/pastel";
 import { getApiErrorMessage, getMikrotikDevices } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { MikrotikRegistryDevice, MikrotikStatus } from "@/types/mikrotik";
@@ -35,33 +35,32 @@ function formatSyncTime(value?: string) {
   return parsed.toLocaleString();
 }
 
+/** Kartu perangkat ikut bahasa pastel (v29/v30): latar blok pastel per
+    status, teks gelap di atasnya, pill status latar gelap. */
 function getDeviceTone(status: MikrotikStatus) {
   if (status === "online") {
     return {
-      cardClassName:
-        "border-border bg-card",
-      badgeClassName:
-        "border-border bg-success text-success-foreground",
-      accentClassName: "bg-success",
+      cardClassName: "bg-pastel-mint",
+      metaClassName: "text-[#4a5a50]",
+      pillTextClassName: "text-pastel-mint",
+      pillDotClassName: "bg-pastel-mint",
     };
   }
 
   if (status === "offline") {
     return {
-      cardClassName:
-        "border-border bg-card",
-      badgeClassName:
-        "border-border bg-warning text-warning-foreground",
-      accentClassName: "bg-warning",
+      cardClassName: "bg-pastel-grey",
+      metaClassName: "text-[#6b6b6b]",
+      pillTextClassName: "text-pastel-grey",
+      pillDotClassName: "bg-pastel-grey",
     };
   }
 
   return {
-    cardClassName:
-      "border-border bg-card",
-    badgeClassName:
-      "border-border bg-secondary text-secondary-foreground",
-    accentClassName: "bg-secondary",
+    cardClassName: "bg-pastel-lavender",
+    metaClassName: "text-[#5c5170]",
+    pillTextClassName: "text-pastel-lavender",
+    pillDotClassName: "bg-pastel-lavender",
   };
 }
 
@@ -78,55 +77,58 @@ function DeviceCard({ device }: { device: MikrotikRegistryDevice }) {
 
   return (
     <Link className="block h-full" to={`/mikrotik/${device.id}`}>
-      <Card className={cn("group h-full overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-brutal-lg", tone.cardClassName)}>
-        <CardContent className="space-y-2.5 p-3 sm:p-3.5">
+      <div className={cn("group h-full overflow-hidden rounded-[20px] transition-all duration-200 hover:-translate-y-0.5", tone.cardClassName)}>
+        <div className="space-y-2.5 p-3 sm:p-3.5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]", tone.badgeClassName)}>
-                  {status}
-                </span>
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <span className={cn("h-2 w-2 rounded-full", tone.accentClassName)} />
+                <OnuStatusPill
+                  className="px-3 py-1.5 text-[11px]"
+                  dotClass={tone.pillDotClassName}
+                  label={status.toUpperCase()}
+                  textClass={tone.pillTextClassName}
+                />
+                <span className={cn("inline-flex items-center gap-1 text-[11px]", tone.metaClassName)}>
+                  <span className={cn("h-2 w-2 rounded-full bg-[#131313]")} />
                   {device.site || "Unassigned"}
                 </span>
               </div>
 
               <div>
-                <h3 className="break-words text-[15px] font-semibold leading-tight text-foreground sm:text-base">
+                <h3 className="break-words text-[15px] font-semibold leading-tight text-[#131313] sm:text-base">
                   {device.name}
                 </h3>
-                <p className="mt-0.5 break-words text-[12px] leading-4 text-muted-foreground">{device.host}</p>
+                <p className={cn("mt-0.5 break-words text-[12px] leading-4", tone.metaClassName)}>{device.host}</p>
               </div>
             </div>
 
-            <span className="inline-flex w-fit shrink-0 items-center rounded-full border-2 border-border bg-primary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-foreground transition-colors">Open</span>
+            <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-[#131313] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-pastel-mint">Open</span>
           </div>
 
           <div className="space-y-1.5 sm:grid sm:grid-cols-2 sm:gap-2 sm:space-y-0">
             {detailRows.map(([label, value]) => (
-              <div className="rounded-xl border-2 border-border bg-card px-2.5 py-2 shadow-brutal-sm sm:block" key={label}>
+              <div className="px-1 py-1.5 sm:block" key={label}>
                 <div className="flex items-start justify-between gap-3 sm:block">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-                  <p className="max-w-[62%] break-words text-right text-[12px] font-semibold leading-tight text-foreground sm:mt-1 sm:max-w-none sm:text-left">{value}</p>
+                  <p className={cn("text-[10px] font-semibold uppercase tracking-[0.12em]", tone.metaClassName)}>{label}</p>
+                  <p className="max-w-[62%] break-words text-right font-mono text-[12px] font-semibold leading-tight text-[#131313] sm:mt-1 sm:max-w-none sm:text-left">{value}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="flex flex-col gap-1.5 border-t-2 border-border pt-2 text-[11px] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-            <span className="break-words text-muted-foreground">{syncLabel}</span>
+          <div className="flex flex-col gap-1.5 border-t border-[#131313]/15 pt-2 text-[11px] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+            <span className={cn("break-words", tone.metaClassName)}>{syncLabel}</span>
             <span
               className={cn(
                 "shrink-0 font-medium",
-                device.last_error ? "text-destructive" : "text-success"
+                device.last_error ? "text-[#b91c1c]" : "text-[#131313]"
               )}
             >
               {device.last_error ? "Needs attention" : "Healthy"}
             </span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </Link>
   );
 }
@@ -150,32 +152,25 @@ export default function MikrotikIndex() {
 
   return (
     <div className="route-shell-page route-shell-mikrotik space-y-4 sm:space-y-5">
-      <section className="route-shell-panel relative overflow-hidden rounded-[26px] border-2 border-border bg-primary/20 shadow-[12px_12px_0_0_hsl(var(--border))]">
-        <div className="pointer-events-none absolute -right-8 top-4 h-24 w-24 rotate-[15deg] border-2 border-border bg-accent/70" />
-        <div className="pointer-events-none absolute bottom-3 left-5 h-4 w-20 -rotate-6 border-2 border-border bg-secondary/80" />
-        <div className="flex flex-col gap-3 p-3.5 sm:p-4">
+      <section className="relative overflow-hidden">
+        <div className="flex flex-col gap-3">
           <PageSectionHeader
             title={<h2 className="font-display text-xl font-black uppercase tracking-[0.04em] text-foreground sm:text-3xl">MikroTik Fleet</h2>}
             description={<p className="text-[13px] font-semibold text-muted-foreground">Gateway, concentrator, and edge router inventory.</p>}
-            meta={<span className="inline-flex rounded-full border-2 border-border bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">Live registry view</span>}
+            meta={<span className="inline-flex rounded-full bg-[#131313] px-3 py-1.5 font-mono text-[11px] font-bold tracking-[0.04em] text-pastel-mint">Live registry view</span>}
           />
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              ["Devices", summary.total, "Total registry targets", "default"],
-              ["Online", summary.online, "Healthy and reachable", "success"],
-              ["Offline", summary.offline, "Need operator attention", "destructive"],
-              ["Attention", summary.attention, "Offline or error state", "secondary"],
-            ].map(([label, value, caption, variant]) => (
-              <div key={String(label)} className="rounded-[16px] border-2 border-border bg-card px-3 py-2 shadow-brutal-sm sm:min-h-[74px]">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-                    <p className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground sm:text-xl">{value}</p>
-                  </div>
-                  <Badge variant={variant as "default" | "success" | "destructive" | "secondary"}>{label}</Badge>
-                </div>
-                <p className="mt-1 hidden text-[10px] leading-4 text-muted-foreground sm:block">{caption}</p>
+              { label: "Devices", value: summary.total, caption: "Total registry targets", bg: "bg-pastel-lavender", meta: "text-[#5c5170]" },
+              { label: "Online", value: summary.online, caption: "Healthy and reachable", bg: "bg-pastel-mint", meta: "text-[#4a5a50]" },
+              { label: "Offline", value: summary.offline, caption: "Need operator attention", bg: "bg-pastel-grey", meta: "text-[#6b6b6b]" },
+              { label: "Attention", value: summary.attention, caption: "Offline or error state", bg: "bg-pastel-yellow", meta: "text-[#6b5a2e]" },
+            ].map((tile) => (
+              <div key={tile.label} className={cn("rounded-[20px] px-4 py-3 sm:min-h-[74px]", tile.bg)}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#131313]">{tile.label}</p>
+                <p className="mt-1 font-display text-lg font-bold tracking-[-0.03em] text-[#131313] sm:text-2xl">{tile.value}</p>
+                <p className={cn("mt-1 hidden text-[10px] leading-4 sm:block", tile.meta)}>{tile.caption}</p>
               </div>
             ))}
           </div>

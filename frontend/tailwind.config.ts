@@ -8,6 +8,7 @@ export default {
       fontFamily: {
         display: ["var(--font-display)"],
         body: ["var(--font-body)"],
+        mono: ["var(--font-mono)"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -15,6 +16,7 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        sidebar: "hsl(var(--sidebar))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -51,6 +53,17 @@ export default {
           DEFAULT: "hsl(var(--complementary))",
           foreground: "hsl(var(--complementary-foreground))",
         },
+        // Blok pastel (mockup v29/v30) — sama di light + dark, jadi hex
+        // mentah, bukan token HSL yang berubah per mode.
+        pastel: {
+          mint: "#B8E6C9",
+          pink: "#FFD6EA",
+          yellow: "#FFE6A6",
+          lavender: "#D7CAE8",
+          grey: "#D9D9D9",
+          red: "#F5B5B5",
+          ink: "#131313",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -60,10 +73,12 @@ export default {
         "2xl": "calc(var(--radius) + 0.5rem)",
       },
       boxShadow: {
-        brutal: "4px 4px 0 0 hsl(var(--border))",
-        "brutal-sm": "2px 2px 0 0 hsl(var(--border))",
-        "brutal-lg": "8px 8px 0 0 hsl(var(--border))",
-        panel: "4px 4px 0 0 hsl(var(--border))",
+        // Nama "brutal" dipertahankan agar kelas lama tetap jalan, tapi
+        // isinya bayangan lembut ala pastel — bukan offset keras.
+        brutal: "0 1px 2px rgb(0 0 0 / 0.05), 0 8px 24px rgb(0 0 0 / 0.08)",
+        "brutal-sm": "0 1px 2px rgb(0 0 0 / 0.06)",
+        "brutal-lg": "0 4px 12px rgb(0 0 0 / 0.08), 0 16px 40px rgb(0 0 0 / 0.12)",
+        panel: "0 1px 2px rgb(0 0 0 / 0.05), 0 8px 24px rgb(0 0 0 / 0.08)",
       },
       backgroundImage: {
         "grid-soft": "linear-gradient(to right, rgba(0,0,0,0.08) 2px, transparent 2px), linear-gradient(to bottom, rgba(0,0,0,0.08) 2px, transparent 2px)",

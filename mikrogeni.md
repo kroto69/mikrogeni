@@ -1,5 +1,7 @@
 # Mikrogeni - Project Structure Analysis
 
+> **Catatan (Nov 2026):** analisis ini ditulis saat UI masih neo-brutalism. Sejak Nov 2026 tema sudah diganti ke **pastel** (blok warna pastel per status, tanpa border/shadow brutalist; dark mode aktif, default dark black-75 `#404040`; font Space Grotesk + Inter + JetBrains Mono). Bagian yang masih menyebut brutalism di bawah adalah catatan historis, bukan keadaan sekarang. Jumlah file `.tsx` juga sudah bertambah (56 per Nov 2026, bukan 24).
+
 ## 1. Arsitektur Umum
 
 - **Monorepo** (bukan workspace): Go backend + React frontend dalam satu repo
@@ -10,7 +12,7 @@
 
 ---
 
-## 2. Daftar File .tsx (24 file)
+## 2. Daftar File .tsx (56 file, per Nov 2026)
 
 ```
 frontend/src/App.tsx                                    # Router utama
@@ -82,18 +84,17 @@ Pattern yang dipakai:
 **File**: `frontend/src/components/layout/Sidebar.tsx`
 
 - Navigasi items hardcoded dalam array `navigation`:
-  - Dashboard (`/dashboard`), Mikrotik (`/mikrotik`), Billing (`/billing`), Acs/ONU Device (`/onu`), Hioso (`/hioso`)
+  - Dashboard (`/dashboard`), MikroTik (`/mikrotik`, + daftar perangkat), Billing (`/billing`), Acs/ONU Device (`/onu`), Logs (`/logs`), Manage OLT (`/hioso`, + ZTE `/zte/...` dan C-Data `/cdata/...` di bawahnya), Settings (`/settings`)
 - Settings dipisah di bawah (`/settings`)
 - Menggunakan `NavLink` dari react-router-dom dengan `isActive` styling
-- **Brutal design**: `neo-panel`, `neo-interactive`, `shadow-brutal`, `border-2`, uppercase text
-- Brand section: "MIKROGENI v4.1"
+- Brand section: logo `src/images/logo.png` (alt "MIKROGENI") — tanpa teks versi
 - Health indicator widget di bawah sidebar
 - Responsive: desktop fixed sidebar (xl+), mobile drawer
 
 **Topbar** (`Topbar.tsx`):
 - Breadcrumb dari URL path segments
 - Page title dari route
-- Toggle brutal style button
+- Toggle tema light/dark (Sun/Moon)
 - Notification bell, username badge, avatar, logout button
 
 **MainLayout** (`MainLayout.tsx`):
@@ -222,7 +223,7 @@ Pattern yang dipakai:
 - `grid-soft`: subtle grid pattern via linear-gradient
 
 ### Dark Mode:
-- Config: `darkMode: ["class"]` -- tapi saat ini **disabled** (hardcoded light in useTheme)
+- Config: `darkMode: ["class"]` — **aktif** sejak tema pastel (Nov 2026); toggle Sun/Moon di Topbar, default dark dengan latar black-75 `#404040`.
 
 ---
 
@@ -366,6 +367,8 @@ Base URL: `/api` (proxied to Go backend port 1997)
 - ONU list, detail, rename, reboot
 - OLT device CRUD via settings
 - Port listing
+- **HSGQ** (sejak Nov 2026): tipe sendiri (Auto/GPON/EPON), driver Web JSON — bukan SNMP
+- **ZTE / C-Data**: proxy ke zzte (`/api/zte/olt/{connId}/*`, `/api/cdata/olt/{connId}/*`); C-Data tanpa rename
 
 ### Billing
 - Service plans, customers, invoices, payments

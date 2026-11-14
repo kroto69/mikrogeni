@@ -124,17 +124,20 @@ User admin otomatis dibuat saat backend start dengan database kosong. Setelah it
 mikrogeni/
 ├── cmd/server/          # Entry point aplikasi
 ├── internal/
-│   ├── handlers/        # HTTP handlers (ACS, MikroTik, Hioso OLT, Telegram, dll)
+│   ├── handlers/        # HTTP handlers (ACS, MikroTik, Hioso/HSGQ OLT, C-Data proxy, Telegram, dll)
 │   ├── services/        # Business logic (GenieACS, MikroTik)
 │   ├── db/              # SQLite database layer
 │   ├── models/          # Data models
+│   ├── auth/            # JWT + RBAC
+│   ├── middleware/      # HTTP middleware
+│   ├── scheduler/       # Job periodik (ACS auto-refresh, billing)
 │   └── acsresolver/     # ACS vendor/model registry & resolver
 ├── frontend/            # React + Vite + Tailwind dashboard
 │   ├── src/
 │   │   ├── pages/       # Halaman per fitur
 │   │   ├── components/  # Komponen UI + layout reusable
 │   │   ├── hooks/       # Custom hooks
-│   │   └── lib/         # API client & utilitas
+│   │   └── lib/         # API client, utilitas & token tema (pastel.ts)
 │   ├── .env.example
 │   └── package.json
 ├── start.sh             # Build frontend + restart nginx
@@ -143,7 +146,10 @@ mikrogeni/
 ├── Dockerfile           # Backend Go build
 ├── nginx.conf           # Nginx config (serve frontend + proxy API)
 ├── Makefile
-├── hioso_api.md         # Dokumentasi endpoint Hioso OLT
+├── hioso_api.md         # Dokumentasi endpoint Hioso/HSGQ OLT
+├── API.md               # Referensi endpoint backend (ACS, MikroTik, OLT, billing)
+├── mikrogeni.md         # Analisis struktur project (frontend + backend)
+├── zte-add.md           # Spesifikasi tugas integrasi ZTE OLT (selesai; C-Data lihat bagian Integrasi ZTE OLT di atas)
 └── .env.example
 ```
 
@@ -211,13 +217,22 @@ Volume:
 - **MikroTik** — manage devices, PPP secrets/profiles, kick sessions, interface monitoring
 - **ACS/ONU** — GenieACS device list, reboot, WiFi/WAN/Security config
 - **Hioso OLT** — manage OLT (HA7304VX + Legacy), ONU list per port, rename, reboot
+- **HSGQ OLT** — tipe sendiri di menu Add OLT (Auto/GPON/EPON), driver Web JSON (bukan SNMP): list/detail/reboot/rename + auto-save
 - **ZTE OLT** — proxy ke zzte container, ONU monitoring per board/PON
+- **C-Data OLT** — via zzte (`vendor: cdata`), list/detail/reboot via SNMP SET, tanpa rename; halaman `/cdata/:connId`
 - **Billing** — service plans, customers, invoices, payments (enable/disable via Settings)
 - **Activity Logs** — history semua aksi user (reboot, rename, kick, edit, login, dll)
 - **Settings** — user management, GenieACS config, enable/disable fitur, ZTE connections
 - **Telegram Bot** — notifikasi dan query device via Telegram
 
 ---
+
+## Tampilan (Tema Pastel)
+
+Dashboard memakai bahasa pastel (sejak Nov 2026): blok warna pastel per status — ONLINE mint, OFFLINE abu, LOS merah pastel — teks gelap di atasnya, pill status berlatar gelap.
+- **Light/dark**: tombol Sun/Moon di Topbar; default dark dengan latar black-75 `#404040`.
+- Font: Space Grotesk (judul/angka) + Inter (teks) + JetBrains Mono (data teknis: SN, MAC, RX/TX).
+- Detail ONU tampil sebagai popup (bukan halaman penuh); aksi diringkas jadi satu baris SIMPAN NAMA · REFRESH · REBOOT ONU.
 
 ## Endpoint Utama
 
@@ -256,12 +271,22 @@ Volume:
 | Method | Endpoint | Deskripsi |
 |---|---|---|
 | `GET` | `/api/hioso/devices` | List OLT yang tersimpan |
-| `POST` | `/api/hioso/devices` | Tambah OLT (firmware_type: 0=HA7304VX, 1=Legacy) |
+| `POST` | `/api/hioso/devices` | Tambah OLT (firmware_type: 0=HA7304VX, 1=Legacy, 2=HSGQ Auto, 3=HSGQ GPON, 4=HSGQ EPON) |
 | `DELETE` | `/api/hioso/devices/{id}` | Hapus OLT |
 | `GET` | `/api/hioso/devices/{id}/health` | System info OLT |
 | `GET` | `/api/hioso/devices/{id}/onu?port=N` | List ONU per port |
 | `POST` | `/api/hioso/devices/{id}/onu/rename?port=N&id=X` | Rename ONU |
 | `POST` | `/api/hioso/devices/{id}/onu/reboot?port=N&id=X` | Reboot ONU |
+
+### C-Data OLT (proxy ke zzte)
+
+| Method | Endpoint | Deskripsi |
+|---|---|---|
+| `GET` | `/api/cdata/olt/{connId}/olts` | List OLT C-Data di server zzte |
+| `GET` | `/api/cdata/olt/{connId}/pon` | List PON di satu OLT C-Data |
+| `GET` | `/api/cdata/olt/{connId}/pon/{pon}` | List ONU di satu PON |
+| `GET` | `/api/cdata/olt/{connId}/pon/{pon}/onu/{onu}` | Detail 1 ONU |
+| `POST` | `/api/cdata/olt/{connId}/reboot` | Reboot ONU (via SNMP SET di zzte) |
 
 ### Activity Logs
 
@@ -279,8 +304,15 @@ Komunikasi ke OLT menggunakan **Web API** (HTTP), bukan SNMP. Support 2 firmware
 |---|---|---|---|
 | `swcgi_xml` | `hioso_swcgi.go` | POST /sw.cgi (XML response) | HA7304VX |
 | `legacy_html` | `hioso_legacy.go` | GET *.asp + Basic Auth | V2.x (GoAhead-Webs) |
+| `hsgq` / `hsgq-gpon` / `hsgq-epon` | `hsgq_web.go` | Web JSON API + header `X-Token` | HSGQ (GPON/EPON, auto-detect atau paksa varian) |
 
 > Dokumentasi endpoint detail: lihat [`hioso_api.md`](./hioso_api.md).
+
+**Catatan perilaku:**
+- **Rename otomatis disimpan permanen**: driver legacy memanggil Save Configuration tepat setelah rename sukses (begitu juga HSGQ via `POST /system_save`). Kalau penyimpanan gagal, rename tetap berlaku dan respons membawa `persist_warning`.
+- **Reboot tidak menimpa nama**: reboot membaca dulu nama ONU yang tersimpan; kalau nama tidak terbaca, reboot dibatalkan (fail-closed).
+- **HSGQ bukan SNMP**: MIB HSGQ hanya read-only, jadi semua aksi (list/detail/reboot/rename) lewat Web JSON API dengan kredensial login web UI OLT (default pabrik: root/admin). HTTP polos — pakai lewat VPN; sesi auto-logout ±5 menit idle; captcha bisa aktif.
+- **C-Data bukan lewat plugin ini**: OLT C-Data (FD1104/FD12xx) dilayani zzte via SNMP — lihat bagian Integrasi ZTE OLT di bawah.
 
 ---
 
@@ -318,7 +350,22 @@ Setelah ditambahkan, ZTE OLT akan muncul di:
 - **Dashboard** → OLT Summary card
 - Fitur: monitoring ONU, status online/LOS/offline, RX power
 
-### 4. Troubleshooting: Koneksi antar Container
+**Model refresh**: AUTO refresh 5 detik memakai cache; tombol LOAD/REFRESH manual memaksa live walk ke OLT untuk 1 PON (jendela 3 detik) — bukan live walk semua PON, agar OLT tidak terbebani.
+
+### 4. C-Data OLT (via zzte)
+
+OLT C-Data (FD1104/FD1108 dan FD12xx) juga dilayani zzte — bukan Web JSON, melainkan **SNMP saja** (tidak ada API JSON C-Data yang diketahui; reboot justru bisa via SNMP SET, jadi satu pintu sudah cukup).
+
+1. Di `olt_config.yaml` zzte, tambah OLT dengan `vendor: cdata` (+ host SNMP + community).
+2. Deploy ulang zzte, lalu simpan ulang koneksi zzte di mikrogeni (Settings → ZTE OLT Connections) — koneksi C-Data ikut terbuat otomatis.
+3. Buka dari sidebar **Manage OLT** → halaman `/cdata/:connId`: pilih PON, daftar ONU, cari, refresh manual (tanpa auto-refresh), detail RX/laser/jarak/DDM + reboot (konfirmasi dulu).
+
+Batas yang perlu diketahui:
+- **Rename belum terverifikasi** — UI sengaja tanpa rename.
+- TX Power FD1104 = 0 (hanya laser yang dilaporkan); jarak FD12xx tidak ditampilkan (sumber saling bertentangan).
+- Driver C-Data di zzte belum pernah jalan ke perangkat nyata (baru mock test) — pemakaian live pertama sebaiknya ke ONU tes.
+
+### 5. Troubleshooting: Koneksi antar Container
 
 Agar mikrogeni-backend bisa berkomunikasi dengan zzte, keduanya harus berada di **Docker network yang sama**.
 
@@ -364,7 +411,7 @@ Jika keduanya pakai `network_mode: host`, mereka otomatis bisa saling akses via 
 
 ### Catatan
 
-- Setiap ZTE OLT butuh **satu instance zzte** yang berjalan dan terhubung ke OLT tersebut via SNMP.
+- Setiap ZTE OLT butuh **satu instance zzte** yang berjalan dan terhubung ke OLT tersebut via SNMP. Begitu juga setiap OLT C-Data (dengan `vendor: cdata` di konfigurasi zzte).
 - Mikrogeni hanya menyimpan URL endpoint zzte — tidak berkomunikasi langsung ke OLT.
 - Jika menggunakan Docker, pastikan zzte dan mikrogeni-backend berada di network yang sama atau keduanya pakai `network_mode: host`.
 

@@ -109,6 +109,10 @@ func mapProxyPath(wildcard, connId string) string {
 	case len(parts) == 3 && parts[0] == "system" && parts[1] == "olt":
 		return fmt.Sprintf("/api/v1/system/olt/%s", parts[2])
 
+	// boards → /api/v1/olt/{connId}/boards
+	case len(parts) == 1 && parts[0] == "boards":
+		return fmt.Sprintf("/api/v1/olt/%s/boards", connId)
+
 	// board/{b}/pon → /api/v1/olt/{connId}/board/{b}/pon
 	case len(parts) == 3 && parts[0] == "board" && parts[2] == "pon":
 		return fmt.Sprintf("/api/v1/olt/%s/board/%s/pon", connId, parts[1])

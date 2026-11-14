@@ -30,7 +30,7 @@ export function StatusBadge({ className, label, size, status, ...props }: Status
     <Badge
       aria-label={`status-${status}`}
       className={cn(
-        "rounded-lg border-2 font-extrabold uppercase",
+        "rounded-full border font-extrabold uppercase",
         tone.className,
         statusBadgeSizeVariants({ size }),
         className,

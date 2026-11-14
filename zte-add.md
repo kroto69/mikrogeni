@@ -1,5 +1,7 @@
 # TASK: Tambah Plugin ZTE OLT ke Mikrogeni NMS Dashboard
 
+> **Status (Nov 2026): SELESAI.** Plugin ZTE sudah jadi dan dipakai (proxy `/api/zte/olt/{connId}/*` ke zzte, halaman ZTE per board/PON, koneksi di Settings). Tindak lanjutnya juga sudah jalan: OLT **C-Data** ikut dilayani zzte (`vendor: cdata`, proxy `/api/cdata/olt/{connId}/*`, tanpa rename). Satu hal di dokumen ini yang sudah tidak berlaku: design system disebut neo-brutalism — sejak Nov 2026 tema diganti ke **pastel** (lihat README bagian "Tampilan (Tema Pastel)"). Dokumen ini disimpan sebagai spesifikasi tugas, bukan panduan setup.
+
 ## Konteks Project
 - Monorepo: Go backend (port 1997) + React frontend (Vite)
 - Frontend: frontend/src/

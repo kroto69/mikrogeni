@@ -1,33 +1,51 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ThemeMode = "light" | "dark";
-type BrutalStyleMode = "rapi-brutal";
+type StyleMode = "pastel" | "rapi-brutal";
 
 type ThemeContextValue = {
   theme: ThemeMode;
-  brutalStyle: BrutalStyleMode;
+  styleMode: StyleMode;
   setTheme: (theme: ThemeMode) => void;
-  setBrutalStyle: (mode: BrutalStyleMode) => void;
+  setStyleMode: (mode: StyleMode) => void;
   toggleTheme: () => void;
-  toggleBrutalStyle: () => void;
+  toggleStyleMode: () => void;
 };
 
 const THEME_STORAGE_KEY = "network-core-theme";
-const BRUTAL_STYLE_STORAGE_KEY = "network-core-brutal-style";
+const STYLE_STORAGE_KEY = "network-core-style-mode";
+const LEGACY_STYLE_STORAGE_KEY = "network-core-brutal-style";
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getPreferredTheme(): ThemeMode {
-  return "light";
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
+  // Default: dark — mode utama bahasa pastel yang disetujui (v29/v30).
+  return "dark";
 }
 
-function getPreferredBrutalStyle(): BrutalStyleMode {
-  return "rapi-brutal";
+function getPreferredStyleMode(): StyleMode {
+  if (typeof window === "undefined") {
+    return "pastel";
+  }
+  const stored =
+    window.localStorage.getItem(STYLE_STORAGE_KEY) ??
+    window.localStorage.getItem(LEGACY_STYLE_STORAGE_KEY);
+  if (stored === "pastel" || stored === "rapi-brutal") {
+    return stored;
+  }
+  return "pastel";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => getPreferredTheme());
-  const [brutalStyle] = useState<BrutalStyleMode>(() => getPreferredBrutalStyle());
+  const [styleMode, setStyleModeState] = useState<StyleMode>(() => getPreferredStyleMode());
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -35,11 +53,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     const root = document.documentElement;
-    root.classList.remove("dark");
-    root.style.colorScheme = "light";
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
 
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(THEME_STORAGE_KEY, "light");
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
   }, [theme]);
 
@@ -49,21 +67,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     const root = document.documentElement;
-    root.dataset.styleMode = brutalStyle;
+    root.dataset.styleMode = styleMode;
 
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(BRUTAL_STYLE_STORAGE_KEY, brutalStyle);
+      window.localStorage.setItem(STYLE_STORAGE_KEY, styleMode);
     }
-  }, [brutalStyle]);
+  }, [styleMode]);
 
   const value = useMemo<ThemeContextValue>(() => ({
     theme,
-    brutalStyle,
-    setTheme: () => setThemeState("light"),
-    setBrutalStyle: () => undefined,
-    toggleTheme: () => setThemeState("light"),
-    toggleBrutalStyle: () => undefined,
-  }), [theme, brutalStyle]);
+    styleMode,
+    setTheme: (next: ThemeMode) => setThemeState(next),
+    setStyleMode: (next: StyleMode) => setStyleModeState(next),
+    toggleTheme: () => setThemeState((current) => (current === "dark" ? "light" : "dark")),
+    toggleStyleMode: () => setStyleModeState((current) => (current === "pastel" ? "rapi-brutal" : "pastel")),
+  }), [theme, styleMode]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

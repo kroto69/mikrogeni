@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"genieacs-backend/internal/models"
@@ -82,6 +83,11 @@ func GetDevices(w http.ResponseWriter, r *http.Request) {
 	if parsed, ok := parseBoolLike(strings.TrimSpace(r.URL.Query().Get("enrich"))); ok {
 		enrichFallbackEnabled = parsed
 	}
+
+	// Pass 1: prefetch raw GenieACS documents for devices with missing fields.
+	// Previously this was up to 20 SEQUENTIAL per-device HTTP round trips inside
+	// the loop below; now they run concurrently (worker pool) before the loop.
+	enrichRawByID := prefetchEnrichFallbackDevices(genieACSURL, devices, enrichFallbackEnabled)
 	enrichFallbackCount := 0
 	const maxListEnrichFallbackFetch = 20
 
@@ -114,7 +120,7 @@ func GetDevices(w http.ResponseWriter, r *http.Request) {
 
 		needsEnrichFallback := strings.TrimSpace(pppoe) == "" || strings.TrimSpace(ip) == "" || strings.TrimSpace(deviceUptime) == "" || rxOptical == nil || temperature == nil
 		if enrichFallbackEnabled && needsEnrichFallback && strings.TrimSpace(id) != "" && enrichFallbackCount < maxListEnrichFallbackFetch {
-			if rawDevice, rawErr := fetchGenieACSDeviceByID(genieACSURL, id, nil); rawErr == nil && rawDevice != nil {
+			if rawDevice, ok := enrichRawByID[id]; ok && rawDevice != nil {
 				enrichFallbackCount++
 
 				if strings.TrimSpace(pppoe) == "" {
@@ -179,4 +185,60 @@ func GetDevices(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(normalized)
+}
+
+// prefetchEnrichFallbackDevices concurrently fetches full GenieACS documents
+// for devices whose projected fields came back empty, so the normalization
+// loop can enrich them from prefetched data instead of doing up to 20
+// sequential per-device HTTP round trips.
+func prefetchEnrichFallbackDevices(genieACSURL string, devices []map[string]interface{}, enabled bool) map[string]map[string]interface{} {
+	out := make(map[string]map[string]interface{})
+	if !enabled || strings.TrimSpace(genieACSURL) == "" {
+		return out
+	}
+
+	ids := make([]string, 0, len(devices))
+	seen := make(map[string]struct{}, len(devices))
+	for _, device := range devices {
+		id := extractStringFromDevice(device, []string{"_id"})
+		if strings.TrimSpace(id) == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+
+		pppoe := extractPPPoEUsername(device, nil)
+		ip := firstNonEmpty(extractPPPoEIP(device), extractTR069IP(device))
+		deviceUptime := extractDeviceUptime(device)
+		_, hasRXPower := extractRXPowerFromDevice(device)
+		_, hasTemperature := extractTemperatureFromDevice(device)
+		if strings.TrimSpace(pppoe) == "" || strings.TrimSpace(ip) == "" || strings.TrimSpace(deviceUptime) == "" || !hasRXPower || !hasTemperature {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return out
+	}
+
+	const enrichFetchParallelism = 5
+	sem := make(chan struct{}, enrichFetchParallelism)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, id := range ids {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if rawDevice, err := fetchGenieACSDeviceByID(genieACSURL, id, nil); err == nil && rawDevice != nil {
+				mu.Lock()
+				out[id] = rawDevice
+				mu.Unlock()
+			}
+		}(id)
+	}
+	wg.Wait()
+	return out
 }

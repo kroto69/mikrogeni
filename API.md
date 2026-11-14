@@ -517,7 +517,19 @@ curl -X DELETE "http://localhost:1997/api/acs/settings/acs-learned-profiles?vend
 ```
 
 Endpoint ACS tambahan:
-- `GET /acs/dashboard`
+- `GET /acs/dashboard` — ringkasan agregat satu-request untuk halaman Dashboard
+  (menggantikan fan-out N+1 per-device di frontend). Response dihitung paralel
+  di server dan di-cache 30 detik:
+  ```json
+  {
+    "acs": { "total_devices": 0, "online_devices": 0, "offline_devices": 0, "average_rx_power": 0, "average_temp": 0 },
+    "mikrotik": { "total": 0, "online": 0, "total_ppp_active": 0,
+      "devices": [{ "id": "", "host": "", "name": "", "status": "", "identity": "", "cpu_load": "-", "uptime": "-", "ppp_active": 0 }] },
+    "olt": { "total": 0,
+      "hioso": [{ "id": "", "name": "", "host": "", "online": false, "model": "", "onu_online": 0, "onu_total": 0, "cpu": "", "uptime": "" }],
+      "zte": [{ "id": "", "name": "", "base_url": "", "olt_id": "", "online": false, "cpu_usage": 0, "memory_usage": 0, "uptime": "" }] }
+  }
+  ```
 - `GET/POST /acs/settings`
 - `GET /acs/settings/hioso-olts`
 - `POST /acs/settings/hioso-olts`
@@ -704,190 +716,55 @@ Contoh response `GET /mikrotik/devices/{device_id}/ppp/active`:
 
 ### Hioso OLT Plugin
 
-Plugin Hioso mengelola OLT via SNMP dan Web API. Semua endpoint di bawah `/api/plugin/hioso` membutuhkan JWT auth.
+> **Koreksi (Nov 2026):** bagian ini sebelumnya mendokumentasikan prefix `/api/plugin/hioso` dan ONU via SNMP — keduanya sudah tidak ada di kode. Endpoint live ada di bawah `/api/hioso` (Web API, bukan SNMP). Referensi lengkap: [`hioso_api.md`](./hioso_api.md).
+
+Plugin Hioso mengelola OLT via Web API. Semua endpoint di bawah `/api/hioso` membutuhkan JWT auth (kecuali `/status`).
 
 #### Plugin Control
 
 | Method | Path | Keterangan |
 |---|---|---|
-| `GET` | `/plugin/hioso/status` | Status plugin (enabled/disabled + host) |
-| `POST` | `/plugin/hioso/enable` | Aktifkan plugin |
-| `POST` | `/plugin/hioso/disable` | Nonaktifkan plugin |
-| `GET` | `/plugin/hioso/health` | Cek koneksi OLT via SNMP |
+| `GET` | `/api/hioso/status` | Status plugin (enabled/disabled) |
+| `POST` | `/api/hioso/enable` | Aktifkan plugin |
+| `POST` | `/api/hioso/disable` | Nonaktifkan plugin |
 
-Contoh response `GET /plugin/hioso/status`:
-
-```json
-{
-  "success": true,
-  "data": {
-    "enabled": true,
-    "host": "10.10.10.10"
-  }
-}
-```
-
-Contoh response `GET /plugin/hioso/health`:
-
-```json
-{
-  "success": true,
-  "data": {
-    "online": true,
-    "detail": "OLT reachable, profil: HIOSO_GPON"
-  }
-}
-```
-
-#### ONU Data
+#### Device Management
 
 | Method | Path | Keterangan |
 |---|---|---|
-| `GET` | `/plugin/hioso/onu` | List semua ONU |
-| `GET` | `/plugin/hioso/onu?port=N` | List ONU pada port tertentu |
-| `GET` | `/plugin/hioso/onu/{index}` | Detail 1 ONU |
-| `POST` | `/plugin/hioso/onu/{index}/rename` | Rename ONU |
-| `POST` | `/plugin/hioso/onu/{index}/reboot` | Reboot ONU |
-| `GET` | `/plugin/hioso/ports` | List port yang tersedia |
+| `GET` | `/api/hioso/devices` | List OLT yang terdaftar |
+| `POST` | `/api/hioso/devices` | Tambah OLT (`firmware_type`: 0=HA7304VX, 1=Legacy, 2=HSGQ Auto, 3=HSGQ GPON, 4=HSGQ EPON) |
+| `DELETE` | `/api/hioso/devices/{id}` | Hapus OLT |
+| `POST` | `/api/hioso/devices/{id}/test` | Test koneksi + deteksi firmware |
+| `GET` | `/api/hioso/devices/{id}/health` | System info OLT |
 
-**Query Parameters:**
-
-- `port` (opsional, integer) — filter ONU berdasarkan nomor port PON
-
-**ONU Response Fields:**
-
-| Field | Tipe | Keterangan |
-|---|---|---|
-| `index` | string | SNMP index ONU |
-| `web_id` | string | Web UI ID untuk rename/reboot |
-| `port` | int | Nomor port PON (diparse dari index) |
-| `onu_id` | int | ID ONU pada port tersebut |
-| `name` | string | Nama ONU |
-| `sn` | string | Serial number |
-| `status` | string | Status online/offline |
-| `tx_power` | float | Transmit power (dBm) |
-| `rx_power` | float | Receive power (dBm) |
-| `profile` | string | Profil OID yang terdeteksi |
-
-Contoh response `GET /plugin/hioso/onu`:
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "index": "1.3.1",
-      "web_id": "1",
-      "port": 3,
-      "onu_id": 1,
-      "name": "ONU-Customer-A",
-      "sn": "HISO12345678",
-      "status": "online",
-      "tx_power": 2.5,
-      "rx_power": -18.3,
-      "profile": "HIOSO_GPON"
-    }
-  ]
-}
-```
-
-Contoh response `GET /plugin/hioso/onu?port=3`:
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "index": "1.3.1",
-      "web_id": "1",
-      "port": 3,
-      "onu_id": 1,
-      "name": "ONU-Customer-A",
-      "sn": "HISO12345678",
-      "status": "online",
-      "tx_power": 2.5,
-      "rx_power": -18.3,
-      "profile": "HIOSO_GPON"
-    }
-  ]
-}
-```
-
-Contoh response `GET /plugin/hioso/ports`:
-
-```json
-{
-  "success": true,
-  "data": [1, 2, 3, 4, 5, 6, 7, 8]
-}
-```
-
-#### ONU Actions
-
-**Rename ONU:**
-
-```bash
-curl -X POST "http://localhost:1997/api/plugin/hioso/onu/1.3.1/rename" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Customer-Baru"}'
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "method": "snmp"
-  }
-}
-```
-
-> `method` bisa `snmp` atau `web` tergantung profil OLT.
-
-**Reboot ONU:**
-
-```bash
-curl -X POST "http://localhost:1997/api/plugin/hioso/onu/1.3.1/reboot" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "rebooted": true
-  }
-}
-```
-
-#### Hioso OLT Profiles (Settings)
-
-OLT profiles dikelola via Settings API (bukan plugin endpoint):
+#### ONU Data & Actions
 
 | Method | Path | Keterangan |
 |---|---|---|
-| `GET` | `/acs/settings/hioso-olts` | List semua OLT profiles |
-| `POST` | `/acs/settings/hioso-olts` | Buat OLT profile baru |
-| `PATCH` | `/acs/settings/hioso-olts/{id}` | Edit OLT profile |
-| `DELETE` | `/acs/settings/hioso-olts/{id}` | Hapus OLT profile |
-| `POST` | `/acs/settings/hioso-olts/{id}/activate` | Set profile aktif + mirror ke legacy keys |
+| `GET` | `/api/hioso/devices/{id}/onu?port=N` | List ONU di satu port PON |
+| `GET` | `/api/hioso/devices/{id}/onu/detail?port=N&id=X` | Detail 1 ONU |
+| `POST` | `/api/hioso/devices/{id}/onu/rename?port=N&id=X` | Rename ONU (body `{"name": "..."}`; otomatis Save Configuration di legacy/HSGQ) |
+| `POST` | `/api/hioso/devices/{id}/onu/reboot?port=N&id=X` | Reboot ONU (nama lama dipertahankan; batal kalau nama tak terbaca) |
 
-Detail CRUD profile lihat di bagian "Hioso runtime settings" di bawah.
+**HSGQ**: varian 2/3/4 memakai driver Web JSON (`internal/handlers/hsgq_web.go`), bukan SNMP — login web UI OLT, header `X-Token`. Detail: [`hioso_api.md`](./hioso_api.md).
 
-#### Hioso SNMP & Profile Detection
+#### ZTE / C-Data OLT Proxy
 
-- Backend mendukung **3 profil OID**: `HIOSO_GPON`, `HIOSO_B`, `HIOSO_C`
-- **Auto-detect** via scoring: walk NameOID (+3), SNOID (+2), StatOID (+1) per profil. Skor tertinggi menang.
-- **Fallback**: `sysObjectID` prefix matching (misal `.1.3.6.1.4.1.25355` → HIOSO_C)
-- **Profile cache** 30 menit — deteksi hanya dilakukan sekali per `host:community`, lalu di-cache
-- **SNMP timeout**: 5 detik untuk walk, 3 detik untuk set
-- **Request timeout**: 20 detik (context.WithTimeout)
-- Referensi lengkap OID: lihat file `hioso_oid` di root project
+ZTE dan C-Data dilayani container **zzte**; mikrogeni hanya mem-proxy (tidak bicara langsung ke OLT).
 
+| Method | Path | Keterangan |
+|---|---|---|
+| `GET` | `/api/zte/connections` | List koneksi zzte tersimpan |
+| `POST` | `/api/zte/connections` | Tambah koneksi (admin) — vendor ikut terdeteksi dari zzte |
+| `PATCH` | `/api/zte/connections/{id}` | Edit koneksi (admin) |
+| `DELETE` | `/api/zte/connections/{id}` | Hapus koneksi (admin) |
+| `POST` | `/api/zte/connections/test` | Test koneksi zzte |
+| `POST` | `/api/zte/connections/{id}/health` | Health check koneksi |
+| `*` | `/api/zte/olt/{connId}/*` | Proxy ke zzte `/api/v1/*` (board/PON/ONU ZTE) |
+| `*` | `/api/cdata/olt/{connId}/*` | Proxy ke zzte `/api/v1/cdata/*` (PON/ONU C-Data; `olts`, `pon`, `pon/{p}`, `pon/{p}/onu/{o}`, `reboot`) |
+
+Koneksi C-Data terbentuk otomatis saat koneksi zzte dibuat (auto-fetch `/api/v1/olts`, dibedakan lewat kolom `vendor` di `zte_connections`). Rename C-Data belum didukung.
 ## Recipe: MikroTik Add/Edit/Delete (Simple Example)
 
 ### Add device
@@ -1022,3 +899,4 @@ Output bot:
 Catatan:
 - Jika `TELEGRAM_CHAT_IDS` diisi, hanya chat id yang terdaftar yang bisa menggunakan bot.
 - Bot jalan via long polling dan start otomatis saat server start.
+

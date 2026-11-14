@@ -19,7 +19,7 @@ export const Switch: React.FC<SwitchProps> = ({ checked = false, onCheckedChange
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors",
+        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors",
         checked ? "border-primary bg-primary" : "border-border bg-muted",
         disabled && "cursor-not-allowed opacity-50",
         className,
@@ -27,7 +27,7 @@ export const Switch: React.FC<SwitchProps> = ({ checked = false, onCheckedChange
     >
       <span
         className={cn(
-          "pointer-events-none block h-4 w-4 rounded-full border-2 border-border bg-background shadow-md transition-transform",
+          "pointer-events-none block h-4 w-4 rounded-full border border-border bg-background shadow-sm transition-transform",
           checked ? "translate-x-5" : "translate-x-0.5",
         )}
       />
