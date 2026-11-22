@@ -23,6 +23,8 @@ import {
   updateMikrotikProfile,
   updateMikrotikSecret,
 } from "@/lib/api";
+import { useTheme } from "@/hooks/useTheme";
+import { isNbStyle } from "@/lib/nb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -206,34 +208,44 @@ function getInterfaceSelectionKey(item: Pick<MikrotikInterfaceRow, ".id" | "name
   return item[".id"] || item.name;
 }
 
-function getInterfaceStatus(item: MikrotikInterfaceRow) {
+function getInterfaceStatus(item: MikrotikInterfaceRow, nb = false) {
   const disabled = isTruthy(item.disabled);
   const running = isTruthy(item.running);
 
   if (disabled) {
     return {
       label: "Disabled",
-      dotClassName: "bg-pastel-grey",
-      chipClassName: "rounded-full bg-pastel-lavender px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#131313]",
+      dotClassName: nb ? "bg-nb-grey" : "bg-pastel-grey",
+      chipClassName: nb
+        ? "rounded-full border-2 border-border bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground"
+        : "rounded-full bg-pastel-lavender px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#131313]",
     };
   }
 
   if (running) {
     return {
       label: "Up",
-      dotClassName: "bg-pastel-mint",
-      chipClassName: "rounded-full bg-pastel-mint px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#131313]",
+      dotClassName: nb ? "bg-nb-mint" : "bg-pastel-mint",
+      chipClassName: nb
+        ? "rounded-full border-2 border-border bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground"
+        : "rounded-full bg-pastel-mint px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#131313]",
     };
   }
 
   return {
     label: "Down",
-    dotClassName: "bg-pastel-red",
-    chipClassName: "rounded-full bg-pastel-red px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#131313]",
+    dotClassName: nb ? "bg-nb-red" : "bg-pastel-red",
+    chipClassName: nb
+      ? "rounded-full border-2 border-border bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground"
+      : "rounded-full bg-pastel-red px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#131313]",
   };
 }
 
-function getInterfaceNameChipClass(statusLabel: string) {
+function getInterfaceNameChipClass(statusLabel: string, nb = false) {
+  if (nb) {
+    return "border-2 border-border bg-white text-foreground";
+  }
+
   if (statusLabel === "Up") {
     return "bg-pastel-mint text-[#131313]";
   }
@@ -591,6 +603,8 @@ export default function MikrotikDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { can } = useRole();
+  const { styleMode } = useTheme();
+  const nb = isNbStyle(styleMode);
   const [activeTab, setActiveTab] = useState<DetailTab>("interface");
   const [tabSearchTerm, setTabSearchTerm] = useState("");
   const [pppActiveFilterMode, setPppActiveFilterMode] = useState<PppActiveFilterMode>("all");
@@ -1073,7 +1087,9 @@ export default function MikrotikDetail() {
   const registrySyncLabel = formatRegistryTimestamp(registryDevice?.last_sync_at);
   const cpuLoadLabel = detailQuery.data?.cpu_load ?? "0%";
   const freeMemoryLabel = detailQuery.data?.free_memory ?? "-";
-  const cpuMeterClassName = cpuPercent > 80 ? "bg-pastel-red" : cpuPercent > 60 ? "bg-pastel-yellow" : "bg-pastel-mint";
+  const cpuMeterClassName = nb
+    ? cpuPercent > 80 ? "bg-nb-red" : cpuPercent > 60 ? "bg-nb-butter" : "bg-nb-mint"
+    : cpuPercent > 80 ? "bg-pastel-red" : cpuPercent > 60 ? "bg-pastel-yellow" : "bg-pastel-mint";
   const activeTabSearchMeta = {
     interface: {
       placeholder: "Search interface name, MAC, type...",
@@ -1126,7 +1142,7 @@ export default function MikrotikDetail() {
           sampled_at: effectiveSampledAt,
         }
       : undefined;
-    const status = getInterfaceStatus(selectedInterface);
+    const status = getInterfaceStatus(selectedInterface, nb);
     const macAddress = getInterfaceMacAddress(selectedInterface);
     const history = interfaceTrafficHistory[selectedInterfaceKey ?? selectedInterface.name] ?? [];
     const nextSamples: MikrotikInterfaceTraffic[] = traffic ? [...history, traffic] : history;
@@ -1150,7 +1166,7 @@ export default function MikrotikDetail() {
         <div className="flex flex-wrap items-center gap-2">
           <div className={cn(
             "inline-flex items-center gap-2 rounded-full border-2 px-2.5 py-1",
-            getInterfaceNameChipClass(status.label)
+            getInterfaceNameChipClass(status.label, nb)
           )}>
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">Interface</span>
             <span className="font-mono text-xs font-semibold">{formatInterfaceValue(selectedInterface.name)}</span>
@@ -1262,8 +1278,8 @@ export default function MikrotikDetail() {
                   className={cn(
                     "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
                     interfaceFilter === key
-                      ? "bg-pastel-mint text-[#131313]"
-                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                      ? nb ? "border-2 border-border bg-nb-accent text-white" : "bg-pastel-mint text-[#131313]"
+                      : nb ? "border-2 border-border bg-white text-foreground hover:bg-nb-grey" : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
                   )}
                   key={key}
                   onClick={() => setInterfaceFilter(key)}
@@ -1285,9 +1301,22 @@ export default function MikrotikDetail() {
 
           {filteredInterfaces.map((item) => {
             const interfaceSelectionKey = getInterfaceSelectionKey(item);
-            const status = getInterfaceStatus(item);
-            const interfaceCardBg = status.label === "Up" ? "bg-pastel-mint" : status.label === "Down" ? "bg-pastel-red" : "bg-pastel-grey";
-            const interfaceMeta = status.label === "Up" ? "text-[#4a5a50]" : status.label === "Down" ? "text-[#6b3a35]" : "text-[#6b6b6b]";
+            const status = getInterfaceStatus(item, nb);
+            const interfaceCardBg = nb
+              ? "border-2 border-border bg-white shadow-brutal"
+              : status.label === "Up" ? "bg-pastel-mint" : status.label === "Down" ? "bg-pastel-red" : "bg-pastel-grey";
+            const interfaceMeta = nb
+              ? "text-foreground"
+              : status.label === "Up" ? "text-[#4a5a50]" : status.label === "Down" ? "text-[#6b3a35]" : "text-[#6b6b6b]";
+            const interfaceStatusPillClassName = nb
+              ? status.label === "Up" ? "border-2 border-border bg-nb-mint text-foreground" : status.label === "Down" ? "border-2 border-border bg-nb-red text-white" : "border-2 border-border bg-nb-grey text-foreground"
+              : status.label === "Up" ? "text-pastel-mint" : status.label === "Down" ? "text-pastel-red" : "text-pastel-grey";
+            const interfaceMetaChipClassName = nb
+              ? "inline-flex max-w-full items-center gap-1.5 rounded-full border-2 border-border bg-nb-grey px-2.5 py-1.5 font-mono text-[11px] text-foreground"
+              : "inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 font-mono text-[11px] text-[#131313]";
+            const interfaceViewButtonClassName = nb
+              ? "border-2 border-border bg-white text-foreground shadow-brutal-sm hover:bg-nb-grey"
+              : "border-0 bg-[#131313] text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint";
             const commentValue = formatInterfaceValue(item.comment);
             const hasComment = commentValue !== "-";
 
@@ -1297,8 +1326,8 @@ export default function MikrotikDetail() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex max-w-[75%] truncate text-[13px] font-extrabold text-[#131313]">{item.name}</span>
-                        <span className={cn("inline-flex rounded-full bg-[#131313] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]", status.label === "Up" ? "text-pastel-mint" : status.label === "Down" ? "text-pastel-red" : "text-pastel-grey")}>{status.label}</span>
+                        <span className={cn("inline-flex max-w-[75%] truncate text-[13px] font-extrabold", nb ? "text-foreground" : "text-[#131313]")}>{item.name}</span>
+                        <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]", nb ? interfaceStatusPillClassName : cn("bg-[#131313]", interfaceStatusPillClassName))}>{status.label}</span>
                       </div>
                       <p className={cn("mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.1em]", interfaceMeta)}>Type | {formatInterfaceValue(item.type)}</p>
                       {hasComment ? <p className={cn("mt-0.5 truncate text-[10px]", interfaceMeta)}>{commentValue}</p> : null}
@@ -1308,7 +1337,7 @@ export default function MikrotikDetail() {
                     <span className={cn("font-mono text-[10px]", interfaceMeta)}>MAC {getInterfaceMacAddress(item)}</span>
                     <Button
                       aria-haspopup="dialog"
-                      className="h-7 rounded-full border-0 bg-[#131313] px-3 text-[10px] font-bold text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint"
+                      className={cn("h-7 rounded-full px-3 text-[10px] font-bold", interfaceViewButtonClassName)}
                       onClick={() => void openInterfaceMonitor(item)}
                       type="button"
                       variant="outline"
@@ -1322,8 +1351,8 @@ export default function MikrotikDetail() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex text-[13px] font-extrabold text-[#131313]">{item.name}</span>
-                        <span className={cn("inline-flex rounded-full bg-[#131313] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]", status.label === "Up" ? "text-pastel-mint" : status.label === "Down" ? "text-pastel-red" : "text-pastel-grey")}>{status.label}</span>
+                        <span className={cn("inline-flex text-[13px] font-extrabold", nb ? "text-foreground" : "text-[#131313]")}>{item.name}</span>
+                        <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]", nb ? interfaceStatusPillClassName : cn("bg-[#131313]", interfaceStatusPillClassName))}>{status.label}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {([
@@ -1331,15 +1360,15 @@ export default function MikrotikDetail() {
                           ["MAC", getInterfaceMacAddress(item)],
                           ["MTU", formatInterfaceValue(item.mtu)],
                         ] as const).map(([label, value]) => (
-                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 font-mono text-[11px] text-[#131313]" key={label}>
+                          <div className={interfaceMetaChipClassName} key={label}>
                             <span className={cn("font-semibold uppercase tracking-[0.1em]", interfaceMeta)}>{label}</span>
-                            <span className="break-all font-medium text-[#131313]">{value}</span>
+                            <span className={cn("break-all font-medium", nb ? "text-foreground" : "text-[#131313]")}>{value}</span>
                           </div>
                         ))}
                         {hasComment ? (
-                          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 font-mono text-[11px] text-[#131313]">
+                          <div className={interfaceMetaChipClassName}>
                             <span className={cn("font-semibold uppercase tracking-[0.1em]", interfaceMeta)}>Note</span>
-                            <span className="font-medium text-[#131313]">{commentValue}</span>
+                            <span className={cn("font-medium", nb ? "text-foreground" : "text-[#131313]")}>{commentValue}</span>
                           </div>
                         ) : null}
                       </div>
@@ -1347,7 +1376,7 @@ export default function MikrotikDetail() {
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-24">
                       <Button
                         aria-haspopup="dialog"
-                        className="h-8 w-full rounded-full border-0 bg-[#131313] text-[12px] font-bold text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint sm:w-full"
+                        className={cn("h-8 w-full rounded-full text-[12px] font-bold sm:w-full", interfaceViewButtonClassName)}
                         onClick={() => void openInterfaceMonitor(item)}
                         type="button"
                         variant="outline"
@@ -1378,7 +1407,7 @@ export default function MikrotikDetail() {
           <div>
             <h3 className="text-base font-semibold text-foreground">PPP Active</h3>
           </div>
-          <span className="inline-flex rounded-full bg-pastel-yellow px-3 py-1 font-mono text-[11px] font-bold text-[#131313]">{filteredPppRows.length} / {pppRows.length}</span>
+          <span className={cn("inline-flex rounded-full px-3 py-1 font-mono text-[11px] font-bold", nb ? "border-2 border-border bg-nb-butter text-foreground" : "bg-pastel-yellow text-[#131313]")}>{filteredPppRows.length} / {pppRows.length}</span>
         </div>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Select value={pppActiveFilterMode} onValueChange={(value) => setPppActiveFilterMode(value as PppActiveFilterMode)}>
@@ -1421,16 +1450,16 @@ export default function MikrotikDetail() {
 
           return (
             <div key={sessionId}>
-              <div className="rounded-[20px] bg-pastel-mint px-4 py-3 sm:hidden">
+              <div className={cn("rounded-[20px] px-4 py-3 sm:hidden", nb ? "border-2 border-border bg-white shadow-brutal" : "bg-pastel-mint")}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="inline-flex max-w-[75%] truncate text-[13px] font-extrabold text-[#131313]">{session.name || "-"}</span>
-                    <p className="mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4a5a50]">Type | {session.service || "PPP"}</p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-[#4a5a50]">Caller {session["caller-id"] || "-"} · Uptime {session.uptime || "-"}</p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-[#4a5a50]">Remote IP {session.address || "-"}</p>
+                    <span className={cn("inline-flex max-w-[75%] truncate text-[13px] font-extrabold", nb ? "text-foreground" : "text-[#131313]")}>{session.name || "-"}</span>
+                    <p className={cn("mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.1em]", nb ? "text-foreground" : "text-[#4a5a50]")}>Type | {session.service || "PPP"}</p>
+                    <p className={cn("mt-1 truncate font-mono text-[11px]", nb ? "text-foreground" : "text-[#4a5a50]")}>Caller {session["caller-id"] || "-"} · Uptime {session.uptime || "-"}</p>
+                    <p className={cn("mt-1 truncate font-mono text-[11px]", nb ? "text-foreground" : "text-[#4a5a50]")}>Remote IP {session.address || "-"}</p>
                   </div>
                   <Button
-                    className="h-8 rounded-full border-0 bg-[#131313] px-4 text-[11px] font-bold text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint"
+                    className={cn("h-8 rounded-full px-4 text-[11px] font-bold", nb ? "border-2 border-border bg-white text-foreground shadow-brutal-sm hover:bg-nb-grey" : "border-0 bg-[#131313] text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint")}
                     disabled={pppInterfaceActionMutation.isPending}
                     onClick={() => void pppInterfaceActionMutation.mutateAsync(session[".id"] || session["session-id"] || session.name || sessionId)}
                     variant="outline"
@@ -1440,17 +1469,17 @@ export default function MikrotikDetail() {
                 </div>
               </div>
 
-              <div className="hidden rounded-[20px] bg-pastel-mint px-4 py-3 sm:block">
+              <div className={cn("hidden rounded-[20px] px-4 py-3 sm:block", nb ? "border-2 border-border bg-white shadow-brutal" : "bg-pastel-mint")}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <span className="inline-flex max-w-fit break-all text-[13px] font-extrabold text-[#131313]">{session.name || "-"}</span>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4a5a50]">Type | {session.service || "PPP"}</p>
+                    <span className={cn("inline-flex max-w-fit break-all text-[13px] font-extrabold", nb ? "text-foreground" : "text-[#131313]")}>{session.name || "-"}</span>
+                    <p className={cn("text-[11px] font-semibold uppercase tracking-[0.1em]", nb ? "text-foreground" : "text-[#4a5a50]")}>Type | {session.service || "PPP"}</p>
 
                     <div className="flex flex-wrap gap-1.5">
                       {metaItems.map(([label, value]) => (
-                        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 font-mono text-[11px] text-[#131313]" key={label}>
-                          <span className="font-semibold uppercase tracking-[0.1em] text-[#4a5a50]">{label}</span>
-                          <span className="break-all font-medium text-[#131313]">{value}</span>
+                        <div className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1.5 font-mono text-[11px]", nb ? "border-2 border-border bg-nb-grey text-foreground" : "bg-white/60 text-[#131313]")} key={label}>
+                          <span className={cn("font-semibold uppercase tracking-[0.1em]", nb ? "text-foreground" : "text-[#4a5a50]")}>{label}</span>
+                          <span className={cn("break-all font-medium", nb ? "text-foreground" : "text-[#131313]")}>{value}</span>
                         </div>
                       ))}
                     </div>
@@ -1458,7 +1487,7 @@ export default function MikrotikDetail() {
 
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-24">
                     <Button
-                      className="h-8 w-full rounded-full border-0 bg-[#131313] text-[12px] font-bold text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint sm:w-full"
+                      className={cn("h-8 w-full rounded-full text-[12px] font-bold sm:w-full", nb ? "border-2 border-border bg-white text-foreground shadow-brutal-sm hover:bg-nb-grey" : "border-0 bg-[#131313] text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint")}
                       disabled={pppInterfaceActionMutation.isPending}
                       onClick={() => void pppInterfaceActionMutation.mutateAsync(session[".id"] || session["session-id"] || session.name || sessionId)}
                       variant="outline"
@@ -1508,9 +1537,13 @@ export default function MikrotikDetail() {
                       <div className="flex items-start justify-between gap-2">
                         <span className={cn(
                           "inline-flex max-w-[75%] break-all rounded-full px-3 py-1 text-xs font-extrabold",
-                          isDisabled
-                            ? "bg-pastel-grey text-[#131313]"
-                            : "bg-pastel-mint text-[#131313]"
+                          nb
+                            ? isDisabled
+                              ? "border-2 border-border bg-nb-grey text-foreground"
+                              : "border-2 border-border bg-white text-foreground"
+                            : isDisabled
+                              ? "bg-pastel-grey text-[#131313]"
+                              : "bg-pastel-mint text-[#131313]"
                         )}>
                           {secret.name || "-"}
                         </span>
@@ -1570,9 +1603,13 @@ export default function MikrotikDetail() {
                         <Table.Cell>
                           <span className={cn(
                             "inline-flex break-all rounded-full px-3 py-1 text-xs font-extrabold sm:text-sm",
-                            isDisabled
-                              ? "bg-pastel-grey text-[#131313]"
-                              : "bg-pastel-mint text-[#131313]"
+                            nb
+                              ? isDisabled
+                                ? "border-2 border-border bg-nb-grey text-foreground"
+                                : "border-2 border-border bg-white text-foreground"
+                              : isDisabled
+                                ? "bg-pastel-grey text-[#131313]"
+                                : "bg-pastel-mint text-[#131313]"
                           )}>
                             {secret.name || "-"}
                           </span>
@@ -1641,17 +1678,17 @@ export default function MikrotikDetail() {
 
             return (
               <div key={profileId}>
-                <div className={cn("rounded-[20px] px-4 py-3 sm:hidden", pastelCycleBg(profileIndex))}>
+                <div className={cn("rounded-[20px] px-4 py-3 sm:hidden", nb ? "border-2 border-border bg-white shadow-brutal" : pastelCycleBg(profileIndex))}>
                   <div className="min-w-0">
-                    <span className="inline-flex max-w-full truncate text-[14px] font-extrabold text-[#131313]">{profile.name}</span>
-                    <p className={cn("mt-1 truncate font-mono text-[11px]", pastelCycleMeta(profileIndex))}>Local {profile["local-address"] || "-"} · Pool {profile["remote-address"] || "-"}</p>
-                    <p className={cn("mt-1 truncate font-mono text-[11px]", pastelCycleMeta(profileIndex))}>Rate {profile["rate-limit"] || "-"}</p>
+                    <span className={cn("inline-flex max-w-full truncate text-[14px] font-extrabold", nb ? "text-foreground" : "text-[#131313]")}>{profile.name}</span>
+                    <p className={cn("mt-1 truncate font-mono text-[11px]", nb ? "text-foreground" : pastelCycleMeta(profileIndex))}>Local {profile["local-address"] || "-"} · Pool {profile["remote-address"] || "-"}</p>
+                    <p className={cn("mt-1 truncate font-mono text-[11px]", nb ? "text-foreground" : pastelCycleMeta(profileIndex))}>Rate {profile["rate-limit"] || "-"}</p>
                   </div>
                   <div className="mt-2 flex justify-end">
                     {can("mikrotik_ppp_write") ? (
                       <Button
                         aria-label="Profile actions"
-                        className="h-8 w-8 rounded-full border-0 bg-[#131313] p-0 text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint"
+                        className={cn("h-8 w-8 rounded-full p-0", nb ? "border-2 border-border bg-white text-foreground shadow-brutal-sm hover:bg-nb-grey" : "border-0 bg-[#131313] text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint")}
                         onClick={() => openProfileEditOverlay(profile)}
                         type="button"
                         variant="outline"
@@ -1662,15 +1699,15 @@ export default function MikrotikDetail() {
                   </div>
                 </div>
 
-                <div className={cn("hidden rounded-[20px] p-4 sm:block", pastelCycleBg(profileIndex))}>
+                <div className={cn("hidden rounded-[20px] p-4 sm:block", nb ? "border-2 border-border bg-white shadow-brutal" : pastelCycleBg(profileIndex))}>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-1.5">
-                      <span className="inline-flex max-w-full truncate text-[14px] font-extrabold text-[#131313]">{profile.name}</span>
+                      <span className={cn("inline-flex max-w-full truncate text-[14px] font-extrabold", nb ? "text-foreground" : "text-[#131313]")}>{profile.name}</span>
                       <div className="flex flex-wrap gap-1.5">
                         {metaItems.map(([label, value]) => (
-                          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 font-mono text-[11px] text-[#131313]" key={label}>
-                            <span className={cn("font-semibold uppercase tracking-[0.1em]", pastelCycleMeta(profileIndex))}>{label}</span>
-                            <span className="break-all font-medium text-[#131313]">{value}</span>
+                          <div className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1.5 font-mono text-[11px]", nb ? "border-2 border-border bg-nb-grey text-foreground" : "bg-white/60 text-[#131313]")} key={label}>
+                            <span className={cn("font-semibold uppercase tracking-[0.1em]", nb ? "text-foreground" : pastelCycleMeta(profileIndex))}>{label}</span>
+                            <span className={cn("break-all font-medium", nb ? "text-foreground" : "text-[#131313]")}>{value}</span>
                           </div>
                         ))}
                       </div>
@@ -1679,7 +1716,7 @@ export default function MikrotikDetail() {
                       {can("mikrotik_ppp_write") ? (
                         <Button
                           aria-label="Profile actions"
-                          className="h-8 w-8 rounded-full border-0 bg-[#131313] p-0 text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint"
+                          className={cn("h-8 w-8 rounded-full p-0", nb ? "border-2 border-border bg-white text-foreground shadow-brutal-sm hover:bg-nb-grey" : "border-0 bg-[#131313] text-pastel-mint hover:bg-[#131313]/85 hover:text-pastel-mint")}
                           onClick={() => openProfileEditOverlay(profile)}
                           type="button"
                           variant="outline"
@@ -1709,8 +1746,8 @@ export default function MikrotikDetail() {
                   className={cn(
                     "inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors",
                     activeTab === tab.key
-                      ? "bg-pastel-mint text-[#131313]"
-                      : "bg-muted text-foreground hover:bg-muted/70"
+                      ? nb ? "border-2 border-border bg-nb-accent text-white" : "bg-pastel-mint text-[#131313]"
+                      : nb ? "border-2 border-border bg-white text-foreground hover:bg-nb-grey" : "bg-muted text-foreground hover:bg-muted/70"
                   )}
                   key={tab.key}
                   onClick={() => {
@@ -1722,7 +1759,9 @@ export default function MikrotikDetail() {
                   <span>{tab.label}</span>
                   <span className={cn(
                     "inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums",
-                    activeTab === tab.key ? "bg-[#131313] text-pastel-mint" : "bg-black/10 text-foreground"
+                    activeTab === tab.key
+                      ? nb ? "bg-white text-foreground" : "bg-[#131313] text-pastel-mint"
+                      : nb ? "bg-nb-grey text-foreground" : "bg-black/10 text-foreground"
                   )}>
                     {tabCounts[tab.key]}
                   </span>
@@ -1784,7 +1823,7 @@ export default function MikrotikDetail() {
           <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="break-words text-[1.35rem] font-black tracking-[-0.02em] text-foreground sm:text-[1.6rem]">{deviceTitle}</h2>
+                <h2 className={cn("break-words text-[1.35rem] font-black tracking-[-0.02em] text-foreground sm:text-[1.6rem]", nb ? "font-display nb-stroke" : "")}>{deviceTitle}</h2>
                 <OnuStatusPill
                   className="px-3 py-1.5 text-[11px]"
                   dotClass={headerStatus === "online" ? "bg-pastel-mint" : headerStatus === "offline" || headerStatus === "down" ? "bg-pastel-grey" : "bg-pastel-lavender"}
@@ -1803,10 +1842,10 @@ export default function MikrotikDetail() {
             </div>
 
             <span className={cn(
-              "inline-flex self-start rounded-full bg-[#131313] px-3 py-1.5 font-mono text-[11px] font-bold tracking-[0.04em]",
-              registryDevice?.last_error
-                ? "text-pastel-red"
-                : "text-pastel-mint",
+              "inline-flex self-start rounded-full px-3 py-1.5 font-mono text-[11px] font-bold tracking-[0.04em]",
+              nb
+                ? cn("border-2 border-border bg-white shadow-brutal-sm", registryDevice?.last_error ? "text-nb-red" : "text-foreground")
+                : cn("bg-[#131313]", registryDevice?.last_error ? "text-pastel-red" : "text-pastel-mint"),
             )}>
               {registryDevice?.last_error ? "Sync needs attention" : `Synced ${registrySyncLabel}`}
             </span>

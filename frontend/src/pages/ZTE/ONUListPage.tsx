@@ -3,12 +3,15 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUpRight, ChevronDown, Monitor } from 'lucide-react'
 import { PickerPopup } from '@/components/retroui/PickerPopup'
-import { IconDisc, OnuStatusPill } from '@/components/nms/pastel'
+import { IconDisc, OnuStatusPill, RxBig } from '@/components/nms/pastel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useGlobalLoaderOverlay } from '@/hooks/useGlobalLoaderOverlay'
+import { useTheme } from '@/hooks/useTheme';
+import { isNbStyle } from '@/lib/nb';
 import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api'
+import { NB_PANEL, NB_ROW_BG, NB_ROW_META, NB_STAT_PILL } from '@/lib/nb'
 import { ONU_PILL_DOT, ONU_PILL_TEXT, ONU_ROW_BG, ONU_ROW_META, type OnuRowTone } from '@/lib/pastel'
 import { showToast } from '@/lib/toast'
 import { getZTEBoards, getZTEConnections, getZTEONUList, getZTEPONList, getZTESystemInfo, getZTEUnconfiguredONUs } from '@/lib/zteApi'
@@ -37,8 +40,10 @@ type DashboardHeaderProps = {
 }
 
 function DashboardHeader({ title, subtitle, systemInfo, autoRefresh, onSyncClick, onSettingsClick }: DashboardHeaderProps) {
+  const { styleMode } = useTheme()
+  const nb = isNbStyle(styleMode)
   return (
-    <div className="rounded-[20px] border bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className={nb ? `${NB_PANEL} p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between` : "rounded-[20px] border bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"}>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{subtitle ?? 'Live Monitoring'}</p>
         <h1 className="truncate font-heading text-lg font-extrabold uppercase tracking-tight sm:text-xl">
@@ -120,6 +125,8 @@ function FilterToolbar({
   uncfgCount,
 }: FilterToolbarProps) {
   const [pickerOpen, setPickerOpen] = useState<'board' | 'pon' | null>(null)
+  const { styleMode } = useTheme()
+  const nb = isNbStyle(styleMode)
   // Nama PON tak dihafal operator — trigger menampilkan nomor + nama
   // sekaligus ("PON 1: suambian"), bukan nama saja atau nomor saja.
   const selectedPon = pon != null ? ponList.find((item) => item.pon === pon) : undefined
@@ -127,7 +134,7 @@ function FilterToolbar({
     pon == null ? 'Pilih PON' : selectedPon?.description ? `PON ${pon}: ${selectedPon.description}` : `PON ${pon}`
 
   return (
-    <div className="rounded-[20px] border bg-card p-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
+    <div className={nb ? `${NB_PANEL} p-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between` : "rounded-[20px] border bg-card p-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between"}>
       <div className="w-full lg:w-auto">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Pilih Board &amp; Pon</p>
         <div className="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto">
@@ -215,7 +222,7 @@ function SectionHeader({ autoRefresh }: { autoRefresh: boolean }) {
 }
 
 // Baris ONU bahasa pastel (v29): kartu penuh warna status, kolom
-// nama (+ ID · PON), SN, RX optik, pill status besar.
+// nama (+ ID · PON), SN, pill status besar + RX besar di bawahnya.
 function rowTone(status: DashboardRow['status']): { tone: OnuRowTone; label: string } {
   if (status === 'ONLINE') return { tone: 'online', label: 'ONLINE' }
   if (status === 'LOS') return { tone: 'los', label: 'LOS' }
@@ -231,6 +238,8 @@ type DataTableProps = {
 }
 
 function DataTable({ rows, onViewDetail }: DataTableProps) {
+  const { styleMode } = useTheme()
+  const nb = isNbStyle(styleMode)
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => {
@@ -241,35 +250,35 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
             key={`${row.id}-${row.sn}`}
             type="button"
             onClick={() => onViewDetail(row)}
-            className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${ONU_ROW_BG[tone]}`}
+            className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${nb ? NB_ROW_BG : ONU_ROW_BG[tone]}`}
           >
             <div className="flex items-center gap-3">
               <IconDisc iconClass={iconTint} className="h-11 w-11">
                 <Monitor className="h-5 w-5" />
               </IconDisc>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-[17px] font-bold tracking-[-0.01em]">{row.nama}</p>
-                <p className={`mt-0.5 truncate font-mono text-[11px] ${ONU_ROW_META[tone]}`}>
+                <p className={nb ? "truncate nb-stroke font-display text-[18px] sm:text-[20px] font-bold tracking-[-0.01em]" : "truncate font-display text-[17px] font-bold tracking-[-0.01em]"}>{row.nama}</p>
+                <p className={`mt-0.5 truncate font-mono text-[11px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                   ID {row.id} · PON {row.raw.pon}
                 </p>
               </div>
-              <div className="hidden min-w-0 flex-1 font-mono text-xs leading-[1.7] lg:block">
+              <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
                 <p className="truncate">{row.sn}</p>
-                <p className={ONU_ROW_META[tone]}>BOARD {row.raw.board}</p>
+                <p className={nb ? NB_ROW_META : ONU_ROW_META[tone]}>BOARD {row.raw.board}</p>
               </div>
-              <div className="hidden font-mono text-xs font-bold leading-[1.7] lg:block">
-                <p>{row.rx === 'NONE' ? 'RX —' : `RX ${row.rx} dBm`}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2.5">
-                <OnuStatusPill label={label} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
-                <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex">
-                  <ArrowUpRight className="h-4 w-4" />
-                </span>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <div className="flex items-center gap-2.5">
+                  <OnuStatusPill label={label} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
+                  <span className={nb ? "hidden h-9 w-9 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
+                </div>
+                <RxBig rx={row.rx === 'NONE' ? null : row.rx} metaClass={ONU_ROW_META[tone]} />
               </div>
             </div>
-            <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono text-xs lg:hidden ${ONU_ROW_META[tone]}`}>
+            <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[13px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
               <p className="truncate text-[#131313]">{row.sn}</p>
-              <p>{row.rx === 'NONE' ? 'RX —' : `RX ${row.rx} dBm`} · BOARD {row.raw.board}</p>
+              <p>BOARD {row.raw.board}</p>
             </div>
           </button>
         )
@@ -301,6 +310,8 @@ function mapToDashboardRows(items: ZTEONUListItem[]): DashboardRow[] {
 }
 
 export default function ONUListPage() {
+  const { styleMode } = useTheme()
+  const nb = isNbStyle(styleMode)
   const { runWithGlobalLoader } = useGlobalLoaderOverlay()
   const { can } = useRole()
   const { connId } = useParams<{ connId: string }>()
@@ -516,15 +527,15 @@ export default function ONUListPage() {
 
         {hasLoaded && !isLoading && !isError && (
           <div className="flex flex-wrap items-center gap-2">
-            <StatPill value={stats.total} label="TOTAL" tone="bg-card border border-border text-foreground" onClick={() => setSearchQuery('')} />
-            <StatPill value={stats.online} label="ONLINE" tone="bg-pastel-mint text-[#131313]" onClick={() => setSearchQuery('ONLINE')} />
-            <StatPill value={stats.los} label="LOS" tone="bg-pastel-red text-[#131313]" onClick={() => setSearchQuery('LOS')} />
-            <StatPill value={stats.offline} label="OFFLINE" tone="bg-pastel-grey text-[#131313]" onClick={() => setSearchQuery('OFF')} />
+            <StatPill value={stats.total} label="TOTAL" tone={nb ? NB_STAT_PILL.total : "bg-card border border-border text-foreground"} onClick={() => setSearchQuery('')} />
+            <StatPill value={stats.online} label="ONLINE" tone={nb ? NB_STAT_PILL.online : "bg-pastel-mint text-[#131313]"} onClick={() => setSearchQuery('ONLINE')} />
+            <StatPill value={stats.los} label="LOS" tone={nb ? NB_STAT_PILL.los : "bg-pastel-red text-[#131313]"} onClick={() => setSearchQuery('LOS')} />
+            <StatPill value={stats.offline} label="OFFLINE" tone={nb ? NB_STAT_PILL.offline : "bg-pastel-grey text-[#131313]"} onClick={() => setSearchQuery('OFF')} />
           </div>
         )}
 
         {hasLoaded && !isLoading && !isError && showUncfg && (
-          <div className="rounded-[20px] border bg-card overflow-hidden">
+          <div className={nb ? `${NB_PANEL} overflow-hidden` : "rounded-[20px] border bg-card overflow-hidden"}>
             <div className="border-b border-border bg-muted/30 px-3 py-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unconfigured ONU</span>
             </div>

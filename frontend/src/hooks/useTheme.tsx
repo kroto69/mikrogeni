@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { isNbStyle } from "@/lib/nb";
 
 type ThemeMode = "light" | "dark";
-type StyleMode = "pastel" | "rapi-brutal";
+export type StyleMode = "pastel" | "rapi-brutal" | "nb-a" | "nb-b";
 
 type ThemeContextValue = {
   theme: ThemeMode;
@@ -37,10 +38,12 @@ function getPreferredStyleMode(): StyleMode {
   const stored =
     window.localStorage.getItem(STYLE_STORAGE_KEY) ??
     window.localStorage.getItem(LEGACY_STYLE_STORAGE_KEY);
-  if (stored === "pastel" || stored === "rapi-brutal") {
+  if (stored === "pastel" || stored === "rapi-brutal" || stored === "nb-a" || stored === "nb-b") {
     return stored;
   }
-  return "pastel";
+  // Default: neo-brutalism arah A "Semula" (keputusan juragan 2026-11-17:
+  // kedua arah tersedia sebagai pemilih tema, default A).
+  return "nb-a";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -53,13 +56,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    root.style.colorScheme = theme;
+    // Tema neo-brutalism light-only: paksa terang selama styleMode nb,
+    // nilai theme yang tersimpan tetap dipertahankan untuk kembali ke pastel.
+    const nb = isNbStyle(styleMode);
+    root.classList.toggle("dark", theme === "dark" && !nb);
+    root.style.colorScheme = nb ? "light" : theme;
 
     if (typeof window !== "undefined") {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
-  }, [theme]);
+  }, [theme, styleMode]);
 
   useEffect(() => {
     if (typeof document === "undefined") {

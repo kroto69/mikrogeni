@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { StatusBadge as NmsStatusBadge } from '@/components/nms/status-badge'
 import { OnuStatusPill, RxBar } from '@/components/nms/pastel'
 import { Button } from '@/components/ui/button'
+import { useTheme } from '@/hooks/useTheme';
+import { isNbStyle } from '@/lib/nb';
+import { NB_PANEL } from '@/lib/nb'
 import type { NmsStatus } from '@/lib/status-tone'
 import { rxQuality } from '@/lib/pastel'
 import { ZTEModal } from './ZTEModal'
@@ -63,6 +66,8 @@ function InfoCell({ label, children, mono }: { label: string; children: React.Re
 }
 
 export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalProps) {
+  const { styleMode } = useTheme()
+  const nb = isNbStyle(styleMode)
   const [detail, setDetail] = useState<ZTEONUDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -110,10 +115,10 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
       {detail && !loading && !error && (
         <div className="space-y-4">
           {/* Hero sinyal (v18): angka RX besar + pill kualitas + satu bar tipis. */}
-          <div className="rounded-[20px] bg-pastel-mint p-4 text-[#131313]">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]">RX Power</p>
+          <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-4 text-[#131313]" : "rounded-[20px] bg-pastel-mint p-4 text-[#131313]"}>
+            <p className={nb ? "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-foreground" : "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]"}>RX Power</p>
             <div className="mt-1.5 flex items-baseline gap-2">
-              <span className="font-display text-4xl font-bold leading-none tracking-[-0.02em]">{detail.rxPower ? detail.rxPower : '—'}</span>
+              <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detail.rxPower ? detail.rxPower : '—'}</span>
               {detail.rxPower ? <span className="font-mono text-sm font-bold">dBm</span> : null}
               {quality && quality.label !== '-' ? (
                 <span className="ml-auto">
@@ -127,26 +132,30 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
             </div>
             <RxBar rx={detail.rxPower} barColor={quality?.bar ?? '#9aa3a8'} className="mt-3" />
             <div className="mt-3 flex gap-2.5">
-              <div className="flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3">
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]">TX Power</p>
+              <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3"}>
+                <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]"}>TX Power</p>
                 <p className="mt-1 font-mono text-[15px] font-bold">{detail.txPower ? `${detail.txPower} dBm` : '—'}</p>
               </div>
-              <div className="flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3">
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]">Terakhir Online</p>
+              <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3"}>
+                <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]"}>Terakhir Online</p>
                 <p className="mt-1 font-mono text-[15px] font-bold">{formatShortDate(detail.lastOnline)}</p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-[20px] border bg-card px-4 py-2">
+          <div className={nb ? `${NB_PANEL} px-4 py-2` : "rounded-[20px] border bg-card px-4 py-2"}>
             <div className="grid grid-cols-2 gap-x-4">
               <InfoCell label="Lokasi">{detail.board}/{detail.pon}/{detail.onuId}</InfoCell>
               <InfoCell label="Status">
-                <NmsStatusBadge
-                  label={detailStatusTone?.label}
-                  size="sm"
-                  status={detailStatusTone?.status ?? 'unknown'}
-                />
+                {nb ? (
+                  <OnuStatusPill label={detailStatusTone?.label ?? 'UNKNOWN'} textClass="" dotClass="" />
+                ) : (
+                  <NmsStatusBadge
+                    label={detailStatusTone?.label}
+                    size="sm"
+                    status={detailStatusTone?.status ?? 'unknown'}
+                  />
+                )}
               </InfoCell>
               <InfoCell label="Tipe">{detail.type || '-'}</InfoCell>
               <InfoCell label="Serial" mono>{detail.serialNumber || '-'}</InfoCell>

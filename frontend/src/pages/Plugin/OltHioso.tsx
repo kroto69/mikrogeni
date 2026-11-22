@@ -30,7 +30,10 @@ import type { ZTEConnection } from "@/types/zte";
 import { showToast } from "@/lib/toast";
 import { useRole } from "@/hooks/useRole";
 import { ArrowUpRight, ChevronDown, Monitor, RefreshCw, Search, X } from "lucide-react";
-import { IconDisc, OnuStatusPill, RxBar } from "@/components/nms/pastel";
+import { IconDisc, OnuStatusPill, RxBar, RxBig } from "@/components/nms/pastel";
+import { useTheme } from "@/hooks/useTheme";
+import { isNbStyle } from "@/lib/nb";
+import { NB_ROW_BG, NB_ROW_META } from "@/lib/nb";
 import { ONU_PILL_DOT, ONU_PILL_TEXT, ONU_ROW_BG, ONU_ROW_META, rxQuality, type OnuRowTone } from "@/lib/pastel";
 import { OltIcon } from "@/components/icons/OltIcon";
 import { useGlobalLoaderOverlay } from "@/hooks/useGlobalLoaderOverlay";
@@ -140,6 +143,8 @@ function getDeviceStatusVariant(status?: string): "success" | "destructive" | "s
 }
 
 export default function OltHiosoPage() {
+  const { styleMode } = useTheme();
+  const nb = isNbStyle(styleMode);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { can } = useRole();
@@ -652,7 +657,7 @@ export default function OltHiosoPage() {
         <div className="flex flex-wrap gap-2">
           {devices.map((device) => (
             <button
-              className={`rounded-full border px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.04em] ${selectedDeviceId === device.id ? "border-transparent bg-pastel-mint text-[#131313]" : "border-border bg-card text-foreground"}`}
+              className={`rounded-full border px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.04em] ${nb ? (selectedDeviceId === device.id ? "border-border bg-nb-accent text-white" : "border-border bg-white text-foreground") : (selectedDeviceId === device.id ? "border-transparent bg-pastel-mint text-[#131313]" : "border-border bg-card text-foreground")}`}
               key={device.id}
               onClick={() => {
                 setSelectedDeviceId(device.id);
@@ -827,7 +832,7 @@ export default function OltHiosoPage() {
                     return (
                       <button
                         aria-pressed={active}
-                        className={`h-11 flex-1 rounded-full border px-2 font-mono text-xs font-bold uppercase tracking-[0.02em] ${active ? "border-transparent bg-pastel-mint text-[#131313]" : "border-transparent text-foreground hover:bg-card"}`}
+                        className={`h-11 flex-1 rounded-full border px-2 font-mono text-xs font-bold uppercase tracking-[0.02em] ${nb ? (active ? "border-border bg-nb-accent text-white" : "border-border bg-white text-foreground") : (active ? "border-transparent bg-pastel-mint text-[#131313]" : "border-transparent text-foreground hover:bg-card")}`}
                         key={filter}
                         onClick={() => setOnuFilter(filter)}
                         type="button"
@@ -868,37 +873,37 @@ export default function OltHiosoPage() {
                     key={onu.index}
                     type="button"
                     onClick={() => openOnuDetailOverlay(onu)}
-                    className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${ONU_ROW_BG[tone]}`}
+                    className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${nb ? NB_ROW_BG : ONU_ROW_BG[tone]}`}
                   >
                     <div className="flex items-center gap-3">
                       <IconDisc iconClass={iconTint} className="h-11 w-11">
                         <Monitor className="h-5 w-5" />
                       </IconDisc>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-display text-[17px] font-bold tracking-[-0.01em]">{onu.name || "ONU"}</p>
-                        <p className={`mt-0.5 truncate font-mono text-[11px] ${ONU_ROW_META[tone]}`}>
+                        <p className={nb ? "truncate nb-stroke font-display text-[18px] sm:text-[20px] font-bold tracking-[-0.01em]" : "truncate font-display text-[17px] font-bold tracking-[-0.01em]"}>{onu.name || "ONU"}</p>
+                        <p className={`mt-0.5 truncate font-mono text-[11px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                           IDX {onu.index} · PON {port}
                         </p>
                       </div>
-                      <div className="hidden min-w-0 flex-1 font-mono text-xs leading-[1.7] lg:block">
+                      <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
                         <p className="truncate">SN {onu.sn || "-"}</p>
                       </div>
-                      <div className="hidden font-mono text-xs font-bold leading-[1.7] lg:block">
+                      <div className={`hidden font-mono font-bold leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
                         <p>{tx != null ? `TX ${tx} dBm` : "TX —"}</p>
-                        <p>{rx != null ? `RX ${rx} dBm` : "RX —"}</p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2.5">
-                        <OnuStatusPill label={(onu.status || "Unknown").toUpperCase()} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
-                        <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex">
-                          <ArrowUpRight className="h-4 w-4" />
-                        </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="flex items-center gap-2.5">
+                          <OnuStatusPill label={(onu.status || "Unknown").toUpperCase()} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
+                          <span className={nb ? "hidden h-9 w-9 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
+                            <ArrowUpRight className="h-4 w-4" />
+                          </span>
+                        </div>
+                        <RxBig rx={rx != null ? String(rx) : null} metaClass={ONU_ROW_META[tone]} />
                       </div>
                     </div>
-                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono text-xs lg:hidden ${ONU_ROW_META[tone]}`}>
+                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[13px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                       <p className="truncate text-[#131313]">SN {onu.sn || "-"}</p>
-                      <p>
-                        {tx != null ? `TX ${tx} dBm` : "TX —"} · {rx != null ? `RX ${rx} dBm` : "RX —"}
-                      </p>
+                      <p>{tx != null ? `TX ${tx} dBm` : "TX —"}</p>
                     </div>
                   </button>
                 );
@@ -953,9 +958,9 @@ export default function OltHiosoPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-[20px] bg-pastel-mint p-4 text-[#131313]">
+              <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-4 text-[#131313]" : "rounded-[20px] bg-pastel-mint p-4 text-[#131313]"}>
                 <div className="flex items-center justify-between gap-3">
-                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]">RX Power</p>
+                  <p className={nb ? "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-foreground" : "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]"}>RX Power</p>
                   <OnuStatusPill
                     label={(onuDetailQuery.data?.status || "-").toUpperCase()}
                     textClass={detailOnline ? "text-pastel-mint" : detailLos ? "text-pastel-red" : "text-pastel-grey"}
@@ -963,7 +968,7 @@ export default function OltHiosoPage() {
                   />
                 </div>
                 <div className="mt-1.5 flex items-baseline gap-2">
-                  <span className="font-display text-4xl font-bold leading-none tracking-[-0.02em]">{detailRx != null ? detailRx : "−"}</span>
+                  <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detailRx != null ? detailRx : "−"}</span>
                   <span className="font-mono text-sm font-bold">dBm</span>
                   {detailQuality.label !== "-" ? (
                     <span className="ml-auto">
@@ -977,12 +982,12 @@ export default function OltHiosoPage() {
                 </div>
                 <RxBar rx={detailRx} barColor={detailQuality.bar} className="mt-3" />
                 <div className="mt-3 flex gap-2.5">
-                  <div className="flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3">
-                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]">TX Power</p>
+                  <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3"}>
+                    <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]"}>TX Power</p>
                     <p className="mt-1 font-mono text-[15px] font-bold">{detailOnline && onuDetailQuery.data?.tx_power != null ? `${onuDetailQuery.data.tx_power} dBm` : "−"}</p>
                   </div>
-                  <div className="flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3">
-                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]">Suhu</p>
+                  <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3"}>
+                    <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]"}>Suhu</p>
                     <p className="mt-1 font-mono text-[15px] font-bold">{onuDetailQuery.data?.temperature != null ? `${onuDetailQuery.data.temperature} °C` : "−"}</p>
                   </div>
                 </div>
@@ -1227,7 +1232,7 @@ export default function OltHiosoPage() {
                 <label className="text-sm font-medium text-muted-foreground" htmlFor="zte-baseurl">ZTE Backend URL</label>
                 <Input id="zte-baseurl" placeholder="http://olt-monitor:8081" value={zteForm.baseUrl} onChange={(event) => setZteForm((current) => ({ ...current, baseUrl: event.target.value }))} />
                 <p className="text-[11px] text-muted-foreground">
-                  Requires <a href="https://github.com/kroto69/zzte" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#1f7a4d] underline dark:text-pastel-mint">zzte</a> container running. See README for integration guide.
+                  Requires <a href="https://github.com/kroto69/zzte" target="_blank" rel="noopener noreferrer" className={nb ? "font-semibold text-foreground underline" : "font-semibold text-[#1f7a4d] underline dark:text-pastel-mint"}>zzte</a> container running. See README for integration guide.
                 </p>
               </div>
               <div className="sm:col-span-2">

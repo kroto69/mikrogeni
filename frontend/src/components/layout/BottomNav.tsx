@@ -4,6 +4,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { AcsIcon } from "@/components/icons/AcsIcon";
 import { OltIcon } from "@/components/icons/OltIcon";
 import { Router } from "lucide-react";
+import { useTheme } from "@/hooks/useTheme";
+import { isNbStyle } from "@/lib/nb";
 import { cn } from "@/lib/utils";
 import { preloadRoute, type RouteLoaderKey } from "@/lib/routePreload";
 
@@ -20,6 +22,8 @@ const items: ReadonlyArray<{ label: string; to: string; icon: React.FC<{ classNa
 
 export default function BottomNav({ onMenuClick }: BottomNavProps) {
   const location = useLocation();
+  const { styleMode } = useTheme();
+  const nb = isNbStyle(styleMode);
 
   return (
     <nav
@@ -38,8 +42,12 @@ export default function BottomNav({ onMenuClick }: BottomNavProps) {
               className={cn(
                 "flex flex-col items-center gap-1 rounded-full border px-1 py-2 text-[10px] font-extrabold uppercase tracking-[0.06em] transition-colors",
                 active
-                  ? "border-transparent bg-pastel-mint text-[#131313]"
-                  : "border-transparent text-muted-foreground active:bg-muted/40",
+                  ? nb
+                    ? "border-border bg-nb-accent text-white shadow-brutal-sm"
+                    : "border-transparent bg-pastel-mint text-[#131313]"
+                  : nb
+                    ? "border-transparent text-[#5C5C66] active:bg-muted/40"
+                    : "border-transparent text-muted-foreground active:bg-muted/40",
               )}
             >
               <Icon className="h-5 w-5" />
@@ -51,7 +59,10 @@ export default function BottomNav({ onMenuClick }: BottomNavProps) {
           type="button"
           onClick={onMenuClick}
           aria-label="Buka menu"
-          className="flex flex-col items-center gap-1 rounded-full border border-transparent px-1 py-2 text-[10px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground transition-colors active:bg-muted/40"
+          className={cn(
+            "flex flex-col items-center gap-1 rounded-full border border-transparent px-1 py-2 text-[10px] font-extrabold uppercase tracking-[0.06em] transition-colors active:bg-muted/40",
+            nb ? "text-[#5C5C66]" : "text-muted-foreground",
+          )}
         >
           <Menu className="h-5 w-5" />
           <span className="leading-none">Menu</span>

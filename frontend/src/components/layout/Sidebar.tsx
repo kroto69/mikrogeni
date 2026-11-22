@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getZTEConnections } from "@/lib/zteApi";
 import { getDashboardSummary, getHiosoDevices, getMikrotikDevices } from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
+import { useTheme } from "@/hooks/useTheme";
+import { isNbStyle } from "@/lib/nb";
 import { preloadRoute, type RouteLoaderKey } from "@/lib/routePreload";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { cn } from "@/lib/utils";
@@ -29,10 +31,16 @@ type SidebarProps = {
 };
 
 export default function Sidebar({ className, onNavigate }: SidebarProps) {
+  const { styleMode } = useTheme();
+  const nb = isNbStyle(styleMode);
   const navLinkBase = "relative flex items-center gap-3 rounded-full px-4 py-3 text-xs font-bold uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-muted";
-  const navLinkActive = "bg-[#d9edde] text-[#1f7a4d] dark:bg-[#4a5a4e] dark:text-pastel-mint";
+  const navLinkActive = nb
+    ? "border-2 border-border bg-nb-accent text-white shadow-brutal-sm"
+    : "bg-[#d9edde] text-[#1f7a4d] dark:bg-[#4a5a4e] dark:text-pastel-mint";
   const subNavBase = "relative ml-3 flex items-center gap-2.5 rounded-full px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-foreground transition-colors hover:bg-muted";
-  const subNavActive = "bg-[#d9edde] text-[#1f7a4d] dark:bg-[#4a5a4e] dark:text-pastel-mint";
+  const subNavActive = nb
+    ? "border-2 border-border bg-nb-accent text-white shadow-brutal-sm"
+    : "bg-[#d9edde] text-[#1f7a4d] dark:bg-[#4a5a4e] dark:text-pastel-mint";
 
   const { can } = useRole();
   const { genieacsEnabled, billingEnabled } = useFeatureFlags();
@@ -205,7 +213,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         </NavLink>
         )}
 
-        <div className="rounded-[20px] bg-secondary p-4 text-secondary-foreground">
+        <div className={cn("rounded-[20px] bg-secondary p-4 text-secondary-foreground", nb && "border-2 border-border shadow-brutal")}>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.16em]">Network Health</span>
             <span className={cn("h-3 w-3 rounded-full", summary ? "bg-success" : "bg-muted")} />

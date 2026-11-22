@@ -2,7 +2,10 @@ import { Activity, ArrowUpRight, Radio, Router, Wifi } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, getApiErrorMessage, getDashboardSummary } from "@/lib/api";
-import { IconDisc } from "@/components/nms/pastel";
+import { IconDisc, OnuStatusPill } from "@/components/nms/pastel";
+import { useTheme } from "@/hooks/useTheme";
+import { isNbStyle } from "@/lib/nb";
+import { NB_ATTENTION_BG, NB_BLOCK_META, nbStatStrip } from "@/lib/nb";
 import { pastelCycleBg, pastelCycleIcon, pastelCycleMeta } from "@/lib/pastel";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +19,8 @@ type RecentLog = {
 };
 
 export default function Dashboard() {
+  const { styleMode } = useTheme();
+  const nb = isNbStyle(styleMode);
   // Single aggregated request (backend computes per-device data in parallel
   // and caches it for 30s) — replaces the old N+1 fan-out of per-router
   // ppp/active + detail and per-OLT health queries.
@@ -146,8 +151,21 @@ export default function Dashboard() {
       ) : null}
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {stats.map(({ label, value, sub, icon: Icon, tone, meta, iconTint, to }) => (
-          <div key={label} className={cn("rounded-[20px] p-4 text-[#131313] sm:p-5", tone)}>
+        {stats.map(({ label, value, sub, icon: Icon, tone, meta, iconTint, to }, i) => (
+          <div
+            key={label}
+            className={cn(
+              "relative overflow-hidden rounded-[20px] p-4 text-[#131313] sm:p-5",
+              nb ? "border-2 border-border bg-white shadow-brutal" : tone,
+            )}
+          >
+            {nb ? (
+              <span
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[6px]"
+                style={{ backgroundColor: nbStatStrip(styleMode, i) }}
+              />
+            ) : null}
             <div className="flex items-center justify-between">
               <IconDisc iconClass={iconTint} className="h-11 w-11">
                 <Icon className="h-5 w-5" />
@@ -155,14 +173,17 @@ export default function Dashboard() {
               <Link
                 to={to}
                 aria-label={`Buka ${label}`}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] transition-opacity hover:opacity-80"
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-opacity hover:opacity-80",
+                  nb ? "border-2 border-border bg-white text-foreground shadow-brutal-sm" : "bg-[#131313] text-[#f5f5f5]",
+                )}
               >
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
             <p className="mt-4 font-display text-4xl font-bold leading-none tracking-[-0.03em]">{value}</p>
             <p className="mt-1.5 text-sm font-semibold">{label}</p>
-            <p className={cn("mt-1 truncate font-mono text-[11px]", meta)}>{sub}</p>
+            <p className={cn("mt-1 truncate font-mono text-[12px]", nb ? "text-foreground" : meta)}>{sub}</p>
           </div>
         ))}
       </section>
@@ -171,7 +192,7 @@ export default function Dashboard() {
         <section className="min-w-0">
           <div className="mb-3 flex items-center justify-between px-1">
             <h2 className="font-display text-xl font-bold tracking-[-0.02em] text-foreground">OLT</h2>
-            <Link to="/hioso" className="font-mono text-xs font-bold text-[#1f7a4d] hover:underline dark:text-pastel-mint">
+            <Link to="/hioso" className={cn("font-mono text-xs font-bold hover:underline", nb ? "text-foreground" : "text-[#1f7a4d] dark:text-pastel-mint")}>
               Lihat semua →
             </Link>
           </div>
@@ -187,26 +208,22 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-3">
               {oltBlocks.map((block, i) => (
-                <Link key={block.key} to={block.to} className={cn("flex items-center gap-4 rounded-[20px] p-4 text-[#131313]", pastelCycleBg(i))}>
+                <Link key={block.key} to={block.to} className={cn("flex items-center gap-4 rounded-[20px] p-4 text-[#131313]", nb ? "border-2 border-border bg-white shadow-brutal" : pastelCycleBg(i))}>
                   <IconDisc iconClass={pastelCycleIcon(i)} className="h-11 w-11">
                     <Radio className="h-5 w-5" />
                   </IconDisc>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-lg font-bold tracking-[-0.01em]">{block.name}</p>
-                    <p className={cn("mt-0.5 truncate font-mono text-[11px]", pastelCycleMeta(i))}>{block.meta}</p>
+                    <p className={cn("mt-0.5 truncate font-mono text-[12px]", nb ? NB_BLOCK_META : pastelCycleMeta(i))}>{block.meta}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <span className="hidden font-mono text-[13px] font-bold sm:inline">{block.count}</span>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#131313] px-3.5 py-2 font-mono text-xs font-bold",
-                        block.online ? "text-pastel-mint" : "text-pastel-grey",
-                      )}
-                    >
-                      <i className={cn("h-2 w-2 rounded-full", block.online ? "bg-pastel-mint" : "bg-pastel-grey")} />
-                      {block.online ? "Online" : "Offline"}
-                    </span>
-                    <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex">
+                    <OnuStatusPill
+                      label={block.online ? "Online" : "Offline"}
+                      textClass={block.online ? "text-pastel-mint" : "text-pastel-grey"}
+                      dotClass={block.online ? "bg-pastel-mint" : "bg-pastel-grey"}
+                    />
+                    <span className={cn("hidden h-9 w-9 items-center justify-center rounded-full sm:flex", nb ? "border-2 border-border bg-white text-foreground shadow-brutal-sm" : "bg-[#131313] text-[#f5f5f5]")}>
                       <ArrowUpRight className="h-4 w-4" />
                     </span>
                   </div>
@@ -222,8 +239,8 @@ export default function Dashboard() {
           </div>
 
           {attentionParts.length > 0 ? (
-            <div className="mb-3 rounded-[20px] bg-pastel-yellow p-4 text-[#131313]">
-              <p className="font-mono text-[11px] font-bold tracking-[0.05em] text-[#6b5a2e]">PERLU PERHATIAN</p>
+            <div className={cn("mb-3 rounded-[20px] p-4 text-[#131313]", nb ? cn(NB_ATTENTION_BG, "border-2 border-border shadow-brutal") : "bg-pastel-yellow")}>
+              <p className={cn("font-mono text-[11px] font-bold tracking-[0.05em]", nb ? "text-foreground" : "text-[#6b5a2e]")}>PERLU PERHATIAN</p>
               <p className="mt-1.5 text-sm font-semibold leading-snug">{attentionParts.join(" · ")}</p>
             </div>
           ) : null}
@@ -235,14 +252,14 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2.5">
               {(recentLogs ?? []).map((log) => (
-                <div key={log.id} className="flex items-center gap-3 rounded-[16px] bg-pastel-mint p-3 text-[#131313]">
+                <div key={log.id} className={cn("flex items-center gap-3 rounded-[16px] p-3 text-[#131313]", nb ? "border-2 border-border bg-white shadow-brutal-sm" : "bg-pastel-mint")}>
                   <IconDisc iconClass="text-pastel-mint" className="h-9 w-9">
                     <Activity className="h-4 w-4" />
                   </IconDisc>
                   <p className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-snug">
                     {log.action.replace(/_/g, " ")} · {log.target}
                   </p>
-                  <span className="shrink-0 font-mono text-[11px] text-[#4a5a50]">
+                  <span className={cn("shrink-0 font-mono text-[11px]", nb ? "text-foreground" : "text-[#4a5a50]")}>
                     {new Date(log.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>

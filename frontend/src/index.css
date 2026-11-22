@@ -355,3 +355,200 @@ button {
     width: 100%;
   }
 }
+
+/* ---- Neo-brutalism fresh modern (2026-11-17, mockup revisi 1-9) ----
+   Dua arah light-only, dipilih lewat styleMode "nb-a" / "nb-b"
+   (default nb-a). Token HSL dihitung dari hex mockup (nb_gen.py):
+   A: BG #BEF6FE, INK #17171C · B: BG #F7F7F8, INK #121216 ·
+   bersama: ACCENT #EA435F, MINT #54CFC0, BUTTER #FFD95C,
+   RED #D0112D, ORANGE #F07C00, GREY #E8E8E3.
+   Toggle gelap/terang lama tidak berlaku di sini (useTheme memaksa
+   terang selama styleMode nb); nilai theme tersimpan tetap dipakai
+   saat kembali ke pastel. */
+:root[data-style-mode="nb-a"] {
+  --background: 187 97% 87%;
+  --foreground: 240 10% 10%;
+  --muted: 0 0% 100%;
+  --muted-foreground: 240 10% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 10%;
+  --border: 240 10% 10%;
+  --input: 0 0% 100%;
+  --primary: 350 80% 59%;
+  --primary-hover: 350 80% 52%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 100%;
+  --secondary-hover: 0 0% 96%;
+  --secondary-foreground: 240 10% 10%;
+  --accent: 46 100% 68%;
+  --accent-foreground: 240 10% 10%;
+  --destructive: 351 85% 44%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 350 80% 59%;
+  --success: 173 56% 57%;
+  --success-foreground: 240 10% 10%;
+  --warning: 31 100% 47%;
+  --warning-foreground: 240 10% 10%;
+  --complementary: 173 56% 57%;
+  --complementary-foreground: 240 10% 10%;
+  --sidebar: 0 0% 100%;
+  --radius: 0.75rem;
+  --font-display: "Archivo Black", "Arial Black", sans-serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --nb-radius: 0.75rem;
+  --nb-border-width: 2px;
+  --nb-shadow-x: 4px;
+  --nb-shadow-y: 4px;
+  --nb-grid-size: 32px;
+  --nb-grid-alpha: 0.05;
+  --nb-glitch-opacity: 0;
+  --shell-accent-a: transparent;
+  --shell-accent-b: transparent;
+  --shell-stripe-opacity: 0;
+  --route-panel-tilt: 0deg;
+}
+
+:root[data-style-mode="nb-b"] {
+  --background: 240 4% 97%;
+  --foreground: 240 10% 8%;
+  --muted: 0 0% 100%;
+  --muted-foreground: 240 10% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 8%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 8%;
+  --border: 240 10% 8%;
+  --input: 0 0% 100%;
+  --primary: 350 80% 59%;
+  --primary-hover: 350 80% 52%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 100%;
+  --secondary-hover: 0 0% 96%;
+  --secondary-foreground: 240 10% 8%;
+  --accent: 46 100% 68%;
+  --accent-foreground: 240 10% 8%;
+  --destructive: 351 85% 44%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 350 80% 59%;
+  --success: 173 56% 57%;
+  --success-foreground: 240 10% 8%;
+  --warning: 31 100% 47%;
+  --warning-foreground: 240 10% 8%;
+  --complementary: 173 56% 57%;
+  --complementary-foreground: 240 10% 8%;
+  --sidebar: 0 0% 100%;
+  --radius: 0.75rem;
+  --font-display: "Archivo Black", "Arial Black", sans-serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --nb-radius: 0.75rem;
+  --nb-border-width: 2px;
+  --nb-shadow-x: 4px;
+  --nb-shadow-y: 4px;
+  --nb-grid-size: 32px;
+  --nb-grid-alpha: 0.05;
+  --nb-glitch-opacity: 0;
+  --shell-accent-a: transparent;
+  --shell-accent-b: transparent;
+  --shell-stripe-opacity: 0;
+  --route-panel-tilt: 0deg;
+}
+
+/* Override bahasa brutalist — berlaku untuk nb-a dan nb-b. */
+[data-style-mode="nb-a"] .shadow-brutal,
+[data-style-mode="nb-b"] .shadow-brutal,
+[data-style-mode="nb-a"] .shadow-md,
+[data-style-mode="nb-b"] .shadow-md {
+  box-shadow: 4px 4px 0 hsl(var(--foreground));
+}
+[data-style-mode="nb-a"] .shadow-brutal-sm,
+[data-style-mode="nb-b"] .shadow-brutal-sm,
+[data-style-mode="nb-a"] .shadow-sm,
+[data-style-mode="nb-b"] .shadow-sm,
+[data-style-mode="nb-a"] .shadow,
+[data-style-mode="nb-b"] .shadow {
+  box-shadow: 2px 2px 0 hsl(var(--foreground));
+}
+[data-style-mode="nb-a"] .shadow-brutal-lg,
+[data-style-mode="nb-b"] .shadow-brutal-lg,
+[data-style-mode="nb-a"] .shadow-lg,
+[data-style-mode="nb-b"] .shadow-lg,
+[data-style-mode="nb-a"] .shadow-xl,
+[data-style-mode="nb-b"] .shadow-xl {
+  box-shadow: 6px 6px 0 hsl(var(--foreground));
+}
+
+/* Semua teks UI/detail weight 800 (Manrope + JetBrains Mono sudah
+   memuat 800; Archivo Black tidak terpengaruh bobot). */
+[data-style-mode="nb-a"] :is(.font-medium, .font-semibold, .font-bold, .font-extrabold, .font-black),
+[data-style-mode="nb-b"] :is(.font-medium, .font-semibold, .font-bold, .font-extrabold, .font-black) {
+  font-weight: 800;
+}
+
+/* Border 2px tinta di semua kartu/kontrol (bahasa mockup); border-b/t
+   (pemisah) tetap 1px. */
+[data-style-mode="nb-a"] .border,
+[data-style-mode="nb-b"] .border {
+  border-width: 2px;
+}
+
+/* Sudut membulat mockup: kartu 12px, tombol/pill/kotak ikon 10px
+   (bukan lingkaran penuh — dot kecil 8-12px tetap bulat karena
+   radius ter-clamp ke setengah ukuran). */
+[data-style-mode="nb-a"] .rounded-full,
+[data-style-mode="nb-b"] .rounded-full {
+  border-radius: 10px;
+}
+[data-style-mode="nb-a"] :is(.rounded-\[20px\], .rounded-\[18px\], .rounded-\[16px\]),
+[data-style-mode="nb-b"] :is(.rounded-\[20px\], .rounded-\[18px\], .rounded-\[16px\]) {
+  border-radius: 12px;
+}
+[data-style-mode="nb-a"] .rounded-\[24px\],
+[data-style-mode="nb-b"] .rounded-\[24px\] {
+  border-radius: 16px;
+}
+
+/* Hover abu (bukan putih) di mode nb — hover:bg-muted default = putih. */
+[data-style-mode="nb-a"] .hover\:bg-muted:hover,
+[data-style-mode="nb-b"] .hover\:bg-muted:hover {
+  background-color: #E8E8E3;
+}
+
+/* Stroke tinta 0.6px untuk nama ONU + angka RX (aturan 9). */
+.nb-stroke {
+  -webkit-text-stroke: 0.6px hsl(var(--foreground));
+}
+
+/* Grid 32px di kolom konten (aturan 6). */
+[data-style-mode="nb-a"] .nb-grid-surface,
+[data-style-mode="nb-b"] .nb-grid-surface {
+  background-image:
+    linear-gradient(to right, hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Topbar putih solid di mode nb (bukan cyan/transparan). */
+[data-style-mode="nb-a"] .topbar-surface,
+[data-style-mode="nb-b"] .topbar-surface {
+  background-color: hsl(var(--card));
+}
+
+/* Lapisan ornamen 2D datar di belakang konten (aturan 6). */
+.nb-decor {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.nb-decor span {
+  position: absolute;
+  display: block;
+}
+.nb-decor svg {
+  display: block;
+}

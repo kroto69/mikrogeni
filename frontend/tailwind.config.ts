@@ -53,6 +53,15 @@ export default {
           DEFAULT: "hsl(var(--complementary))",
           foreground: "hsl(var(--complementary-foreground))",
         },
+        // Warna jenuh neo-brutalism (mockup 2026-11-17, bersama A+B).
+        nb: {
+          mint: "#54CFC0",
+          butter: "#FFD95C",
+          red: "#D0112D",
+          orange: "#F07C00",
+          accent: "#EA435F",
+          grey: "#E8E8E3",
+        },
         // Blok pastel (mockup v29/v30) — sama di light + dark, jadi hex
         // mentah, bukan token HSL yang berubah per mode.
         pastel: {

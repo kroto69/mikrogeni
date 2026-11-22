@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ThemePicker } from "@/components/layout/ThemePicker";
 import LoginLogo from "@/images/logo.png";
 
 const LOGIN_IMAGE_SOURCE = "/images/login-cover.png";
@@ -54,6 +55,10 @@ export default function Login() {
   return (
     <div className="route-shell route-shell-login relative flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-sm space-y-3">
+        <div className="flex items-center justify-center gap-2">
+          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Tema</span>
+          <ThemePicker showLabel />
+        </div>
         {showLoginImage ? (
           <div className="route-shell-panel overflow-hidden rounded-lg border-2 border-border bg-card shadow-brutal-sm">
             <img

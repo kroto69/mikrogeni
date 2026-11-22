@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import BottomNav from "@/components/layout/BottomNav";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
+import { NbDecor } from "@/components/layout/NbDecor";
 import { cn } from "@/lib/utils";
 
 /**
@@ -128,16 +129,19 @@ export default function MainLayout() {
       <div className="xl:pl-72">
         <div className="min-h-screen flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="flex min-h-full flex-col bg-background/90">
-              <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
-              <main className="neo-shell flex flex-1 justify-center px-3 pb-24 pt-4 sm:px-6 sm:py-6 xl:px-8 xl:pb-6">
-                <div className="route-shell route-shell-app w-full max-w-[1760px]">
-                  <Suspense fallback={<PageSkeleton />}>
-                    <Outlet />
-                  </Suspense>
-                </div>
-              </main>
-              <BottomNav onMenuClick={() => setIsSidebarOpen(true)} />
+            <div className="nb-grid-surface relative flex min-h-full flex-col bg-background/90">
+              <NbDecor />
+              <div className="relative z-10 flex min-h-full flex-1 flex-col">
+                <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
+                <main className="neo-shell flex flex-1 justify-center px-3 pb-24 pt-4 sm:px-6 sm:py-6 xl:px-8 xl:pb-6">
+                  <div className="route-shell route-shell-app w-full max-w-[1760px]">
+                    <Suspense fallback={<PageSkeleton />}>
+                      <Outlet />
+                    </Suspense>
+                  </div>
+                </main>
+                <BottomNav onMenuClick={() => setIsSidebarOpen(true)} />
+              </div>
             </div>
           </div>
         </div>

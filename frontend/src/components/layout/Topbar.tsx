@@ -3,8 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { isNbStyle } from "@/lib/nb";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ThemePicker } from "@/components/layout/ThemePicker";
 import { NotifIcon } from "@/components/icons/NotifIcon";
 import { api } from "@/lib/api";
 import { createPortal } from "react-dom";
@@ -26,7 +28,10 @@ type TopbarProps = {
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, styleMode } = useTheme();
+  // Tema neo-brutalism light-only — toggle gelap/terang disembunyikan
+  // selama mode nb (tetap tersedia saat kembali ke Pastel).
+  const nb = isNbStyle(styleMode);
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
 
@@ -77,9 +82,12 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
-          <Button variant="outline" size="icon" aria-label={theme === "dark" ? "Ganti ke mode terang" : "Ganti ke mode gelap"} title={theme === "dark" ? "Mode terang" : "Mode gelap"} className="h-9 w-9 sm:h-10 sm:w-10" onClick={toggleTheme}>
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          <ThemePicker />
+          {!nb ? (
+            <Button variant="outline" size="icon" aria-label={theme === "dark" ? "Ganti ke mode terang" : "Ganti ke mode gelap"} title={theme === "dark" ? "Mode terang" : "Mode gelap"} className="h-9 w-9 sm:h-10 sm:w-10" onClick={toggleTheme}>
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          ) : null}
           <div className="relative" ref={bellRef}>
             <Button variant="outline" size="icon" aria-label="Notifications" className="h-9 w-9 sm:h-10 sm:w-10" onClick={() => setBellOpen((v) => !v)}>
               <NotifIcon className="h-4 w-4" />
