@@ -13,7 +13,7 @@
 //  6. Background grid 32px + ornamen 2D datar (bukan isometrik/3D).
 //  7. Teks BOLD (weight 800; nama/RX angka Archivo Black).
 //  8. Teks detail HITAM PEKAT (tanpa abu MUTED, tanpa opacity).
-//  9. Nama ONU + angka RX besar + -webkit-text-stroke 0.6px tinta.
+//  9. Nama ONU + angka RX besar + -webkit-text-stroke 0.3px tinta (0.6px terlalu tebal, 2026-11-22).
 //
 // Warna jenuh bersama kedua arah (token Tailwind `nb-*`, lihat
 // tailwind.config.ts); tinta/permukaan mengikuti --foreground/--card

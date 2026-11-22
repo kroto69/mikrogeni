@@ -60,7 +60,7 @@ function InfoCell({ label, children, mono }: { label: string; children: React.Re
   return (
     <div className="border-b border-border/60 py-2.5 last:border-b-0">
       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-sm font-semibold text-foreground ${mono ? 'break-all font-mono text-[13px]' : ''}`}>{children}</p>
+      <p className={`mt-1 text-sm font-semibold text-foreground ${mono ? 'break-all font-mono text-[14px]' : ''}`}>{children}</p>
     </div>
   )
 }

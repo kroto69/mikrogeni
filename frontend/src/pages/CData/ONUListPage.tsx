@@ -47,7 +47,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-border/60 py-2.5 last:border-b-0">
       <span className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
-      <span className="text-right font-mono text-[13px] font-semibold text-foreground">{value}</span>
+      <span className="text-right font-mono text-[14px] font-semibold text-foreground">{value}</span>
     </div>
   )
 }
@@ -292,11 +292,11 @@ export default function CDataONUListPage() {
                       </IconDisc>
                       <div className="min-w-0 flex-1">
                         <p className={nb ? "truncate nb-stroke font-display text-[18px] sm:text-[20px] font-bold tracking-[-0.01em]" : "truncate font-display text-[17px] font-bold tracking-[-0.01em]"}>{o.name || `ONU ${o.onuId}`}</p>
-                        <p className={`mt-0.5 truncate font-mono text-[11px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+                        <p className={`mt-0.5 truncate font-mono text-[12px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                           ID {o.pon}/{o.onuId} · PON {o.pon}
                         </p>
                       </div>
-                      <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
+                      <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
                         <p className="truncate">{o.serialNumber || '-'}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -309,7 +309,7 @@ export default function CDataONUListPage() {
                         <RxBig rx={o.rxPower === 0 ? null : o.rxPower.toFixed(2)} metaClass={ONU_ROW_META[tone]} />
                       </div>
                     </div>
-                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[13px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                       <p className="truncate text-[#131313]">{o.serialNumber || '-'}</p>
                     </div>
                   </button>

@@ -258,11 +258,11 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
               </IconDisc>
               <div className="min-w-0 flex-1">
                 <p className={nb ? "truncate nb-stroke font-display text-[18px] sm:text-[20px] font-bold tracking-[-0.01em]" : "truncate font-display text-[17px] font-bold tracking-[-0.01em]"}>{row.nama}</p>
-                <p className={`mt-0.5 truncate font-mono text-[11px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+                <p className={`mt-0.5 truncate font-mono text-[12px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                   ID {row.id} · PON {row.raw.pon}
                 </p>
               </div>
-              <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
+              <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
                 <p className="truncate">{row.sn}</p>
                 <p className={nb ? NB_ROW_META : ONU_ROW_META[tone]}>BOARD {row.raw.board}</p>
               </div>
@@ -276,7 +276,7 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
                 <RxBig rx={row.rx === 'NONE' ? null : row.rx} metaClass={ONU_ROW_META[tone]} />
               </div>
             </div>
-            <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[13px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+            <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
               <p className="truncate text-[#131313]">{row.sn}</p>
               <p>BOARD {row.raw.board}</p>
             </div>

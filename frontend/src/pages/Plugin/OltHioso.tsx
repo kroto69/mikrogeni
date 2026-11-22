@@ -881,14 +881,14 @@ export default function OltHiosoPage() {
                       </IconDisc>
                       <div className="min-w-0 flex-1">
                         <p className={nb ? "truncate nb-stroke font-display text-[18px] sm:text-[20px] font-bold tracking-[-0.01em]" : "truncate font-display text-[17px] font-bold tracking-[-0.01em]"}>{onu.name || "ONU"}</p>
-                        <p className={`mt-0.5 truncate font-mono text-[11px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+                        <p className={`mt-0.5 truncate font-mono text-[12px] ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                           IDX {onu.index} · PON {port}
                         </p>
                       </div>
-                      <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
+                      <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
                         <p className="truncate">SN {onu.sn || "-"}</p>
                       </div>
-                      <div className={`hidden font-mono font-bold leading-[1.7] lg:block ${nb ? 'text-[13px]' : 'text-xs'}`}>
+                      <div className={`hidden font-mono font-bold leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
                         <p>{tx != null ? `TX ${tx} dBm` : "TX —"}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -901,7 +901,7 @@ export default function OltHiosoPage() {
                         <RxBig rx={rx != null ? String(rx) : null} metaClass={ONU_ROW_META[tone]} />
                       </div>
                     </div>
-                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[13px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                       <p className="truncate text-[#131313]">SN {onu.sn || "-"}</p>
                       <p>{tx != null ? `TX ${tx} dBm` : "TX —"}</p>
                     </div>
@@ -1004,7 +1004,7 @@ export default function OltHiosoPage() {
                   {onuDetailQuery.data?.sn ? (
                     <div className="border-b border-border/60 py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Serial</p>
-                      <p className="mt-1 break-all font-mono text-[13px] font-semibold text-foreground">{onuDetailQuery.data.sn}</p>
+                      <p className="mt-1 break-all font-mono text-[14px] font-semibold text-foreground">{onuDetailQuery.data.sn}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.firmware ? (

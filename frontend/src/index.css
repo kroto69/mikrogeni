@@ -517,9 +517,9 @@ button {
   background-color: #E8E8E3;
 }
 
-/* Stroke tinta 0.6px untuk nama ONU + angka RX (aturan 9). */
+/* Stroke tinta 0.3px untuk nama ONU + angka RX (aturan 9; 0.6px terlalu tebal). */
 .nb-stroke {
-  -webkit-text-stroke: 0.6px hsl(var(--foreground));
+  -webkit-text-stroke: 0.3px hsl(var(--foreground));
 }
 
 /* Grid 32px di kolom konten (aturan 6). */
