@@ -866,7 +866,6 @@ export default function OltHiosoPage() {
                 const tone: OnuRowTone = online ? "online" : isLos ? "los" : "offline";
                 const iconTint = tone === "online" ? "text-pastel-mint" : tone === "los" ? "text-pastel-red" : "text-pastel-grey";
                 const rx = online ? onu.rx_power : null;
-                const tx = online ? onu.tx_power : null;
                 return (
                   <button
                     key={onu.index}
@@ -887,21 +886,23 @@ export default function OltHiosoPage() {
                       <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
                         <p className="truncate">SN {onu.sn || "-"}</p>
                       </div>
-                      <div className={`hidden font-mono font-bold leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
-                        <p>{tx != null ? `TX ${tx} dBm` : "TX —"}</p>
-                      </div>
                       <div className="flex shrink-0 flex-col items-end gap-0.5">
                         <div className="flex items-center gap-2.5">
-                          <OnuStatusPill label={(onu.status || "Unknown").toUpperCase()} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
+                          {/* Label DINORMALISASI dari tone (ONLINE/LOS/OFFLINE),
+                              BUKAN status mentah OLT ("Up"/"PwrDown"): pill nb
+                              memilih warna dari labelnya — "UP" tidak dikenal
+                              sehingga jatuh ke abu-abu offline padahal ONU-nya
+                              online. ZTE/CData sudah memakai label normal. */}
+                          <OnuStatusPill label={tone.toUpperCase()} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
                           <span className={nb ? "hidden h-8 w-8 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-8 w-8 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
                             <ArrowUpRight className="h-4 w-4" />
                           </span>
                         </div>
-                        <RxBig rx={rx != null ? String(rx) : null} metaClass={ONU_ROW_META[tone]} />
+                        <RxBig rx={rx != null ? rx.toFixed(2) : null} metaClass={ONU_ROW_META[tone]} />
                       </div>
                     </div>
                     <div className={`mt-1.5 border-t border-black/10 pt-1.5 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
-                      <p className="truncate text-[#131313]">SN {onu.sn || "-"} · {tx != null ? `TX ${tx} dBm` : "TX —"}</p>
+                      <p className="truncate text-[#131313]">SN {onu.sn || "-"}</p>
                     </div>
                   </button>
                 );
@@ -959,14 +960,17 @@ export default function OltHiosoPage() {
               <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-4 text-[#131313]" : "rounded-[20px] bg-pastel-mint p-4 text-[#131313]"}>
                 <div className="flex items-center justify-between gap-3">
                   <p className={nb ? "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-foreground" : "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]"}>RX Power</p>
+                  {/* Label dinormalisasi seperti di list: status mentah OLT
+                      ("Up") jangan ditampilkan langsung — pill nb memilih
+                      warna dari labelnya. */}
                   <OnuStatusPill
-                    label={(onuDetailQuery.data?.status || "-").toUpperCase()}
+                    label={detailOnline ? "ONLINE" : detailLos ? "LOS" : "OFFLINE"}
                     textClass={detailOnline ? "text-pastel-mint" : detailLos ? "text-pastel-red" : "text-pastel-grey"}
                     dotClass={detailOnline ? "bg-pastel-mint" : detailLos ? "bg-pastel-red" : "bg-pastel-grey"}
                   />
                 </div>
                 <div className="mt-1.5 flex items-baseline gap-2">
-                  <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detailRx != null ? detailRx : "−"}</span>
+                  <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detailRx != null ? detailRx.toFixed(2) : "−"}</span>
                   <span className="font-mono text-sm font-bold">dBm</span>
                   {detailQuality.label !== "-" ? (
                     <span className="ml-auto">
@@ -982,7 +986,7 @@ export default function OltHiosoPage() {
                 <div className="mt-3 flex gap-2.5">
                   <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3"}>
                     <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]"}>TX Power</p>
-                    <p className="mt-1 font-mono text-[15px] font-bold">{detailOnline && onuDetailQuery.data?.tx_power != null ? `${onuDetailQuery.data.tx_power} dBm` : "−"}</p>
+                    <p className="mt-1 font-mono text-[15px] font-bold">{detailOnline && onuDetailQuery.data?.tx_power != null ? `${onuDetailQuery.data.tx_power.toFixed(2)} dBm` : "−"}</p>
                   </div>
                   <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3"}>
                     <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]"}>Suhu</p>

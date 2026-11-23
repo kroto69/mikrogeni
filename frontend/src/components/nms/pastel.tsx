@@ -125,7 +125,11 @@ export function RxBar({
 
 /** RX besar di list ONU, diletakkan di bawah pill status: label "RX"
     di samping angka (satu baris) agar kartu lebih pendek.
-    `rx` = angka terformat tanpa satuan (mis. "-24.50"); null = tidak ada data ("—").
+    `rx` = angka terformat 2 desimal tanpa satuan (mis. "-24.50");
+    null = tidak ada data ("—").
+    TX TIDAK ditampilkan di list (keputusan juragan 2026-11-23) — TX
+    hanya ada di popup detail. Sebelumnya sempat berpasangan RX/TX
+    di list Hioso (commit 4d5e1f6), lalu dihapus lagi.
     Neo-brutalism: angka 26px Archivo Black + stroke tinta 0.3px, label hitam pekat.
     Catatan: line-height HARUS menempel di utility text-nya
     (text-[26px]/none) — `leading-none` terpisah dibuang tailwind-merge

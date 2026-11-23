@@ -118,7 +118,7 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
           <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-4 text-[#131313]" : "rounded-[20px] bg-pastel-mint p-4 text-[#131313]"}>
             <p className={nb ? "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-foreground" : "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]"}>RX Power</p>
             <div className="mt-1.5 flex items-baseline gap-2">
-              <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detail.rxPower ? detail.rxPower : '—'}</span>
+              <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detail.rxPower ? detail.rxPower.toFixed(2) : '—'}</span>
               {detail.rxPower ? <span className="font-mono text-sm font-bold">dBm</span> : null}
               {quality && quality.label !== '-' ? (
                 <span className="ml-auto">
@@ -134,7 +134,7 @@ export function ZTEONUDetailModal({ onu, connId, onClose }: ZTEONUDetailModalPro
             <div className="mt-3 flex gap-2.5">
               <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3"}>
                 <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]"}>TX Power</p>
-                <p className="mt-1 font-mono text-[15px] font-bold">{detail.txPower ? `${detail.txPower} dBm` : '—'}</p>
+                <p className="mt-1 font-mono text-[15px] font-bold">{detail.txPower ? `${detail.txPower.toFixed(2)} dBm` : '—'}</p>
               </div>
               <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3"}>
                 <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]"}>Terakhir Online</p>
