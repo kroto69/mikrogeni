@@ -96,7 +96,7 @@ export default function MainLayout() {
   }, [isSidebarOpen]);
 
   return (
-    <div className="main-layout-surface neo-shell min-h-screen overflow-x-hidden bg-background font-body text-foreground">
+    <div className="main-layout-surface neo-shell min-h-screen overflow-x-clip bg-background font-body text-foreground">
       <div className="hidden xl:block">
         <Sidebar className="fixed inset-y-0 left-0 z-30 h-screen w-72 overflow-y-auto" />
       </div>
@@ -128,7 +128,7 @@ export default function MainLayout() {
 
       <div className="xl:pl-72">
         <div className="min-h-screen flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1 min-h-0">
             <div className="nb-grid-surface relative flex min-h-full flex-col bg-background/90">
               <NbDecor />
               <div className="relative z-10 flex min-h-full flex-1 flex-col">

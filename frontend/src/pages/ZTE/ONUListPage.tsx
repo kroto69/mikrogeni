@@ -134,7 +134,8 @@ function FilterToolbar({
     pon == null ? 'Pilih PON' : selectedPon?.description ? `PON ${pon}: ${selectedPon.description}` : `PON ${pon}`
 
   return (
-    <div className={nb ? `${NB_PANEL} p-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between` : "rounded-[20px] border bg-card p-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between"}>
+    <>
+    <div className={nb ? `${NB_PANEL} p-4` : "rounded-[20px] border bg-card p-4"}>
       <div className="w-full lg:w-auto">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Pilih Board &amp; Pon</p>
         <div className="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto">
@@ -172,17 +173,20 @@ function FilterToolbar({
         </div>
       </div>
 
-      <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-        <Input
-          placeholder="Search Name, SN..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-10 w-full min-w-0 text-sm font-medium lg:min-w-48"
-        />
-        <Button variant="outline" className="h-10 w-full shrink-0 whitespace-nowrap px-3 font-bold uppercase sm:w-auto" onClick={onRefresh}>
-          REFRESH
-        </Button>
-      </div>
+    </div>
+
+    {/* Search menempel di bawah Topbar saat scroll (Topbar juga sticky: 61px mobile / 73px sm / 96px md+). Jangan top-0, nanti tertutup Topbar. */}
+    <div className={nb ? `${NB_PANEL} sticky top-[61px] sm:top-[73px] md:top-[96px] z-20 flex gap-2 p-2` : "rounded-[20px] border bg-card sticky top-[61px] sm:top-[73px] md:top-[96px] z-20 flex gap-2 p-2"}>
+      <Input
+        placeholder="Search Name, SN..."
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
+        className="h-10 min-w-0 flex-1 text-sm font-medium"
+      />
+      <Button variant="outline" className="h-10 shrink-0 whitespace-nowrap px-3 font-bold uppercase" onClick={onRefresh}>
+        REFRESH
+      </Button>
+    </div>
 
       <PickerPopup
         open={pickerOpen != null}
@@ -206,7 +210,7 @@ function FilterToolbar({
         }}
         onClose={() => setPickerOpen(null)}
       />
-    </div>
+    </>
   )
 }
 
@@ -250,10 +254,10 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
             key={`${row.id}-${row.sn}`}
             type="button"
             onClick={() => onViewDetail(row)}
-            className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${nb ? NB_ROW_BG : ONU_ROW_BG[tone]}`}
+            className={`w-full rounded-[18px] px-4 py-2 text-left text-[#131313] transition-opacity hover:opacity-90 ${nb ? NB_ROW_BG : ONU_ROW_BG[tone]}`}
           >
             <div className="flex items-center gap-3">
-              <IconDisc iconClass={iconTint} className="h-11 w-11">
+              <IconDisc iconClass={iconTint} className="h-10 w-10">
                 <Monitor className="h-5 w-5" />
               </IconDisc>
               <div className="min-w-0 flex-1">
@@ -266,19 +270,18 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
                 <p className="truncate">{row.sn}</p>
                 <p className={nb ? NB_ROW_META : ONU_ROW_META[tone]}>BOARD {row.raw.board}</p>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
                 <div className="flex items-center gap-2.5">
                   <OnuStatusPill label={label} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
-                  <span className={nb ? "hidden h-9 w-9 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
+                  <span className={nb ? "hidden h-8 w-8 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-8 w-8 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
                     <ArrowUpRight className="h-4 w-4" />
                   </span>
                 </div>
                 <RxBig rx={row.rx === 'NONE' ? null : row.rx} metaClass={ONU_ROW_META[tone]} />
               </div>
             </div>
-            <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
-              <p className="truncate text-[#131313]">{row.sn}</p>
-              <p>BOARD {row.raw.board}</p>
+            <div className={`mt-1.5 border-t border-black/10 pt-1.5 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+              <p className="truncate text-[#131313]">{row.sn} · BOARD {row.raw.board}</p>
             </div>
           </button>
         )

@@ -251,15 +251,19 @@ export default function CDataONUListPage() {
               </span>
               <ChevronDown className="h-4 w-4 shrink-0" />
             </Button>
+          </div>
+
+          {/* Search menempel di bawah Topbar saat scroll (Topbar juga sticky: 61px mobile / 73px sm / 96px md+). Jangan top-0, nanti tertutup Topbar. */}
+          <div className={nb ? `${NB_PANEL} sticky top-[61px] sm:top-[73px] md:top-[96px] z-20 flex gap-2 p-2` : "rounded-[20px] border bg-card sticky top-[61px] sm:top-[73px] md:top-[96px] z-20 flex gap-2 p-2"}>
             <Input
-              className="h-11 min-w-0 flex-1"
+              className="h-10 min-w-0 flex-1"
               placeholder="Cari nama / MAC / ONU…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <Button
               variant="outline"
-              className="h-11 shrink-0 gap-2"
+              className="h-10 shrink-0 gap-2"
               onClick={() => void refetchList()}
               disabled={!selectedPon || listLoading}
             >
@@ -284,10 +288,10 @@ export default function CDataONUListPage() {
                     key={o.onuId}
                     type="button"
                     onClick={() => setSelectedOnu(o)}
-                    className={`w-full rounded-[18px] p-4 text-left text-[#131313] transition-opacity hover:opacity-90 ${nb ? NB_ROW_BG : ONU_ROW_BG[tone]}`}
+                    className={`w-full rounded-[18px] px-4 py-2 text-left text-[#131313] transition-opacity hover:opacity-90 ${nb ? NB_ROW_BG : ONU_ROW_BG[tone]}`}
                   >
                     <div className="flex items-center gap-3">
-                      <IconDisc iconClass={iconTint} className="h-11 w-11">
+                      <IconDisc iconClass={iconTint} className="h-10 w-10">
                         <Monitor className="h-5 w-5" />
                       </IconDisc>
                       <div className="min-w-0 flex-1">
@@ -299,17 +303,17 @@ export default function CDataONUListPage() {
                       <div className={`hidden min-w-0 flex-1 font-mono leading-[1.7] lg:block ${nb ? 'text-[14px]' : 'text-xs'}`}>
                         <p className="truncate">{o.serialNumber || '-'}</p>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
+                      <div className="flex shrink-0 flex-col items-end gap-0.5">
                         <div className="flex items-center gap-2.5">
                           <OnuStatusPill label={label} textClass={ONU_PILL_TEXT[tone]} dotClass={ONU_PILL_DOT[tone]} />
-                          <span className={nb ? "hidden h-9 w-9 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-9 w-9 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
+                          <span className={nb ? "hidden h-8 w-8 items-center justify-center rounded-[10px] border-2 border-border bg-white text-foreground shadow-brutal-sm sm:flex" : "hidden h-8 w-8 items-center justify-center rounded-full bg-[#131313] text-[#f5f5f5] sm:flex"}>
                             <ArrowUpRight className="h-4 w-4" />
                           </span>
                         </div>
                         <RxBig rx={o.rxPower === 0 ? null : o.rxPower.toFixed(2)} metaClass={ONU_ROW_META[tone]} />
                       </div>
                     </div>
-                    <div className={`mt-3 space-y-1 border-t border-black/10 pt-3 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
+                    <div className={`mt-1.5 border-t border-black/10 pt-1.5 font-mono lg:hidden ${nb ? 'text-[14px]' : 'text-xs'} ${nb ? NB_ROW_META : ONU_ROW_META[tone]}`}>
                       <p className="truncate text-[#131313]">{o.serialNumber || '-'}</p>
                     </div>
                   </button>

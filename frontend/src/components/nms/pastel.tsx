@@ -123,31 +123,35 @@ export function RxBar({
   );
 }
 
-/** RX besar di list ONU, diletakkan di bawah pill status: label kecil + angka besar.
+/** RX besar di list ONU, diletakkan di bawah pill status: label "RX"
+    di samping angka (satu baris) agar kartu lebih pendek.
     `rx` = angka terformat tanpa satuan (mis. "-24.50"); null = tidak ada data ("—").
-    Neo-brutalism: angka 26px Archivo Black + stroke tinta 0.6px, label hitam pekat. */
+    Neo-brutalism: angka 26px Archivo Black + stroke tinta 0.3px, label hitam pekat.
+    Catatan: line-height HARUS menempel di utility text-nya
+    (text-[26px]/none) — `leading-none` terpisah dibuang tailwind-merge
+    bila digabung cn() dengan text-[Npx]. */
 export function RxBig({ rx, metaClass }: { rx: string | null; metaClass?: string }) {
   const { styleMode } = useTheme();
   const nb = isNbStyle(styleMode);
   return (
-    <div className="text-right">
-      <p
+    <div className="flex items-baseline justify-end gap-1.5">
+      <span
         className={cn(
           "font-mono uppercase tracking-[0.12em]",
-          nb ? "text-[11px] font-extrabold text-foreground" : cn("text-[10px] font-bold", metaClass),
+          nb ? "text-[11px]/none font-extrabold text-foreground" : cn("text-[10px]/none font-bold", metaClass),
         )}
       >
         RX
-      </p>
-      <p
+      </span>
+      <span
         className={cn(
-          "font-display leading-none tracking-[-0.01em]",
-          nb ? "nb-stroke text-[26px] font-bold" : "text-[22px] font-bold",
+          "font-display tracking-[-0.01em]",
+          nb ? "nb-stroke text-[26px]/none font-bold" : "text-[22px]/none font-bold",
         )}
       >
         {rx ?? "—"}
         {rx != null && <span className="ml-1 font-mono text-[11px] font-bold">dBm</span>}
-      </p>
+      </span>
     </div>
   );
 }
