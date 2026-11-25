@@ -128,6 +128,15 @@ function isOnuOnline(status?: string) {
   return normalized.includes("up") || normalized.includes("online") || normalized.includes("active");
 }
 
+// Online efektif: status mentah OLT bisa bilang "Up" padahal RX sudah 0
+// (status OLT ketinggalan setelah reboot). ONU tanpa sinyal optik bukan
+// online — tampil OFFLINE + RX "—" sampai sinyalnya balik. Dipakai di
+// list, filter, hitungan, dan popup detail supaya semuanya konsisten.
+function isHiosoOnuOnline(onu: { status?: string | null; rx_power?: number | null }) {
+  if (!isOnuOnline(onu.status ?? undefined)) return false;
+  return onu.rx_power != null && onu.rx_power !== 0;
+}
+
 // Kualitas sinyal RX: ambang sama seperti dulu (<-27 Buruk, <-25 Cukup,
 // sisanya Baik) — implementasi di lib/pastel (dipakai juga ZTE/C-Data).
 
@@ -548,7 +557,7 @@ export default function OltHiosoPage() {
           return true;
         }
 
-        return onuFilter === "online" ? isOnuOnline(onu.status) : !isOnuOnline(onu.status);
+        return onuFilter === "online" ? isHiosoOnuOnline(onu) : !isHiosoOnuOnline(onu);
       })
       .filter((onu) => {
         if (!term) {
@@ -569,12 +578,12 @@ export default function OltHiosoPage() {
     : onuDraftName.trim() !== "";
 
   // Nilai hero popup detail (v18): RX hanya bila online + ada datanya.
-  const detailOnline = isOnuOnline(onuDetailQuery.data?.status);
+  const detailOnline = isHiosoOnuOnline(onuDetailQuery.data ?? {});
   const detailLos = String(onuDetailQuery.data?.status ?? "").toLowerCase().includes("los");
   const detailRx = detailOnline && onuDetailQuery.data?.rx_power != null ? onuDetailQuery.data.rx_power : null;
   const detailQuality = rxQuality(detailRx);
 
-  const onlineCount = (onusQuery.data ?? []).filter((onu) => isOnuOnline(onu.status)).length;
+  const onlineCount = (onusQuery.data ?? []).filter((onu) => isHiosoOnuOnline(onu)).length;
   const totalCount = onusQuery.data?.length ?? 0;
   const downCount = Math.max(totalCount - onlineCount, 0);
   const healthOnline = Boolean(healthQuery.data?.model);
@@ -740,7 +749,12 @@ export default function OltHiosoPage() {
       ) : null}
 
       {selectedDeviceId ? (
-        <Card className="overflow-hidden">
+        // overflow-clip (BUKAN overflow-hidden): search bar di dalam Card ini
+        // pakai position: sticky — overflow-hidden membuat Card jadi scroll
+        // container sehingga sticky mati dan search tenggelam saat scroll.
+        // overflow: clip tetap memotong konten ke sudut rounded, tapi tidak
+        // membuat scroll container, jadi sticky tetap jalan.
+        <Card className="overflow-clip">
           <CardContent className="space-y-4 p-5">
             <div className="space-y-3">
               <div className="rounded-[18px] border border-border bg-card/90 px-4 py-3">
@@ -861,7 +875,7 @@ export default function OltHiosoPage() {
             <div className="flex flex-col gap-3">
               {filteredOnus.map((onu: HiosoOnuRow) => {
                 const { port } = parseOnuIndex(onu.index);
-                const online = isOnuOnline(onu.status);
+                const online = isHiosoOnuOnline(onu);
                 const isLos = String(onu.status ?? "").toLowerCase().includes("los");
                 const tone: OnuRowTone = online ? "online" : isLos ? "los" : "offline";
                 const iconTint = tone === "online" ? "text-pastel-mint" : tone === "los" ? "text-pastel-red" : "text-pastel-grey";
@@ -957,7 +971,7 @@ export default function OltHiosoPage() {
             </div>
           ) : (
             <>
-              <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-4 text-[#131313]" : "rounded-[20px] bg-pastel-mint p-4 text-[#131313]"}>
+              <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-3 text-[#131313] sm:p-4" : "rounded-[20px] bg-pastel-mint p-3 text-[#131313] sm:p-4"}>
                 <div className="flex items-center justify-between gap-3">
                   <p className={nb ? "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-foreground" : "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]"}>RX Power</p>
                   {/* Label dinormalisasi seperti di list: status mentah OLT
@@ -970,7 +984,7 @@ export default function OltHiosoPage() {
                   />
                 </div>
                 <div className="mt-1.5 flex items-baseline gap-2">
-                  <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detailRx != null ? detailRx.toFixed(2) : "−"}</span>
+                  <span className={nb ? "nb-stroke font-display text-[36px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{detailRx != null ? detailRx.toFixed(2) : "−"}</span>
                   <span className="font-mono text-sm font-bold">dBm</span>
                   {detailQuality.label !== "-" ? (
                     <span className="ml-auto">
@@ -984,11 +998,11 @@ export default function OltHiosoPage() {
                 </div>
                 <RxBar rx={detailRx} barColor={detailQuality.bar} className="mt-3" />
                 <div className="mt-3 flex gap-2.5">
-                  <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3"}>
+                  <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3 py-2.5 sm:px-3.5 sm:py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3 py-2.5 sm:px-3.5 sm:py-3"}>
                     <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]"}>TX Power</p>
                     <p className="mt-1 font-mono text-[15px] font-bold">{detailOnline && onuDetailQuery.data?.tx_power != null ? `${onuDetailQuery.data.tx_power.toFixed(2)} dBm` : "−"}</p>
                   </div>
-                  <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3"}>
+                  <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3 py-2.5 sm:px-3.5 sm:py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3 py-2.5 sm:px-3.5 sm:py-3"}>
                     <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]"}>Suhu</p>
                     <p className="mt-1 font-mono text-[15px] font-bold">{onuDetailQuery.data?.temperature != null ? `${onuDetailQuery.data.temperature} °C` : "−"}</p>
                   </div>
@@ -998,55 +1012,55 @@ export default function OltHiosoPage() {
               <div className="rounded-[20px] border bg-card px-4 py-2">
                 <div className="grid grid-cols-2 gap-x-4">
                   {onuDetailQuery.data?.web_id && onuDetailQuery.data.web_id !== onuDetailQuery.data.index ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Web ID</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.web_id}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.sn ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Serial</p>
                       <p className="mt-1 break-all font-mono text-[14px] font-semibold text-foreground">{onuDetailQuery.data.sn}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.firmware ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Firmware</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.firmware}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.chip_id ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Chip</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.chip_id}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.ports ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Ports</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.ports}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.voltage != null && onuDetailQuery.data.voltage > 0 ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Tegangan</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.voltage} V</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.bias_current != null && onuDetailQuery.data.bias_current > 0 ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Bias</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.bias_current} mA</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.registered_at ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Terdaftar</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.registered_at}</p>
                     </div>
                   ) : null}
                   {onuDetailQuery.data?.last_online_at ? (
-                    <div className="border-b border-border/60 py-2.5">
+                    <div className="border-b border-border/60 py-2 sm:py-2.5">
                       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Terakhir Online</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{onuDetailQuery.data.last_online_at}</p>
                     </div>
@@ -1061,13 +1075,13 @@ export default function OltHiosoPage() {
               <label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground" htmlFor="onu-name-input">Nama ONU</label>
               <span className="font-mono text-[11px] font-semibold tabular-nums text-muted-foreground">{onuDraftName.length}/30</span>
             </div>
-            <Input className="h-11" id="onu-name-input" maxLength={30} value={onuDraftName} onChange={(event) => setOnuDraftName(event.target.value)} />
+            <Input className="h-10 sm:h-11" id="onu-name-input" maxLength={30} value={onuDraftName} onChange={(event) => setOnuDraftName(event.target.value)} />
           </div>
 
           <div className="flex gap-2.5">
-            <Button className="h-11 flex-1" disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending || onuDetailQuery.isLoading || !isDetailNameChanged} type="submit">Simpan Nama</Button>
+            <Button className="h-10 flex-1 sm:h-11" disabled={renameOnuMutation.isPending || rebootOnuMutation.isPending || onuDetailQuery.isLoading || !isDetailNameChanged} type="submit">{renameOnuMutation.isPending ? "SAVING…" : "SAVE"}</Button>
             <Button
-              className="h-11 flex-1 gap-2"
+              className="h-10 flex-1 gap-2 sm:h-11"
               disabled={onuDetailQuery.isFetching || rebootOnuMutation.isPending || renameOnuMutation.isPending}
               onClick={() => {
                 void runWithGlobalLoader(async () => {
@@ -1087,10 +1101,10 @@ export default function OltHiosoPage() {
               variant="outline"
             >
               <RefreshCw aria-hidden="true" className={`h-4 w-4 ${onuDetailQuery.isFetching ? "animate-spin" : ""}`} />
-              Refresh
+              {onuDetailQuery.isFetching ? "Memuat…" : "Refresh"}
             </Button>
             <Button
-              className="h-11 flex-1"
+              className="h-10 flex-1 sm:h-11"
               disabled={!detailOnuIndex || rebootOnuMutation.isPending || renameOnuMutation.isPending}
               onClick={() => {
                 if (!detailOnuIndex) return;
@@ -1104,7 +1118,7 @@ export default function OltHiosoPage() {
               type="button"
               variant="destructive"
             >
-              {rebootArmed ? "Yakin reboot?" : "Reboot ONU"}
+              {rebootOnuMutation.isPending ? "Mengirim reboot…" : rebootArmed ? "Yakin reboot?" : "Reboot ONU"}
             </Button>
           </div>
         </form>

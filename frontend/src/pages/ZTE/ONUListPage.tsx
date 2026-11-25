@@ -227,7 +227,11 @@ function SectionHeader({ autoRefresh }: { autoRefresh: boolean }) {
 
 // Baris ONU bahasa pastel (v29): kartu penuh warna status, kolom
 // nama (+ ID · PON), SN, pill status besar + RX besar di bawahnya.
-function rowTone(status: DashboardRow['status']): { tone: OnuRowTone; label: string } {
+// Aturan yang sama seperti popup detail: status "online" tanpa sinyal
+// optik (rx 'NONE') = tidak online — OLT bisa bilang online padahal RX
+// sudah 0 setelah reboot. ONU tanpa RX tampil OFFLINE sampai sinyal balik.
+function rowTone(status: DashboardRow['status'], rx?: string): { tone: OnuRowTone; label: string } {
+  if (status === 'ONLINE' && rx === 'NONE') return { tone: 'offline', label: 'OFFLINE' }
   if (status === 'ONLINE') return { tone: 'online', label: 'ONLINE' }
   if (status === 'LOS') return { tone: 'los', label: 'LOS' }
   if (status === 'RANGING') return { tone: 'offline', label: 'RANGING' }
@@ -247,7 +251,7 @@ function DataTable({ rows, onViewDetail }: DataTableProps) {
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => {
-        const { tone, label } = rowTone(row.status)
+        const { tone, label } = rowTone(row.status, row.rx)
         const iconTint = tone === 'online' ? 'text-pastel-mint' : tone === 'los' ? 'text-pastel-red' : 'text-pastel-grey'
         return (
           <button

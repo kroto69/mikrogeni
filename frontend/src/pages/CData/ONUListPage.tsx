@@ -45,7 +45,7 @@ function formatRx(rx: number): string {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 py-2.5 last:border-b-0">
+    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 py-2 last:border-b-0 sm:py-2.5">
       <span className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
       <span className="text-right font-mono text-[14px] font-semibold text-foreground">{value}</span>
     </div>
@@ -56,7 +56,7 @@ function CDataONUDetailModal({ onu, connId, onClose }: { onu: CDataONUListItem; 
   const { styleMode } = useTheme()
   const nb = isNbStyle(styleMode)
   const [rebooting, setRebooting] = useState(false)
-  const { data: detail, isLoading, refetch } = useQuery({
+  const { data: detail, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['cdata-onu-detail', connId, onu.pon, onu.onuId],
     queryFn: () => getCDataONUDetail(connId, onu.pon, onu.onuId),
     staleTime: 30_000,
@@ -79,7 +79,11 @@ function CDataONUDetailModal({ onu, connId, onClose }: { onu: CDataONUListItem; 
   const d: CDataONUDetail | undefined = detail
   const rx = d?.rxPower ?? onu.rxPower
   const quality = rxQuality(rx)
-  const status = mapCDataStatus(d?.status ?? onu.status)
+  // Status "online" tanpa sinyal optik (rx 0) = tidak online.
+  const mappedStatus = mapCDataStatus(d?.status ?? onu.status)
+  const status = mappedStatus.tone === 'online' && rx === 0
+    ? { tone: 'offline' as const, label: 'OFFLINE' }
+    : mappedStatus
 
   return (
     <ZTEModal isOpen onClose={onClose} title={d?.name || onu.name || `ONU ${onu.onuId}`}>
@@ -88,10 +92,10 @@ function CDataONUDetailModal({ onu, connId, onClose }: { onu: CDataONUListItem; 
       ) : (
         <div className="space-y-4">
           {/* Hero sinyal (v18): angka RX besar + pill kualitas + satu bar tipis. */}
-          <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-4 text-[#131313]" : "rounded-[20px] bg-pastel-mint p-4 text-[#131313]"}>
+          <div className={nb ? "border-2 border-border bg-nb-mint shadow-brutal p-3 text-[#131313] sm:p-4" : "rounded-[20px] bg-pastel-mint p-3 text-[#131313] sm:p-4"}>
             <p className={nb ? "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-foreground" : "font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#4a5a50]"}>RX Power</p>
             <div className="mt-1.5 flex items-baseline gap-2">
-              <span className={nb ? "nb-stroke font-display text-[42px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{formatRx(rx)}</span>
+              <span className={nb ? "nb-stroke font-display text-[36px] sm:text-[50px] font-bold leading-none tracking-[-0.02em]" : "font-display text-4xl font-bold leading-none tracking-[-0.02em]"}>{formatRx(rx)}</span>
               {quality.label !== '-' ? (
                 <span className="ml-auto">
                   <OnuStatusPill
@@ -104,11 +108,11 @@ function CDataONUDetailModal({ onu, connId, onClose }: { onu: CDataONUListItem; 
             </div>
             <RxBar rx={rx} barColor={quality.bar} className="mt-3" />
             <div className="mt-3 flex gap-2.5">
-              <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3.5 py-3"}>
+              <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3 py-2.5 sm:px-3.5 sm:py-3" : "flex-1 rounded-[16px] bg-pastel-pink px-3 py-2.5 sm:px-3.5 sm:py-3"}>
                 <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b4a5c]"}>TX Power</p>
                 <p className="mt-1 font-mono text-[15px] font-bold">{d?.txPower ? `${d.txPower.toFixed(2)} dBm` : '-'}</p>
               </div>
-              <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3.5 py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3.5 py-3"}>
+              <div className={nb ? "flex-1 border-2 border-border bg-white shadow-brutal-sm px-3 py-2.5 sm:px-3.5 sm:py-3" : "flex-1 rounded-[16px] bg-pastel-yellow px-3 py-2.5 sm:px-3.5 sm:py-3"}>
                 <p className={nb ? "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-foreground" : "font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b5a2e]"}>Laser</p>
                 <p className="mt-1 font-mono text-[15px] font-bold">{d?.laserTxPower ? `${d.laserTxPower.toFixed(2)} dBm` : '-'}</p>
               </div>
@@ -127,10 +131,10 @@ function CDataONUDetailModal({ onu, connId, onClose }: { onu: CDataONUListItem; 
           </div>
 
           <div className="flex gap-2.5">
-            <Button className="h-11 flex-1" size="sm" variant="outline" onClick={() => void refetch()}>
-              ↻ Refresh
+            <Button className="h-10 flex-1 sm:h-11" size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching || rebooting}>
+              {isFetching ? 'Memuat…' : '↻ Refresh'}
             </Button>
-            <Button className="h-11 flex-1" size="sm" variant="destructive" onClick={handleReboot} disabled={rebooting}>
+            <Button className="h-10 flex-1 sm:h-11" size="sm" variant="destructive" onClick={handleReboot} disabled={rebooting || isFetching}>
               {rebooting ? 'Mengirim reboot…' : 'Reboot ONU'}
             </Button>
           </div>
@@ -281,7 +285,12 @@ export default function CDataONUListPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {rows.map((o) => {
-                const { tone, label } = mapCDataStatus(o.status)
+                // Aturan yang sama seperti ZTE/Hioso: status "online" tanpa
+                // sinyal optik (rxPower 0) = tidak online — tampil OFFLINE
+                // sampai sinyalnya balik (mis. setelah reboot).
+                const mapped = mapCDataStatus(o.status)
+                const tone = mapped.tone === 'online' && o.rxPower === 0 ? 'offline' as const : mapped.tone
+                const label = mapped.tone === 'online' && o.rxPower === 0 ? 'OFFLINE' : mapped.label
                 const iconTint = tone === 'online' ? 'text-pastel-mint' : tone === 'los' ? 'text-pastel-red' : 'text-pastel-grey'
                 return (
                   <button
